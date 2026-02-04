@@ -69,7 +69,7 @@ const Login = () => {
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
                         <HeartPulse size={40} className="text-white" />
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight">Danphe EMR</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Trikaar EMR</h1>
                     <p className="mt-2 text-blue-100">Next-Gen Hospital Management</p>
                 </div>
 

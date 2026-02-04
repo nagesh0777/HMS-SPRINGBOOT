@@ -61,7 +61,7 @@ const DashboardLayout = () => {
                 <div className="flex items-center justify-between h-20 px-6 border-b border-gray-100">
                     <div className="flex items-center gap-2 text-primary-600">
                         <HeartPulse className="h-8 w-8" />
-                        <span className="text-xl font-bold tracking-tight">Danphe EMR</span>
+                        <span className="text-xl font-bold tracking-tight">Trikaar EMR</span>
                     </div>
                     <button className="md:hidden p-2 text-gray-400" onClick={() => setIsSidebarOpen(false)}>
                         <X size={20} />

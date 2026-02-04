@@ -24,6 +24,9 @@ public class EmployeeController {
     @Autowired
     private com.danphe.emr.repository.EmployeeLogRepository logRepository;
 
+    @Autowired
+    private com.danphe.emr.repository.DoctorRepository doctorRepository;
+
     private String getCurrentUser() {
         org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication();
@@ -76,6 +79,25 @@ public class EmployeeController {
                     "CREATED",
                     getCurrentUser(),
                     "New staff member registered with role: " + saved.getRole()));
+
+            // 4. If Role is Doctor, create Doctor entity
+            if ("Doctor".equalsIgnoreCase(saved.getRole())) {
+                com.danphe.emr.model.Doctor d = new com.danphe.emr.model.Doctor();
+                d.setFullName(saved.getFirstName() + " " + saved.getLastName());
+                d.setDepartment(saved.getDepartment());
+                d.setPhoneNumber(saved.getPhoneNumber());
+                d.setEmail(saved.getEmail());
+                d.setIsActive(saved.getIsActive());
+                d.setEmployeeId(saved.getEmployeeId());
+                // Defaults
+                d.setStartTime("09:00");
+                d.setEndTime("17:00");
+
+                com.danphe.emr.model.Doctor savedDoc = doctorRepository.save(d);
+
+                saved.setDoctorId(savedDoc.getDoctorId());
+                employeeRepository.save(saved);
+            }
 
             return ResponseEntity.ok(DanpheHttpResponse.ok(saved));
         } catch (Exception e) {
