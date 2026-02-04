@@ -1,0 +1,22 @@
+# Helper files
+.history
+.vscode
+.idea
+*.log
+
+# Java Backend
+backend-java/target/
+backend-java/*.log
+backend-java/.mvn/wrapper/maven-wrapper.jar
+backend-java/help.md
+
+# Frontend
+frontend-modern/node_modules/
+frontend-modern/dist/
+frontend-modern/.env.local
+frontend-modern/.env.development.local
+frontend-modern/.env.test.local
+frontend-modern/.env.production.local
+frontend-modern/npm-debug.log*
+frontend-modern/yarn-debug.log*
+frontend-modern/yarn-error.log*
