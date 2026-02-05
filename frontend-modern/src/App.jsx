@@ -27,6 +27,9 @@ import StaffForm from './pages/staff/StaffForm';
 import Attendance from './pages/staff/Attendance';
 import StaffQR from './pages/staff/StaffQR';
 
+// Super Admin Modules
+import Hospitals from './pages/superadmin/Hospitals';
+
 
 
 // Configure Axios to include the token in all requests
@@ -54,6 +57,8 @@ function App() {
         {/* Protected Dashboard Routes */}
         <Route path="/dashboard" element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />}>
           <Route index element={<DashboardHome />} />
+
+          <Route path="hospitals" element={<Hospitals />} />
 
           {/* Patient Routes */}
           <Route path="patients" element={<PatientList />} />

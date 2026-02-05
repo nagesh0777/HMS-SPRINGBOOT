@@ -15,6 +15,7 @@ public class Attendance {
     private Integer attendanceId;
 
     private Integer employeeId;
+    private Integer hospitalId;
 
     // "ClockIn" or "ClockOut"
     private String type;

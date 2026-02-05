@@ -8,5 +8,7 @@ import java.util.List;
 
 @Repository
 public interface AttendanceRepository extends JpaRepository<Attendance, Integer> {
-    List<Attendance> findByEmployeeIdOrderByTimestampDesc(Integer employeeId);
+    List<Attendance> findByHospitalId(Integer hospitalId);
+
+    List<Attendance> findByHospitalIdAndEmployeeIdOrderByTimestampDesc(Integer hospitalId, Integer employeeId);
 }

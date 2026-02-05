@@ -1,6 +1,7 @@
 package com.danphe.emr.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
@@ -17,11 +18,18 @@ public class User {
 
     private Integer employeeId;
 
+    // Multi-tenancy
+    private Integer hospitalId;
+
+    @NotBlank(message = "Username is required")
     @Column(unique = true, nullable = false)
     private String userName;
 
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password; // In production this should be hashed (BCrypt)
 
+    @Email(message = "Invalid email format")
     private String email;
 
     private Boolean isActive;

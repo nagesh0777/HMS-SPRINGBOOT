@@ -1,0 +1,42 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: trikaar-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: trikaar_emr
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build: ./backend-java
+    container_name: trikaar-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/trikaar_emr?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - APP_JWT_SECRET=${JWT_SECRET:-9B7E3C5A2D8F614B09E273A5D4C1B098FE7D6C5B4A3928170D6E5F4C3B2A10985}
+      - APP_JWT_EXPIRATION_MS=86400000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend-modern
+    container_name: trikaar-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

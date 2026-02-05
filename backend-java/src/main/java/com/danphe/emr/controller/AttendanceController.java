@@ -5,6 +5,7 @@ import com.danphe.emr.model.DanpheHttpResponse;
 import com.danphe.emr.model.Employee;
 import com.danphe.emr.repository.AttendanceRepository;
 import com.danphe.emr.repository.EmployeeRepository;
+import com.danphe.emr.security.SecurityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,18 +28,24 @@ public class AttendanceController {
 
     @PostMapping("/ScanRecord")
     public ResponseEntity<?> recordAttendance(@RequestBody AttendanceRequest request) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
         Integer empId = request.getEmployeeId();
         if (empId == null) {
             return ResponseEntity.ok(DanpheHttpResponse.error("Employee ID is required."));
         }
 
-        Optional<Employee> empOpt = employeeRepository.findById(empId);
+        // Must find employee within same hospital
+        Optional<Employee> empOpt = employeeRepository.findByHospitalIdAndEmployeeId(hospitalId, empId);
         if (empOpt.isEmpty()) {
-            return ResponseEntity.ok(DanpheHttpResponse.error("Invalid Employee ID."));
+            return ResponseEntity.ok(DanpheHttpResponse.error("Invalid Employee ID for this hospital."));
         }
 
         Employee emp = empOpt.get();
-        List<Attendance> lastRecords = attendanceRepository.findByEmployeeIdOrderByTimestampDesc(emp.getEmployeeId());
+        List<Attendance> lastRecords = attendanceRepository
+                .findByHospitalIdAndEmployeeIdOrderByTimestampDesc(hospitalId, emp.getEmployeeId());
 
         String nextType = (request.getType() != null && !request.getType().isEmpty())
                 ? request.getType()
@@ -55,6 +62,7 @@ public class AttendanceController {
         }
 
         Attendance attendance = new Attendance();
+        attendance.setHospitalId(hospitalId);
         attendance.setEmployeeId(emp.getEmployeeId());
         attendance.setType(nextType);
 
@@ -71,27 +79,45 @@ public class AttendanceController {
 
     @GetMapping("/Employee/{id}")
     public ResponseEntity<?> getEmployeeAttendance(@PathVariable Integer id) {
-        return ResponseEntity.ok(DanpheHttpResponse.ok(attendanceRepository.findByEmployeeIdOrderByTimestampDesc(id)));
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        return ResponseEntity.ok(DanpheHttpResponse
+                .ok(attendanceRepository.findByHospitalIdAndEmployeeIdOrderByTimestampDesc(hospitalId, id)));
     }
 
     @GetMapping("/All")
     public ResponseEntity<?> getAllAttendance() {
-        return ResponseEntity.ok(DanpheHttpResponse.ok(attendanceRepository.findAll()));
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        return ResponseEntity.ok(DanpheHttpResponse.ok(attendanceRepository.findByHospitalId(hospitalId)));
     }
 
     @DeleteMapping("/ClearAll")
     public ResponseEntity<?> clearAllAttendance() {
-        attendanceRepository.deleteAll();
-        return ResponseEntity.ok(DanpheHttpResponse.ok("All records cleared."));
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        List<Attendance> list = attendanceRepository.findByHospitalId(hospitalId);
+        attendanceRepository.deleteAll(list);
+        return ResponseEntity.ok(DanpheHttpResponse.ok("Records for this hospital cleared."));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updateAttendance(@PathVariable Integer id, @RequestBody AttendanceRequest request) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
         if (id == null) {
             return ResponseEntity.ok(DanpheHttpResponse.error("ID cannot be null"));
         }
         Optional<Attendance> existingOpt = attendanceRepository.findById(id);
-        if (existingOpt.isEmpty()) {
+        if (existingOpt.isEmpty() || !hospitalId.equals(existingOpt.get().getHospitalId())) {
             return ResponseEntity.ok(DanpheHttpResponse.error("Record not found."));
         }
         Attendance existing = existingOpt.get();
@@ -109,11 +135,15 @@ public class AttendanceController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteAttendance(@PathVariable Integer id) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
         if (id == null) {
             return ResponseEntity.ok(DanpheHttpResponse.error("ID cannot be null"));
         }
         Optional<Attendance> existingOpt = attendanceRepository.findById(id);
-        if (existingOpt.isEmpty()) {
+        if (existingOpt.isEmpty() || !hospitalId.equals(existingOpt.get().getHospitalId())) {
             return ResponseEntity.ok(DanpheHttpResponse.error("Record not found."));
         }
         Attendance existing = existingOpt.get();

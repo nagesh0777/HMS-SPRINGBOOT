@@ -15,6 +15,8 @@ public class Admission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer patientAdmissionId;
 
+    private Integer hospitalId;
+
     private Integer patientVisitId;
     private Integer patientId;
     private Integer admittingDoctorId;

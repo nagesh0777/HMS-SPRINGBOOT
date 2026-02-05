@@ -11,6 +11,7 @@ public class EmployeeLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer logId;
+    private Integer hospitalId;
 
     private Integer employeeId;
     private String employeeName;
@@ -24,7 +25,9 @@ public class EmployeeLog {
     public EmployeeLog() {
     }
 
-    public EmployeeLog(Integer employeeId, String employeeName, String action, String performedBy, String details) {
+    public EmployeeLog(Integer hospitalId, Integer employeeId, String employeeName, String action, String performedBy,
+            String details) {
+        this.hospitalId = hospitalId;
         this.employeeId = employeeId;
         this.employeeName = employeeName;
         this.action = action;

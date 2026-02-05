@@ -2,11 +2,14 @@ package com.danphe.emr.controller;
 
 import com.danphe.emr.model.DanpheHttpResponse;
 import com.danphe.emr.model.Employee;
+import com.danphe.emr.model.EmployeeLog;
 import com.danphe.emr.repository.EmployeeRepository;
+import com.danphe.emr.security.SecurityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Nonnull;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -35,30 +38,51 @@ public class EmployeeController {
 
     @GetMapping("/Employees")
     public ResponseEntity<DanpheHttpResponse<List<Employee>>> getAllEmployees() {
-        return ResponseEntity.ok(DanpheHttpResponse.ok(employeeRepository.findAll()));
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Unauthorized: No hospital context."));
+        return ResponseEntity.ok(DanpheHttpResponse.ok(employeeRepository.findByHospitalId(hospitalId)));
     }
 
     @GetMapping("/Logs")
-    public ResponseEntity<DanpheHttpResponse<List<com.danphe.emr.model.EmployeeLog>>> getStaffLogs() {
-        return ResponseEntity.ok(DanpheHttpResponse.ok(logRepository.findAllByOrderByTimestampDesc()));
+    public ResponseEntity<DanpheHttpResponse<List<EmployeeLog>>> getStaffLogs() {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Unauthorized: No hospital context."));
+        return ResponseEntity.ok(DanpheHttpResponse.ok(logRepository.findByHospitalIdOrderByTimestampDesc(hospitalId)));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DanpheHttpResponse<Employee>> getEmployeeById(@PathVariable @Nonnull Integer id) {
-        return employeeRepository.findById(id)
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Unauthorized: No hospital context."));
+
+        return employeeRepository.findByHospitalIdAndEmployeeId(hospitalId, id)
                 .map(e -> ResponseEntity.ok(DanpheHttpResponse.ok(e)))
                 .orElse(ResponseEntity.ok(DanpheHttpResponse.error("Employee not found")));
     }
 
     @PostMapping
-    public ResponseEntity<DanpheHttpResponse<Employee>> addEmployee(@RequestBody Employee employee) {
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<DanpheHttpResponse<Employee>> addEmployee(@Valid @RequestBody Employee employee) {
         try {
+            Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+            if (hospitalId == null) {
+                // If SuperAdmin, they might need to specify a hospital, but for now we block
+                // with a message
+                return ResponseEntity.status(401).body(DanpheHttpResponse.error(
+                        "Authorization Error: No hospital context found. Please ensure you are logged in to a specific hospital."));
+            }
+
             // 1. Save Employee
+            employee.setHospitalId(hospitalId);
             Employee saved = employeeRepository.save(employee);
 
             // 2. Create corresponding User record for login
             if (saved.getUserName() != null && !saved.getUserName().trim().isEmpty()) {
                 com.danphe.emr.model.User user = new com.danphe.emr.model.User();
+                user.setHospitalId(hospitalId);
                 user.setUserName(saved.getUserName().trim());
 
                 String pwd = (employee.getPassword() != null && !employee.getPassword().trim().isEmpty())
@@ -73,7 +97,8 @@ public class EmployeeController {
             }
 
             // 3. Log Action
-            logRepository.save(new com.danphe.emr.model.EmployeeLog(
+            logRepository.save(new EmployeeLog(
+                    hospitalId,
                     saved.getEmployeeId(),
                     saved.getFirstName() + " " + saved.getLastName(),
                     "CREATED",
@@ -83,6 +108,7 @@ public class EmployeeController {
             // 4. If Role is Doctor, create Doctor entity
             if ("Doctor".equalsIgnoreCase(saved.getRole())) {
                 com.danphe.emr.model.Doctor d = new com.danphe.emr.model.Doctor();
+                d.setHospitalId(hospitalId);
                 d.setFullName(saved.getFirstName() + " " + saved.getLastName());
                 d.setDepartment(saved.getDepartment());
                 d.setPhoneNumber(saved.getPhoneNumber());
@@ -107,10 +133,15 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<DanpheHttpResponse<Employee>> updateEmployee(@PathVariable @Nonnull Integer id,
-            @RequestBody Employee details) {
+            @Valid @RequestBody Employee details) {
         try {
-            return employeeRepository.findById(id).map(existing -> {
+            Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+            if (hospitalId == null)
+                return ResponseEntity.status(401).body(DanpheHttpResponse.error("Unauthorized: No hospital context."));
+
+            return employeeRepository.findByHospitalIdAndEmployeeId(hospitalId, id).map(existing -> {
                 boolean statusSwitched = !existing.getIsActive().equals(details.getIsActive());
 
                 existing.setFirstName(details.getFirstName());
@@ -132,7 +163,7 @@ public class EmployeeController {
                 Employee saved = employeeRepository.save(existing);
 
                 // Update user credentials if needed
-                userRepository.findByEmployeeId(id).ifPresent(user -> {
+                userRepository.findByHospitalIdAndEmployeeId(hospitalId, id).ifPresent(user -> {
                     user.setUserName(saved.getUserName());
                     if (details.getPassword() != null && !details.getPassword().isEmpty()) {
                         user.setPassword(details.getPassword());
@@ -142,7 +173,8 @@ public class EmployeeController {
                 });
 
                 // Log Action
-                logRepository.save(new com.danphe.emr.model.EmployeeLog(
+                logRepository.save(new EmployeeLog(
+                        hospitalId,
                         saved.getEmployeeId(),
                         saved.getFirstName() + " " + saved.getLastName(),
                         statusSwitched ? "STATUS_CHANGED" : "UPDATED",
@@ -159,10 +191,16 @@ public class EmployeeController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<DanpheHttpResponse<String>> deleteEmployee(@PathVariable @Nonnull Integer id) {
-        return employeeRepository.findById(id).map(emp -> {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Unauthorized: No hospital context."));
+
+        return employeeRepository.findByHospitalIdAndEmployeeId(hospitalId, id).map(emp -> {
             // 1. Log before deleting
-            logRepository.save(new com.danphe.emr.model.EmployeeLog(
+            logRepository.save(new EmployeeLog(
+                    hospitalId,
                     emp.getEmployeeId(),
                     emp.getFirstName() + " " + emp.getLastName(),
                     "DELETED",
@@ -170,7 +208,10 @@ public class EmployeeController {
                     "Staff record and associated login account removed."));
 
             // 2. Delete User account first
-            userRepository.findByEmployeeId(id).ifPresent(u -> userRepository.delete(u));
+            userRepository.findByHospitalIdAndEmployeeId(hospitalId, id).ifPresent(u -> {
+                if (u != null)
+                    userRepository.delete(u);
+            });
 
             // 3. Delete Employee record
             employeeRepository.delete(emp);

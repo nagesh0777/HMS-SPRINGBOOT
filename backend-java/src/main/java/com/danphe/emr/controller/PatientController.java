@@ -3,6 +3,8 @@ package com.danphe.emr.controller;
 import com.danphe.emr.model.DanpheHttpResponse;
 import com.danphe.emr.model.Patient;
 import com.danphe.emr.repository.PatientRepository;
+import com.danphe.emr.security.SecurityUtil;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,20 +22,34 @@ public class PatientController {
     @GetMapping("")
     public ResponseEntity<?> getPatients(
             @RequestParam(required = false, defaultValue = "") String search) {
-        List<Patient> list = patientRepository.searchPatients("%" + search + "%");
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        List<Patient> list = patientRepository.searchPatients("%" + search + "%", hospitalId);
         return ResponseEntity.ok(DanpheHttpResponse.ok(list));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getPatientById(@PathVariable Integer id) {
-        return patientRepository.findById(id)
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        return patientRepository.findByHospitalIdAndPatientId(hospitalId, id)
                 .map(p -> ResponseEntity.ok(DanpheHttpResponse.ok(p)))
                 .orElse(ResponseEntity.ok(DanpheHttpResponse.error("Patient not found")));
     }
 
     @PostMapping("")
-    public ResponseEntity<?> registerPatient(@RequestBody Patient patient) {
+    public ResponseEntity<?> registerPatient(@Valid @RequestBody Patient patient) {
         try {
+            Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+            if (hospitalId == null)
+                return ResponseEntity.status(401).body("Hospital ID not found");
+
+            patient.setHospitalId(hospitalId);
+
             System.out.println("Registering patient: " + patient.getFirstName() + " " + patient.getLastName());
 
             Integer maxId = patientRepository.getMaxPatientId();
@@ -68,8 +84,12 @@ public class PatientController {
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updatePatient(@PathVariable @jakarta.annotation.Nonnull Integer id,
-            @RequestBody Patient patientDetails) {
-        return patientRepository.findById(id).map(existingPatient -> {
+            @Valid @RequestBody Patient patientDetails) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        return patientRepository.findByHospitalIdAndPatientId(hospitalId, id).map(existingPatient -> {
             existingPatient.setFirstName(patientDetails.getFirstName());
             existingPatient.setLastName(patientDetails.getLastName());
             existingPatient.setGender(patientDetails.getGender());

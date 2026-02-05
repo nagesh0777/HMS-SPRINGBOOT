@@ -9,10 +9,17 @@ const PatientList = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchPatients();
+        const delayDebounceFn = setTimeout(() => {
+            fetchPatients();
+        }, 500);
+
+        return () => clearTimeout(delayDebounceFn);
     }, [searchTerm]);
 
+    const [searching, setSearching] = useState(false);
+
     const fetchPatients = async () => {
+        setSearching(true);
         try {
             const response = await axios.get(`/api/Patient?search=${searchTerm}`);
             if (response.data.Results) {
@@ -20,6 +27,8 @@ const PatientList = () => {
             }
         } catch (error) {
             console.error("Error fetching patients:", error);
+        } finally {
+            setSearching(false);
         }
     };
 
@@ -38,7 +47,7 @@ const PatientList = () => {
 
             {/* Search Bar */}
             <div className="relative max-w-md">
-                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                <Search className={`absolute left-3 top-3 transition-colors ${searching ? 'text-primary-500 animate-pulse' : 'text-gray-400'}`} size={20} />
                 <input
                     type="text"
                     placeholder="Search by name, mobile, or code..."
@@ -46,6 +55,11 @@ const PatientList = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full rounded-xl border-gray-200 bg-white py-2.5 pl-10 pr-4 shadow-sm focus:border-primary-500 focus:ring-primary-500"
                 />
+                {searching && (
+                    <div className="absolute right-3 top-3">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+                    </div>
+                )}
             </div>
 
             {/* Patient Table */}

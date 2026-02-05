@@ -53,13 +53,52 @@ const StaffForm = () => {
         }
     };
 
+    const [errors, setErrors] = useState({});
+
+    const validate = () => {
+        const newErrors = {};
+        if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
+        if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
+        if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Invalid email format";
+
+        if (formData.phoneNumber) {
+            const phonePlain = formData.phoneNumber.replace(/\D/g, '');
+            if (phonePlain.length < 10 || phonePlain.length > 15) {
+                newErrors.phoneNumber = "Phone should be 10-15 digits";
+            }
+        }
+
+        if (!isEditMode) {
+            if (!formData.userName.trim() || formData.userName.length < 4) {
+                newErrors.userName = "Username must be at least 4 characters";
+            }
+            if (!formData.password || formData.password.length < 6) {
+                newErrors.password = "Password must be at least 6 characters";
+            }
+        } else {
+            // In edit mode, if password is provided, it must be >= 6 chars
+            if (formData.password && formData.password.length > 0 && formData.password.length < 6) {
+                newErrors.password = "New password must be at least 6 characters";
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+        // Clear error when user changes field
+        if (errors[name]) {
+            setErrors({ ...errors, [name]: '' });
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!validate()) return;
+
         setLoading(true);
         try {
             let res;
@@ -80,7 +119,7 @@ const StaffForm = () => {
             }
         } catch (error) {
             console.error(error);
-            alert("System Error: " + (error.response?.data?.message || "Server connection failed."));
+            alert("System Error: " + (error.response?.data?.ErrorMessage || error.response?.data?.message || "Server connection failed."));
         } finally {
             setLoading(false);
         }
@@ -120,9 +159,10 @@ const StaffForm = () => {
                                 required
                                 value={formData.firstName}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.firstName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder="e.g. John"
                             />
+                            {errors.firstName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.firstName}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Last Name</label>
@@ -132,9 +172,10 @@ const StaffForm = () => {
                                 required
                                 value={formData.lastName}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.lastName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder="e.g. Doe"
                             />
+                            {errors.lastName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.lastName}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Role</label>
@@ -168,9 +209,10 @@ const StaffForm = () => {
                                 name="phoneNumber"
                                 value={formData.phoneNumber}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.phoneNumber ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder="e.g. +1 234 567 890"
                             />
+                            {errors.phoneNumber && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.phoneNumber}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Official Email</label>
@@ -179,9 +221,10 @@ const StaffForm = () => {
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.email ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder="e.g. john.doe@hospital.com"
                             />
+                            {errors.email && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.email}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Status</label>
@@ -218,9 +261,10 @@ const StaffForm = () => {
                                 name="userName"
                                 value={formData.userName}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.userName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder="e.g. jdoe123"
                             />
+                            {errors.userName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.userName}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Login Password</label>
@@ -229,10 +273,11 @@ const StaffForm = () => {
                                 name="password"
                                 value={formData.password}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.password ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
                                 placeholder={isEditMode ? "•••••••• (Leave blank to keep current)" : "Enter login password"}
                                 required={!isEditMode}
                             />
+                            {errors.password && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.password}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Access Level</label>

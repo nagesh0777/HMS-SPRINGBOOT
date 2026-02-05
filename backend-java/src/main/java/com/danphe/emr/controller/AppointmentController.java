@@ -3,6 +3,7 @@ package com.danphe.emr.controller;
 import com.danphe.emr.model.Appointment;
 import com.danphe.emr.model.DanpheHttpResponse;
 import com.danphe.emr.repository.AppointmentRepository;
+import com.danphe.emr.security.SecurityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -28,17 +29,22 @@ public class AppointmentController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime ToDate,
             @RequestParam(required = false) Integer performerId) {
 
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
         List<Appointment> list;
         if (performerId != null) {
-            list = appointmentRepository.findByAppointmentDateBetweenAndPerformerId(FromDate, ToDate, performerId);
+            list = appointmentRepository.findByHospitalIdAndAppointmentDateBetweenAndPerformerId(hospitalId, FromDate,
+                    ToDate, performerId);
         } else {
-            list = appointmentRepository.findByAppointmentDateBetween(FromDate, ToDate);
+            list = appointmentRepository.findByHospitalIdAndAppointmentDateBetween(hospitalId, FromDate, ToDate);
         }
 
-        // Ensure patientCode etc are there for existing records
+        // Ensure patient details are snapshots
         for (Appointment apt : list) {
             if (apt.getPatientId() != null && (apt.getPatientCode() == null)) {
-                patientRepository.findById(apt.getPatientId()).ifPresent(p -> {
+                patientRepository.findByHospitalIdAndPatientId(hospitalId, apt.getPatientId()).ifPresent(p -> {
                     apt.setPatientCode(p.getPatientCode());
                     apt.setFirstName(p.getFirstName());
                     apt.setLastName(p.getLastName());
@@ -51,10 +57,17 @@ public class AppointmentController {
 
     @PostMapping("/AddAppointment")
     public ResponseEntity<?> addAppointment(@RequestBody Appointment appointment) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        appointment.setHospitalId(hospitalId);
+
         // Prevent double booking for same doctor at same time
         if (appointment.getPerformerId() != null) {
             java.util.Optional<Appointment> conflict = appointmentRepository
-                    .findByAppointmentDateAndPerformerIdAndAppointmentStatusNot(
+                    .findByHospitalIdAndAppointmentDateAndPerformerIdAndAppointmentStatusNot(
+                            hospitalId,
                             appointment.getAppointmentDate(),
                             appointment.getPerformerId(),
                             "cancelled");
@@ -66,7 +79,7 @@ public class AppointmentController {
 
         // Populate Patient Snapshot
         if (appointment.getPatientId() != null) {
-            patientRepository.findById(appointment.getPatientId()).ifPresent(p -> {
+            patientRepository.findByHospitalIdAndPatientId(hospitalId, appointment.getPatientId()).ifPresent(p -> {
                 appointment.setPatientCode(p.getPatientCode());
                 appointment.setFirstName(p.getFirstName());
                 appointment.setLastName(p.getLastName());

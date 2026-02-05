@@ -9,4 +9,8 @@ import java.util.List;
 @Repository
 public interface DoctorRepository extends JpaRepository<Doctor, Integer> {
     List<Doctor> findByIsActive(Boolean isActive);
+
+    List<Doctor> findByHospitalId(Integer hospitalId);
+
+    List<Doctor> findByHospitalIdAndIsActive(Integer hospitalId, Boolean isActive);
 }

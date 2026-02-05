@@ -31,7 +31,8 @@ const NewAdmission = () => {
 
     const fetchBeds = async () => {
         try {
-            await axios.post('/api/Adt/seed').catch(() => { });
+            // Seed if empty - REMOVED for production
+            // await axios.post('/api/Adt/seed').catch(() => { });
             const response = await axios.get('/api/Adt/Beds?status=available');
             if (response.data.Results) setBeds(response.data.Results);
         } catch (error) { console.error(error); }

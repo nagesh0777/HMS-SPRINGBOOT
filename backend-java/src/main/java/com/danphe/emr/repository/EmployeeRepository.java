@@ -8,7 +8,11 @@ import java.util.List;
 
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
-    List<Employee> findByIsActiveTrue();
+    List<Employee> findByHospitalId(Integer hospitalId);
 
-    List<Employee> findByRole(String role);
+    List<Employee> findByHospitalIdAndRole(Integer hospitalId, String role);
+
+    java.util.Optional<Employee> findByHospitalIdAndEmployeeId(Integer hospitalId, Integer employeeId);
+
+    java.util.Optional<Employee> findByUserName(String userName);
 }

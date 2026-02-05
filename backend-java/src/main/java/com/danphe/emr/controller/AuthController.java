@@ -4,6 +4,9 @@ import com.danphe.emr.model.DanpheHttpResponse;
 import com.danphe.emr.model.User;
 import com.danphe.emr.repository.UserRepository;
 import com.danphe.emr.security.JwtUtils;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -31,12 +34,16 @@ public class AuthController {
 
     // Login DTO - camelCase to match Modern Frontend Axios calls
     public static class LoginRequest {
+        @NotBlank(message = "Username is required")
         public String userName;
+
+        @NotBlank(message = "Password is required")
+        @Size(min = 6, message = "Password must be at least 6 characters")
         public String password;
     }
 
     @PostMapping("/GetLoginJwtToken")
-    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         try {
             String username = (loginRequest.userName != null) ? loginRequest.userName.trim() : "";
             String password = (loginRequest.password != null) ? loginRequest.password : "";
@@ -69,13 +76,16 @@ public class AuthController {
 
     @PostMapping("/seed")
     public ResponseEntity<?> seedUser() {
-        if (userRepository.findByUserName("admin").isPresent()) {
-            return ResponseEntity.badRequest().body("Admin already exists");
+        com.danphe.emr.model.User existing = userRepository.findByUserName("trikaar_admin").orElse(null);
+        if (existing != null) {
+            existing.setPassword("pass123");
+            userRepository.save(existing);
+            return ResponseEntity.ok("Trikaar Admin password reset to pass123");
         }
 
         // 1. Create Employee for Admin
         com.danphe.emr.model.Employee adminEmp = new com.danphe.emr.model.Employee();
-        adminEmp.setFirstName("System");
+        adminEmp.setFirstName("Trikaar");
         adminEmp.setLastName("Administrator");
         adminEmp.setRole("Admin");
         adminEmp.setDepartment("IT");
@@ -85,13 +95,14 @@ public class AuthController {
 
         // 2. Create User
         User user = new User();
-        user.setUserName("admin");
-        user.setPassword("pass123");
+        user.setUserName("trikaar_admin");
+        user.setPassword("trikaar_admin123"); // Updated to be more secure and compliant
         user.setEmployeeId(adminEmp.getEmployeeId());
         user.setIsActive(true);
-        user.setEmail("admin@danphe.com");
+        user.setHospitalId(null); // Seeded admin is global
+        user.setEmail("admin@trikaar.com");
         userRepository.save(user);
 
-        return ResponseEntity.ok("Admin user and employee seeded");
+        return ResponseEntity.ok("Trikaar Admin user and employee seeded successfully");
     }
 }

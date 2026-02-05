@@ -24,8 +24,8 @@ const DoctorManagement = () => {
 
     const fetchDoctors = async () => {
         try {
-            // Seed if empty
-            await axios.post('/api/Doctor/seed').catch(() => { });
+            // Seed if empty - REMOVED for production
+            // await axios.post('/api/Doctor/seed').catch(() => { });
 
             const response = await axios.get('/api/Doctor?isActive=true');
             if (response.data.Results) {

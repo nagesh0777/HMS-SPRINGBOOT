@@ -10,6 +10,7 @@ import {
     LogOut,
     Clock,
     Menu,
+    Building,
     X
 } from 'lucide-react';
 
@@ -22,6 +23,7 @@ const DashboardLayout = () => {
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+        { id: 'hospitals', label: 'Hospitals', icon: <Building size={20} />, path: '/dashboard/hospitals' }, // NEW
         { id: 'patients', label: 'Patients', icon: <Users size={20} />, path: '/dashboard/patients' },
         { id: 'appointments', label: 'Appointments', icon: <Calendar size={20} />, path: '/dashboard/appointments' },
         { id: 'adt', label: 'ADT', icon: <Bed size={20} />, path: '/dashboard/adt' },
@@ -30,6 +32,7 @@ const DashboardLayout = () => {
     ];
 
     const rolePermissions = {
+        'SuperAdmin': ['dashboard', 'hospitals'], // SuperAdmin only sees Dashboard & Hospitals
         'Admin': ['dashboard', 'patients', 'appointments', 'adt', 'staff', 'attendance'],
         'Doctor': ['dashboard', 'patients', 'appointments', 'adt'],
         'Helpdesk': ['dashboard', 'patients', 'appointments', 'attendance'],

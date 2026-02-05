@@ -10,11 +10,13 @@ import java.util.List;
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, Integer> {
 
-    List<Appointment> findByAppointmentDateBetween(LocalDateTime from, LocalDateTime to);
+        List<Appointment> findByHospitalIdAndAppointmentDateBetween(Integer hospitalId, LocalDateTime from,
+                        LocalDateTime to);
 
-    List<Appointment> findByAppointmentDateBetweenAndPerformerId(LocalDateTime from, LocalDateTime to,
-            Integer performerId);
+        List<Appointment> findByHospitalIdAndAppointmentDateBetweenAndPerformerId(Integer hospitalId,
+                        LocalDateTime from, LocalDateTime to,
+                        Integer performerId);
 
-    java.util.Optional<Appointment> findByAppointmentDateAndPerformerIdAndAppointmentStatusNot(LocalDateTime date,
-            Integer performerId, String status);
+        java.util.Optional<Appointment> findByHospitalIdAndAppointmentDateAndPerformerIdAndAppointmentStatusNot(
+                        Integer hospitalId, LocalDateTime date, Integer performerId, String status);
 }

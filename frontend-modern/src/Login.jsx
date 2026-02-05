@@ -13,6 +13,12 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         setError(""); // Clear previous errors
+
+        if (password.length < 6) {
+            setError("Password must be at least 6 characters long.");
+            return;
+        }
+
         try {
             console.log("Attempting login with:", username);
             const response = await axios.post("/api/Account/GetLoginJwtToken", {

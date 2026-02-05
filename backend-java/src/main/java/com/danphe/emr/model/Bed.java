@@ -12,6 +12,7 @@ public class Bed {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer bedId;
+    private Integer hospitalId;
 
     private String bedNumber;
     private String ward;

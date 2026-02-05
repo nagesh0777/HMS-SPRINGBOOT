@@ -54,6 +54,14 @@ const PatientRegistration = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Mobile Number Validation
+        const phoneRegex = /^[0-9]{10,15}$/;
+        if (!phoneRegex.test(formData.phoneNumber)) {
+            alert("Please enter a valid mobile number (10-15 digits).");
+            return;
+        }
+
         setLoading(true);
         try {
             if (isEditMode) {

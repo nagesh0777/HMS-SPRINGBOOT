@@ -14,6 +14,7 @@ public class UserDetailsImpl implements UserDetails {
     private Integer id;
     private Integer employeeId;
     private Integer doctorId;
+    private Integer hospitalId; // NEW
 
     private String username;
 
@@ -24,12 +25,14 @@ public class UserDetailsImpl implements UserDetails {
 
     private Collection<? extends GrantedAuthority> authorities;
 
-    public UserDetailsImpl(Integer id, Integer employeeId, Integer doctorId, String username, String password,
+    public UserDetailsImpl(Integer id, Integer employeeId, Integer doctorId, Integer hospitalId, String username,
+            String password,
             String role,
             Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.employeeId = employeeId;
         this.doctorId = doctorId;
+        this.hospitalId = hospitalId;
         this.username = username;
         this.password = password;
         this.role = role;
@@ -40,11 +43,13 @@ public class UserDetailsImpl implements UserDetails {
         String role = emp != null ? emp.getRole() : "Staff";
         Integer empId = emp != null ? emp.getEmployeeId() : user.getEmployeeId();
         Integer docId = emp != null ? emp.getDoctorId() : null;
+        Integer hospId = emp != null ? emp.getHospitalId() : user.getHospitalId();
 
         return new UserDetailsImpl(
                 user.getUserId(),
                 empId,
                 docId,
+                hospId,
                 user.getUserName(),
                 user.getPassword(),
                 role,
@@ -54,6 +59,10 @@ public class UserDetailsImpl implements UserDetails {
 
     public Integer getDoctorId() {
         return doctorId;
+    }
+
+    public Integer getHospitalId() {
+        return hospitalId;
     }
 
     public Integer getEmployeeId() {

@@ -13,6 +13,8 @@ public class Doctor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer doctorId;
 
+    private Integer hospitalId;
+
     private String fullName;
     private String department;
     private String specialization;

@@ -8,7 +8,9 @@ import java.util.List;
 
 @Repository
 public interface BedRepository extends JpaRepository<Bed, Integer> {
-    List<Bed> findByStatusAndIsActive(String status, Boolean isActive);
+    List<Bed> findByHospitalId(Integer hospitalId);
 
-    List<Bed> findByIsActive(Boolean isActive);
+    List<Bed> findByHospitalIdAndStatusAndIsActive(Integer hospitalId, String status, Boolean isActive);
+
+    List<Bed> findByHospitalIdAndIsActive(Integer hospitalId, Boolean isActive);
 }

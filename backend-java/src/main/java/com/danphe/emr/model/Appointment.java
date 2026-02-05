@@ -15,6 +15,8 @@ public class Appointment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer appointmentId;
 
+    private Integer hospitalId;
+
     private Integer patientId;
 
     // Snapshot of patient details (as per original model, likely for non-registered
