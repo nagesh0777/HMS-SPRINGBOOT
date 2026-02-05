@@ -62,6 +62,8 @@ public class SuperAdminController {
         adminEmp.setLastName(request.name);
         adminEmp.setRole("Admin");
         adminEmp.setDepartment("Administration");
+        adminEmp.setPhoneNumber(request.contactNumber);
+        adminEmp.setEmail(request.email);
         adminEmp.setStatus("Active");
         adminEmp.setIsActive(true);
         adminEmp.setHospitalId(savedHospital.getHospitalId());

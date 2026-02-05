@@ -63,14 +63,15 @@ const Hospitals = () => {
     const validateHospital = () => {
         const newErrors = {};
         if (!formData.name.trim()) newErrors.name = "Hospital name is required";
-        if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Invalid email format";
-
-        if (formData.contactNumber) {
+        if (!formData.contactNumber.trim()) {
+            newErrors.contactNumber = "Contact number is required";
+        } else {
             const phonePlain = formData.contactNumber.replace(/\D/g, '');
             if (phonePlain.length < 10 || phonePlain.length > 15) {
                 newErrors.contactNumber = "Contact should be 10-15 digits";
             }
         }
+        if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Invalid email format";
 
         if (!isEditing) {
             if (!formData.adminUsername.trim() || formData.adminUsername.length < 4) {
