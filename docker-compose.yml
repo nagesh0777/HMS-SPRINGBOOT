@@ -3,7 +3,7 @@ services:
     image: mysql:8.0
     container_name: trikaar-db
     command: >
-      --innodb-buffer-pool-size=128M --max_connections=50
+      --innodb-buffer-pool-size=64M --performance_schema=OFF --max_connections=20
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: trikaar_emr
@@ -15,7 +15,7 @@ services:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       timeout: 20s
       retries: 10
-    mem_limit: 300m
+    mem_limit: 350m
 
   backend:
     build: ./backend-java
@@ -27,13 +27,13 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      JAVA_OPTS: "-Xms256m -Xmx512m"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0 -Xss512k"
       APP_JWT_SECRET: 9B7E3C5A2D8F614B09E273A5D4C1B098FE7D6C5B4A3928170D6E5F4C3B2A10985
       APP_JWT_EXPIRATION_MS: 86400000
     depends_on:
       db:
         condition: service_healthy
-    mem_limit: 600m
+    mem_limit: 450m
 
   frontend:
     build: ./frontend-modern
@@ -42,7 +42,7 @@ services:
       - "80:80"
     depends_on:
       - backend
-    mem_limit: 150m
+    mem_limit: 80m
 
 volumes:
   mysql_data:
