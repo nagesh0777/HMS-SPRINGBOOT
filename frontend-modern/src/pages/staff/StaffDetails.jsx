@@ -7,10 +7,12 @@ import {
     Power, RefreshCw, Activity, Terminal, Trash2, LogIn, LogOut
 } from 'lucide-react';
 import axios from 'axios';
+import { useToast } from '../../components/Toast';
 
 const StaffDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [staff, setStaff] = useState(null);
     const [loading, setLoading] = useState(true);
     const [attendance, setAttendance] = useState([]);
@@ -55,7 +57,7 @@ const StaffDetails = () => {
                 await axios.put(`/api/Employee/${id}`, updated);
                 fetchStaff();
             } catch (error) {
-                alert("Failed to update status");
+                toast.error("Failed to update status");
             }
         }
     };
@@ -65,10 +67,10 @@ const StaffDetails = () => {
         if (newPassword && newPassword.trim().length > 0) {
             try {
                 await axios.put(`/api/Employee/${id}`, { ...staff, password: newPassword });
-                alert("Password updated successfully!");
+                toast.success("Password updated successfully!");
                 fetchStaff();
             } catch (error) {
-                alert("Failed to update password.");
+                toast.error("Failed to update password.");
             }
         }
     };
@@ -79,7 +81,7 @@ const StaffDetails = () => {
                 await axios.delete(`/api/Employee/${id}`);
                 navigate('/dashboard/staff');
             } catch (error) {
-                alert("Failed to delete staff member.");
+                toast.error("Failed to delete staff member.");
             }
         }
     };

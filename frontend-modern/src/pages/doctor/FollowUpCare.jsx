@@ -5,6 +5,7 @@ import {
     Plus, Calendar, Clock, AlertTriangle, CheckCircle, X,
     FileText, Search, Filter, ChevronDown, Edit3, Heart
 } from 'lucide-react';
+import { useToast } from '../../components/Toast';
 
 const priorityConfig = {
     routine: { label: 'Routine', color: 'bg-blue-100 text-blue-700', ring: 'ring-blue-200' },
@@ -20,6 +21,7 @@ const statusConfig = {
 };
 
 const FollowUpCare = () => {
+    const toast = useToast();
     const [followUps, setFollowUps] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -72,7 +74,7 @@ const FollowUpCare = () => {
 
     const saveFollowUp = async () => {
         if (!form.patientId || !form.followUpDate) {
-            alert('Please enter Patient ID and Follow-up Date');
+            toast.warning('Please enter Patient ID and Follow-up Date');
             return;
         }
 

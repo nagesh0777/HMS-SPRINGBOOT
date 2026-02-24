@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Users, Calendar, Bed, Activity, Download, Building, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useToast } from '../components/Toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // components/StatCard.jsx
@@ -25,6 +26,7 @@ const StatCard = ({ title, value, icon, color }) => (
 
 const DashboardHome = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [dateRange, setDateRange] = useState('week'); // 'week' or 'month'
     const [stats, setStats] = useState({
         patients: 0,
@@ -111,7 +113,7 @@ const DashboardHome = () => {
     // Download CSV
     const downloadCSV = () => {
         if (!analytics.patients || analytics.patients.length === 0) {
-            alert("No data to download");
+            toast.info("No data to download");
             return;
         }
 

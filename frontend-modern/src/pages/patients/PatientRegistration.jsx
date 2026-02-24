@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, User } from 'lucide-react';
+import { useToast } from '../../components/Toast';
 
 const PatientRegistration = () => {
+    const toast = useToast();
     const navigate = useNavigate();
     const { id } = useParams(); // If present, we are in edit mode
     const isEditMode = !!id;
@@ -58,7 +60,7 @@ const PatientRegistration = () => {
         // Mobile Number Validation
         const phoneRegex = /^[0-9]{10,15}$/;
         if (!phoneRegex.test(formData.phoneNumber)) {
-            alert("Please enter a valid mobile number (10-15 digits).");
+            toast.warning("Please enter a valid mobile number (10-15 digits).");
             return;
         }
 
@@ -78,7 +80,7 @@ const PatientRegistration = () => {
         } catch (error) {
             console.error("Failed to save patient", error);
             const msg = error.response?.data?.ErrorMessage || error.message || "Failed to save patient";
-            alert(`Error: ${msg}`);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

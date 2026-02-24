@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, User, Briefcase, Phone, Mail, ShieldCheck, Clock, MapPin, ClipboardList, Info } from 'lucide-react';
 import axios from 'axios';
+import { useToast } from '../../components/Toast';
 
 const StaffForm = () => {
+    const toast = useToast();
     const navigate = useNavigate();
     const { id } = useParams();
     const isEditMode = !!id;
@@ -115,11 +117,11 @@ const StaffForm = () => {
                     navigate('/dashboard/staff');
                 }
             } else {
-                alert("Error: " + (res.data?.ErrorMessage || "Could not save staff record."));
+                toast.error(res.data?.ErrorMessage || "Could not save staff record.");
             }
         } catch (error) {
             console.error(error);
-            alert("System Error: " + (error.response?.data?.ErrorMessage || error.response?.data?.message || "Server connection failed."));
+            toast.error(error.response?.data?.ErrorMessage || error.response?.data?.message || "Server connection failed.");
         } finally {
             setLoading(false);
         }
@@ -289,7 +291,6 @@ const StaffForm = () => {
                             >
                                 <option>Standard</option>
                                 <option>Admin</option>
-                                <option>SuperAdmin</option>
                             </select>
                         </div>
                         <div className="md:col-span-2">

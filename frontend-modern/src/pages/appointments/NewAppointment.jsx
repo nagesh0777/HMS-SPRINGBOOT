@@ -3,9 +3,11 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import PatientSearch from '../../components/PatientSearch';
+import { useToast } from '../../components/Toast';
 
 const NewAppointment = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [formData, setFormData] = useState({
         patientId: '',
         performerId: '', // Doctor ID
@@ -45,11 +47,11 @@ const NewAppointment = () => {
             if (response.data.Status === "OK") {
                 navigate('/dashboard/appointments');
             } else {
-                alert(`Booking failed: ${response.data.ErrorMessage || 'Unknown error'}`);
+                toast.error(response.data.ErrorMessage || 'Booking failed');
             }
         } catch (error) {
             console.error("Failed to book appointment", error);
-            alert('Failed to book appointment. Please try again.');
+            toast.error('Failed to book appointment. Please try again.');
         }
     };
 

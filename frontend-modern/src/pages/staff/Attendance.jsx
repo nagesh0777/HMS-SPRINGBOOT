@@ -7,8 +7,10 @@ import {
     Trash2, ArrowRight
 } from 'lucide-react';
 import axios from 'axios';
+import { useToast } from '../../components/Toast';
 
 const Attendance = () => {
+    const toast = useToast();
     const [mode, setMode] = useState('scan');
     const [scanResult, setScanResult] = useState(null);
     const [error, setError] = useState(null);
@@ -250,7 +252,7 @@ const Attendance = () => {
             const res = await axios.delete('/api/Attendance/ClearAll');
             if (res.data && res.data.Status === 'OK') {
                 refreshAllData();
-                alert("Attendance System Reset Successfully.");
+                toast.success("Attendance System Reset Successfully.");
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }

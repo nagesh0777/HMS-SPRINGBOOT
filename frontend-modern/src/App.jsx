@@ -1,4 +1,5 @@
 import React from 'react';
+import { ToastProvider } from './components/Toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './Login';
@@ -74,64 +75,66 @@ function App() {
   const isAuthenticated = !!localStorage.getItem('token');
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
+    <ToastProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        {/* Protected Dashboard Routes */}
-        <Route path="/dashboard" element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />}>
-          <Route index element={<DashboardHome />} />
+          {/* Protected Dashboard Routes */}
+          <Route path="/dashboard" element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />}>
+            <Route index element={<DashboardHome />} />
 
-          <Route path="hospitals" element={<Hospitals />} />
+            <Route path="hospitals" element={<Hospitals />} />
 
-          {/* Patient Routes */}
-          <Route path="patients" element={<PatientList />} />
-          <Route path="patients/:id" element={<PatientDetails />} />
-          <Route path="patients/edit/:id" element={<PatientRegistration />} />
-          <Route path="patients/new" element={<PatientRegistration />} />
+            {/* Patient Routes */}
+            <Route path="patients" element={<PatientList />} />
+            <Route path="patients/:id" element={<PatientDetails />} />
+            <Route path="patients/edit/:id" element={<PatientRegistration />} />
+            <Route path="patients/new" element={<PatientRegistration />} />
 
-          {/* Appointment Routes */}
-          <Route path="appointments" element={<AppointmentList />} />
-          <Route path="appointments/new" element={<NewAppointment />} />
-          <Route path="appointments/doctors" element={<DoctorManagement />} />
+            {/* Appointment Routes */}
+            <Route path="appointments" element={<AppointmentList />} />
+            <Route path="appointments/new" element={<NewAppointment />} />
+            <Route path="appointments/doctors" element={<DoctorManagement />} />
 
-          {/* ADT Routes */}
-          <Route path="adt" element={<AdtDashboard />} />
-          <Route path="adt/admit" element={<NewAdmission />} />
-          <Route path="adt/beds" element={<BedManagement />} />
+            {/* ADT Routes */}
+            <Route path="adt" element={<AdtDashboard />} />
+            <Route path="adt/admit" element={<NewAdmission />} />
+            <Route path="adt/beds" element={<BedManagement />} />
 
-          {/* Staff Routes */}
-          <Route path="staff" element={<StaffList />} />
-          <Route path="staff/:id" element={<StaffDetails />} />
-          <Route path="staff/edit/:id" element={<StaffForm />} />
-          <Route path="staff/new" element={<StaffForm />} />
-          <Route path="staff/attendance" element={<Attendance />} />
-          <Route path="staff/qr" element={<StaffQR />} />
+            {/* Staff Routes */}
+            <Route path="staff" element={<StaffList />} />
+            <Route path="staff/:id" element={<StaffDetails />} />
+            <Route path="staff/edit/:id" element={<StaffForm />} />
+            <Route path="staff/new" element={<StaffForm />} />
+            <Route path="staff/attendance" element={<Attendance />} />
+            <Route path="staff/qr" element={<StaffQR />} />
 
-          {/* Doctor Management (Admin) */}
-          <Route path="doctors" element={<DoctorManagementPage />} />
+            {/* Doctor Management (Admin) */}
+            <Route path="doctors" element={<DoctorManagementPage />} />
 
-          {/* Doctor Portal Routes (Doctor Role) */}
-          <Route path="doctor" element={<DoctorDashboard />} />
-          <Route path="doctor/queue" element={<DoctorQueue />} />
-          <Route path="doctor/patient" element={<DoctorPatientProfile />} />
-          <Route path="doctor/patient/:id" element={<DoctorPatientProfile />} />
-          <Route path="doctor/prescriptions" element={<PrescriptionManagement />} />
-          <Route path="doctor/followups" element={<FollowUpCare />} />
-          <Route path="doctor/profile" element={<DoctorProfile />} />
+            {/* Doctor Portal Routes (Doctor Role) */}
+            <Route path="doctor" element={<DoctorDashboard />} />
+            <Route path="doctor/queue" element={<DoctorQueue />} />
+            <Route path="doctor/patient" element={<DoctorPatientProfile />} />
+            <Route path="doctor/patient/:id" element={<DoctorPatientProfile />} />
+            <Route path="doctor/prescriptions" element={<PrescriptionManagement />} />
+            <Route path="doctor/followups" element={<FollowUpCare />} />
+            <Route path="doctor/profile" element={<DoctorProfile />} />
 
-          {/* Admin Tools */}
-          <Route path="audit-log" element={<AuditLogPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="guide" element={<PortalGuide />} />
+            {/* Admin Tools */}
+            <Route path="audit-log" element={<AuditLogPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="guide" element={<PortalGuide />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<div>Page Under Construction</div>} />
-        </Route>
+            {/* Fallback */}
+            <Route path="*" element={<div>Page Under Construction</div>} />
+          </Route>
 
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 }
 

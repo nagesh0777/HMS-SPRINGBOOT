@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Building, Plus, Search, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import { useToast } from '../../components/Toast';
 
 const Hospitals = () => {
+    const toast = useToast();
     const [hospitals, setHospitals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -111,7 +113,7 @@ const Hospitals = () => {
             }
 
             if (res.data.ErrorMessage) {
-                alert(res.data.ErrorMessage);
+                toast.error(res.data.ErrorMessage);
             } else {
                 fetchHospitals();
                 setShowModal(false);
@@ -119,11 +121,11 @@ const Hospitals = () => {
                 setSelectedHospital(null);
                 setFormData({ name: '', address: '', contactNumber: '', email: '', adminUsername: '', adminPassword: '', isActive: true });
                 setErrors({});
-                alert(isEditing ? "Hospital updated successfully!" : "Hospital added successfully!");
+                toast.success(isEditing ? "Hospital updated successfully!" : "Hospital added successfully!");
             }
         } catch (error) {
             console.error("Error saving hospital", error);
-            alert(error.response?.data?.ErrorMessage || "Failed to save hospital");
+            toast.error(error.response?.data?.ErrorMessage || "Failed to save hospital");
         }
     };
 
@@ -144,14 +146,14 @@ const Hospitals = () => {
         try {
             const res = await axios.put(`/api/SuperAdmin/Hospitals/${selectedHospital.hospitalId}/UpdateCredentials`, credentialData);
             if (res.data.ErrorMessage) {
-                alert(res.data.ErrorMessage);
+                toast.error(res.data.ErrorMessage);
             } else {
-                alert("Credentials updated successfully!");
+                toast.success("Credentials updated successfully!");
                 setShowCredentialsModal(false);
                 setErrors({});
             }
         } catch (error) {
-            alert(error.response?.data?.ErrorMessage || error.response?.data?.message || "Failed to update credentials");
+            toast.error(error.response?.data?.ErrorMessage || error.response?.data?.message || "Failed to update credentials");
         }
     };
 

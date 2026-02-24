@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash, User, Save, ArrowLeft, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/Toast';
 
 const DoctorManagement = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [doctors, setDoctors] = useState([]);
     const [newDoctor, setNewDoctor] = useState({
         fullName: '',
@@ -52,10 +54,10 @@ const DoctorManagement = () => {
                 password: ''
             });
             fetchDoctors();
-            alert("Doctor and Staff account created successfully!");
+            toast.success("Doctor and Staff account created successfully!");
         } catch (error) {
             console.error("Failed to add doctor", error);
-            alert("Error creating doctor account.");
+            toast.error("Error creating doctor account.");
         }
     };
 

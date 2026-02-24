@@ -3,8 +3,10 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BedDouble } from 'lucide-react';
 import PatientSearch from '../../components/PatientSearch';
+import { useToast } from '../../components/Toast';
 
 const NewAdmission = () => {
+    const toast = useToast();
     // ... (rest of state is same)
     const [formData, setFormData] = useState({
         patientId: '',
@@ -52,7 +54,7 @@ const NewAdmission = () => {
             navigate('/dashboard/adt');
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.ErrorMessage || "Failed to admit patient.");
+            toast.error(error.response?.data?.ErrorMessage || "Failed to admit patient.");
         }
     };
 

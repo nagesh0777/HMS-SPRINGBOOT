@@ -10,30 +10,6 @@ import {
 // ─── Role Config ───────────────────────────────────────────────
 const roles = [
     {
-        id: 'superadmin', label: 'Super Admin', icon: <Building size={22} />,
-        color: 'from-purple-500 to-indigo-600', ring: 'ring-purple-200', bg: 'bg-purple-50',
-        text: 'text-purple-700', tagline: 'Multi-hospital oversight & control',
-        description: 'The Super Admin has full control over the entire platform. You can manage multiple hospitals, monitor system-wide statistics, and configure platform-level settings.',
-        credentials: { user: 'superadmin', pass: 'superadmin' },
-        features: [
-            { icon: <Building size={18} />, title: 'Hospital Management', desc: 'Create, activate/deactivate hospitals across the platform.' },
-            { icon: <Monitor size={18} />, title: 'Platform Dashboard', desc: 'View total hospitals, active/inactive counts, and system-wide metrics.' },
-            { icon: <Shield size={18} />, title: 'Access Control', desc: 'Only Super Admin can see the Hospitals management module.' },
-        ],
-        workflows: [
-            {
-                title: 'Managing Hospitals',
-                steps: [
-                    'Log in with Super Admin credentials.',
-                    'Navigate to the "Hospitals" page from the sidebar.',
-                    'View all registered hospitals with status indicators.',
-                    'Click "Add Hospital" to register a new facility.',
-                    'Toggle hospital status (Active/Inactive) as needed.',
-                ]
-            },
-        ]
-    },
-    {
         id: 'admin', label: 'Hospital Admin', icon: <Shield size={22} />,
         color: 'from-blue-500 to-cyan-600', ring: 'ring-blue-200', bg: 'bg-blue-50',
         text: 'text-blue-700', tagline: 'Full hospital operations management',
@@ -271,7 +247,7 @@ const PortalGuide = () => {
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8">
                         {[
-                            { label: '5 User Roles', icon: <Users size={16} /> },
+                            { label: '4 User Roles', icon: <Users size={16} /> },
                             { label: '20+ Features', icon: <Zap size={16} /> },
                             { label: 'Role-Based Access', icon: <Shield size={16} /> },
                             { label: 'Real-Time Updates', icon: <Activity size={16} /> },
@@ -313,8 +289,8 @@ const PortalGuide = () => {
                             key={role.id}
                             onClick={() => setActiveRole(role.id)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${activeRole === role.id
-                                    ? `bg-gradient-to-r ${role.color} text-white shadow-lg scale-105`
-                                    : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:ring-gray-300 hover:shadow-sm'
+                                ? `bg-gradient-to-r ${role.color} text-white shadow-lg scale-105`
+                                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:ring-gray-300 hover:shadow-sm'
                                 }`}
                         >
                             {role.icon}

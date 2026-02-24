@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash, BedDouble, Save, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/Toast';
 
 const BedManagement = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [beds, setBeds] = useState([]);
     const [newBed, setNewBed] = useState({
         bedNumber: '',
@@ -39,10 +41,10 @@ const BedManagement = () => {
             // Reset form and refresh list
             setNewBed({ ...newBed, bedNumber: '', pricePerDay: '' });
             fetchBeds();
-            alert("Bed added successfully!");
+            toast.success("Bed added successfully!");
         } catch (error) {
             console.error("Failed to add bed", error);
-            alert("Failed to add bed.");
+            toast.error("Failed to add bed.");
         }
     };
 
