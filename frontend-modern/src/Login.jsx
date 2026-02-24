@@ -46,13 +46,18 @@ const Login = () => {
                     localStorage.setItem("role", payload.role || "Staff");
                     if (payload.doctorId) localStorage.setItem("doctorId", payload.doctorId);
                     if (payload.employeeId) localStorage.setItem("employeeId", payload.employeeId);
+                    if (payload.hospitalId) localStorage.setItem("hospitalId", payload.hospitalId);
                 } catch (e) {
                     console.error("Failed to decode token for role", e);
                     localStorage.setItem("role", "Staff");
                 }
 
-                // Force navigation
-                window.location.href = "/dashboard";
+                // Role-based redirect
+                const role = localStorage.getItem("role") || "Staff";
+                let redirectTo = "/dashboard";
+                if (role === "Doctor") redirectTo = "/dashboard/doctor";
+                else if (role === "SuperAdmin") redirectTo = "/dashboard/hospitals";
+                window.location.href = redirectTo;
             } else {
                 console.warn("No Results in response", response.data);
                 setError(response.data.ErrorMessage || "Login failed. No token received.");

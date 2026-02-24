@@ -45,11 +45,11 @@ const NewAppointment = () => {
             if (response.data.Status === "OK") {
                 navigate('/dashboard/appointments');
             } else {
-                alert(`Booking Failed: ${response.data.ErrorMessage}`);
+                alert(`Booking failed: ${response.data.ErrorMessage || 'Unknown error'}`);
             }
         } catch (error) {
             console.error("Failed to book appointment", error);
-            alert("Connection error or server failure.");
+            alert('Failed to book appointment. Please try again.');
         }
     };
 

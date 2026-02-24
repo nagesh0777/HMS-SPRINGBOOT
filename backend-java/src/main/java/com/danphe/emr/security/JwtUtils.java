@@ -28,6 +28,7 @@ public class JwtUtils {
                 .claim("role", userPrincipal.getRole())
                 .claim("employeeId", userPrincipal.getEmployeeId())
                 .claim("doctorId", userPrincipal.getDoctorId())
+                .claim("hospitalId", userPrincipal.getHospitalId())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)

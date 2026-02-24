@@ -87,7 +87,7 @@ public class EmployeeController {
 
                 String pwd = (employee.getPassword() != null && !employee.getPassword().trim().isEmpty())
                         ? employee.getPassword().trim()
-                        : "pass1";
+                        : "pass123";
                 user.setPassword(pwd);
 
                 user.setEmployeeId(saved.getEmployeeId());

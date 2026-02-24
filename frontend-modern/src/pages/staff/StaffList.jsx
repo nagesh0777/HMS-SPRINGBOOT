@@ -55,9 +55,12 @@ const StaffList = () => {
         }
     };
 
-    const roles = ['All', 'Doctor', 'Helpdesk', 'Staff', 'Admin', 'Logs'];
+    const roles = ['All', 'Helpdesk', 'Staff', 'Admin', 'Logs'];
 
-    const filteredStaff = staffList.filter(s => {
+    // Exclude Doctors - they have their own Doctor Management page
+    const nonDoctorStaff = staffList.filter(s => s.role !== 'Doctor');
+
+    const filteredStaff = nonDoctorStaff.filter(s => {
         const matchesSearch = (s.firstName + ' ' + s.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
             s.department?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesTab = (activeTab === 'All' || activeTab === 'Logs') ? true : s.role === activeTab;

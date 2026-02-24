@@ -30,6 +30,20 @@ import StaffQR from './pages/staff/StaffQR';
 // Super Admin Modules
 import Hospitals from './pages/superadmin/Hospitals';
 
+// Doctor Portal Modules
+import DoctorDashboard from './pages/doctor/DoctorDashboard';
+import DoctorQueue from './pages/doctor/DoctorQueue';
+import DoctorPatientProfile from './pages/doctor/DoctorPatientProfile';
+import PrescriptionManagement from './pages/doctor/PrescriptionManagement';
+import FollowUpCare from './pages/doctor/FollowUpCare';
+import DoctorProfile from './pages/doctor/DoctorProfile';
+
+// Admin Modules
+import DoctorManagementPage from './pages/doctors/DoctorManagementPage';
+import AuditLogPage from './pages/admin/AuditLogPage';
+import NotificationsPage from './pages/notifications/NotificationsPage';
+import PortalGuide from './pages/PortalGuide';
+
 
 
 // Configure Axios to include the token in all requests
@@ -41,7 +55,17 @@ axios.interceptors.request.use(
     }
     return config;
   },
+  (error) => Promise.reject(error)
+);
+
+// Auto-redirect on 401 (session expired)
+axios.interceptors.response.use(
+  (response) => response,
   (error) => {
+    if (error.response?.status === 401 && !error.config?.url?.includes('/api/Account/')) {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
@@ -84,7 +108,22 @@ function App() {
           <Route path="staff/attendance" element={<Attendance />} />
           <Route path="staff/qr" element={<StaffQR />} />
 
+          {/* Doctor Management (Admin) */}
+          <Route path="doctors" element={<DoctorManagementPage />} />
 
+          {/* Doctor Portal Routes (Doctor Role) */}
+          <Route path="doctor" element={<DoctorDashboard />} />
+          <Route path="doctor/queue" element={<DoctorQueue />} />
+          <Route path="doctor/patient" element={<DoctorPatientProfile />} />
+          <Route path="doctor/patient/:id" element={<DoctorPatientProfile />} />
+          <Route path="doctor/prescriptions" element={<PrescriptionManagement />} />
+          <Route path="doctor/followups" element={<FollowUpCare />} />
+          <Route path="doctor/profile" element={<DoctorProfile />} />
+
+          {/* Admin Tools */}
+          <Route path="audit-log" element={<AuditLogPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="guide" element={<PortalGuide />} />
 
           {/* Fallback */}
           <Route path="*" element={<div>Page Under Construction</div>} />

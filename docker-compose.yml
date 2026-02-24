@@ -39,7 +39,7 @@ services:
     build: ./frontend-modern
     container_name: trikaar-frontend
     ports:
-      - "80:80"
+      - "8085:80"
     depends_on:
       - backend
     mem_limit: 80m

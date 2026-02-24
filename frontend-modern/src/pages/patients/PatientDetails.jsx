@@ -25,7 +25,9 @@ const PatientDetails = () => {
             }
 
             // 2. Fetch Appointments (Recent)
-            const apptRes = await axios.get(`/api/Appointment/Appointments?FromDate=2023-01-01T00:00:00&ToDate=2025-12-31T23:59:59`);
+            const twoYearsAgo = new Date(); twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+            const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
+            const apptRes = await axios.get(`/api/Appointment/Appointments?FromDate=${twoYearsAgo.toISOString()}&ToDate=${nextYear.toISOString()}`);
             if (apptRes.data.Results) {
                 const filtered = apptRes.data.Results.filter(a => String(a.patientId) === String(id));
                 setAppointments(filtered);
