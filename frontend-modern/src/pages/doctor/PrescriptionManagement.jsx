@@ -114,13 +114,18 @@ const PrescriptionManagement = () => {
     // Form state
     const [form, setForm] = useState({
         diagnosis: '',
-        clinicalNotes: '',
+        clinicalNotes: '', // Chief complaint
         allergyWarnings: '',
         medicines: [],
+        followUpDate: '',
+        followUpNotes: '',
+        patientWeight: '',
+        patientHeight: '',
     });
+    const [appliedTemplates, setAppliedTemplates] = useState([]);
 
     const [currentMed, setCurrentMed] = useState({
-        name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: ''
+        name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '', timing: 'After food'
     });
 
     const showToast = useCallback((text, type = 'success') => {
@@ -171,7 +176,7 @@ const PrescriptionManagement = () => {
             return;
         }
         setForm(prev => ({ ...prev, medicines: [...prev.medicines, { ...currentMed }] }));
-        setCurrentMed({ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' });
+        setCurrentMed({ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '', timing: 'After food' });
         setMedSearch('');
     };
 
@@ -187,12 +192,29 @@ const PrescriptionManagement = () => {
     };
 
     const applyTemplate = (template) => {
-        setForm(prev => ({
-            ...prev,
-            diagnosis: template.name,
-            medicines: [...template.medicines.map(m => ({ ...m }))],
-        }));
-        showToast(`Template "${template.name}" applied`, 'info');
+        const isAlreadyApplied = appliedTemplates.includes(template.id);
+        if (isAlreadyApplied) {
+            // Remove template medicines
+            const templateMedNames = template.medicines.map(m => m.name);
+            setForm(prev => ({
+                ...prev,
+                diagnosis: prev.diagnosis.replace(template.name, '').replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '').trim(),
+                medicines: prev.medicines.filter(m => !templateMedNames.includes(m.name)),
+            }));
+            setAppliedTemplates(prev => prev.filter(id => id !== template.id));
+            showToast(`Removed "${template.name}"`, 'info');
+        } else {
+            // Add template medicines (combine)
+            const existingNames = form.medicines.map(m => m.name);
+            const newMeds = template.medicines.filter(m => !existingNames.includes(m.name)).map(m => ({ ...m, timing: m.timing || 'After food' }));
+            setForm(prev => ({
+                ...prev,
+                diagnosis: prev.diagnosis ? prev.diagnosis + ', ' + template.name : template.name,
+                medicines: [...prev.medicines, ...newMeds],
+            }));
+            setAppliedTemplates(prev => [...prev, template.id]);
+            showToast(`Added "${template.name}" (${newMeds.length} medicines)`, 'info');
+        }
     };
 
     const savePrescription = async (sendToPharmacy = false) => {
@@ -213,11 +235,16 @@ const PrescriptionManagement = () => {
                 allergyWarnings: form.allergyWarnings,
                 medicines: JSON.stringify(form.medicines),
                 status: sendToPharmacy ? 'sent_to_pharmacy' : 'finalized',
+                followUpDate: form.followUpDate || null,
+                followUpNotes: form.followUpNotes || null,
+                patientWeight: form.patientWeight ? Number(form.patientWeight) : null,
+                patientHeight: form.patientHeight ? Number(form.patientHeight) : null,
             };
             const res = await axios.post('/api/DoctorPortal/Prescriptions', payload);
             if (res.data.Status === 'OK') {
                 setShowForm(false);
-                setForm({ diagnosis: '', clinicalNotes: '', allergyWarnings: '', medicines: [] });
+                setForm({ diagnosis: '', clinicalNotes: '', allergyWarnings: '', medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '' });
+                setAppliedTemplates([]);
                 setSelectedPatient(null);
                 fetchPrescriptions();
                 showToast(sendToPharmacy ? `Prescription sent to pharmacy for ${selectedPatient.name}` : `Prescription saved for ${selectedPatient.name}`);
@@ -277,37 +304,103 @@ const PrescriptionManagement = () => {
         showToast(`Template "${name}" created`);
     };
 
-    const downloadPDF = (rx) => {
+    const downloadPDF = async (rx) => {
         let meds = [];
         try { meds = rx.medicines ? JSON.parse(rx.medicines) : []; } catch (e) { }
-        let content = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-               PRESCRIPTION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Date: ${new Date(rx.createdOn).toLocaleDateString()}
-Patient: ${rx.patientName || `#${rx.patientId}`}
-Diagnosis: ${rx.diagnosis || 'N/A'}
+        // Fetch hospital branding
+        let settings = {};
+        try {
+            const sRes = await axios.get('/api/HospitalSettings');
+            if (sRes.data.Results) settings = sRes.data.Results;
+        } catch (e) { }
 
-MEDICINES:
-${meds.map((m, i) => `
- ${i + 1}. ${m.name.toUpperCase()} - ${m.dosage}
-    Frequency: ${m.frequency}
-    Duration: ${m.duration}
-    Instructions: ${m.instructions || 'As directed'}`).join('\n')}
+        // Fetch patient details
+        let patient = {};
+        try {
+            const pRes = await axios.get(`/api/DoctorPortal/Patient/${rx.patientId}`);
+            if (pRes.data.Results?.patient) patient = pRes.data.Results.patient;
+        } catch (e) { }
 
-Clinical Notes: ${rx.clinicalNotes || 'None'}
-Allergy Warnings: ${rx.allergyWarnings || 'None'}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        `;
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `prescription_${rx.prescriptionId}_${new Date().toISOString().split('T')[0]}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const w = window.open('', '_blank');
+        w.document.write(`<!DOCTYPE html><html><head><title>Prescription - ${rx.patientName || ''}</title>
+        <style>
+          @page{margin:15mm}*{margin:0;padding:0;box-sizing:border-box}
+          body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;color:#1a1a1a;padding:30px 40px;max-width:800px;margin:0 auto;font-size:12px;line-height:1.5}
+          .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:2px solid #16a085;margin-bottom:6px}
+          .logo{width:68px;height:68px;object-fit:contain}
+          .hospital-info h1{font-size:20px;font-weight:800;color:#16a085;letter-spacing:.5px;margin-bottom:2px}
+          .hospital-info p{font-size:10px;color:#555;line-height:1.6}
+          .hospital-info .reg{font-size:9px;color:#777;margin-top:2px}
+          .title-bar{background:#16a085;color:#fff;text-align:center;padding:8px;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px}
+          .info-sec{display:flex;gap:20px;margin-bottom:16px}
+          .info-blk{flex:1;border:1px solid #e2e8f0;padding:12px 14px}
+          .info-blk h4{font-size:9px;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+          .ir{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
+          .ir .l{color:#718096}.ir .v{font-weight:600}
+          table{width:100%;border-collapse:collapse;margin:16px 0}
+          th{background:#2d3748;color:white;padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+          td{padding:8px 12px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748}
+          tr:nth-child(even){background:#f8f9fa}
+          .notes{background:#f0f9ff;padding:14px 18px;border-left:3px solid #3b82f6;margin:16px 0;font-size:12px}
+          .allergy{background:#fef2f2;padding:14px 18px;border-left:3px solid #ef4444;margin:16px 0;font-size:12px;color:#991b1b}
+          .followup{background:#fffbeb;padding:14px 18px;border-left:3px solid #f59e0b;margin:16px 0;font-size:12px}
+          .footer{margin-top:40px;border-top:1px solid #e2e8f0;padding-top:18px}
+          .sig-area{display:flex;justify-content:space-between;margin-bottom:18px}
+          .sb{text-align:center}.sb img{max-width:100px;max-height:50px;display:block;margin:0 auto 6px}
+          .sb .sl{width:180px;border-top:1px solid #2d3748;padding-top:4px;font-size:10px;color:#4a5568}
+          .footer-text{font-size:9px;color:#718096;text-align:center;margin-top:12px;font-style:italic}
+          @media print{body{padding:15px}.np{display:none!important}}
+        </style></head><body>
+        <div class="header">
+          ${settings.logoPath ? `<img src="/api/Files${settings.logoPath.replace('/uploads', '')}" class="logo" onerror="this.style.display='none'" />` : ''}
+          <div class="hospital-info">
+            <h1>${settings.hospitalName || 'Hospital'}</h1>
+            <p>${settings.address || ''}</p>
+            <p>Tel: ${settings.phoneNumber || '-'} | Email: ${settings.email || '-'}</p>
+            ${settings.registrationNumber ? `<p class="reg">Reg. No: ${settings.registrationNumber}</p>` : ''}
+          </div>
+        </div>
+        <div class="title-bar">Medical Prescription</div>
+        <div class="info-sec">
+          <div class="info-blk">
+            <h4>Patient Information</h4>
+            <div class="ir"><span class="l">Patient Name</span><span class="v">${rx.patientName || (patient.firstName ? patient.firstName + ' ' + patient.lastName : 'N/A')}</span></div>
+            <div class="ir"><span class="l">Patient ID</span><span class="v">${patient.patientCode || '#' + rx.patientId}</span></div>
+            ${patient.gender ? `<div class="ir"><span class="l">Gender / Age</span><span class="v">${patient.gender}${patient.age ? ' / ' + patient.age : ''}</span></div>` : ''}
+            ${patient.phoneNumber ? `<div class="ir"><span class="l">Contact</span><span class="v">${patient.phoneNumber}</span></div>` : ''}
+            ${rx.patientWeight ? `<div class="ir"><span class="l">Weight / Height</span><span class="v">${rx.patientWeight} kg${rx.patientHeight ? ' / ' + rx.patientHeight + ' cm' : ''}</span></div>` : ''}
+          </div>
+          <div class="info-blk">
+            <h4>Consultation Details</h4>
+            <div class="ir"><span class="l">Date of Consultation</span><span class="v">${new Date(rx.createdOn).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+            <div class="ir"><span class="l">Clinical Diagnosis</span><span class="v">${rx.diagnosis || 'General'}</span></div>
+            <div class="ir"><span class="l">Status</span><span class="v" style="text-transform:capitalize">${rx.status || 'Draft'}</span></div>
+            ${rx.followUpDate ? `<div class="ir"><span class="l">Next Appointment</span><span class="v" style="color:#b45309;font-weight:700">${new Date(rx.followUpDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>` : ''}
+          </div>
+        </div>
+        <table><thead><tr><th>S.No</th><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Timing</th><th>Instructions</th></tr></thead><tbody>
+        ${meds.map((m, i) => `<tr><td>${i + 1}</td><td><strong>${m.name}</strong></td><td>${m.dosage}</td><td>${m.frequency}</td><td>${m.duration}</td><td style="font-weight:600;color:#b45309">${m.timing || 'After food'}</td><td>${m.instructions || 'As directed'}</td></tr>`).join('')}
+        </tbody></table>
+        ${rx.clinicalNotes ? `<div class="notes"><strong>Chief Complaint:</strong> ${rx.clinicalNotes}</div>` : ''}
+        ${rx.allergyWarnings ? `<div class="allergy"><strong>Allergy Alert:</strong> ${rx.allergyWarnings}</div>` : ''}
+        ${rx.followUpDate ? `<div class="followup"><strong>Follow-Up Appointment:</strong> Kindly visit on <strong>${new Date(rx.followUpDate).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>${rx.followUpNotes ? ' — ' + rx.followUpNotes : ''}</div>` : ''}
+        <div class="footer">
+          <div class="sig-area">
+            <div class="sb"><div class="sl">Patient Acknowledgement</div></div>
+            <div class="sb">
+              ${settings.signatureImagePath ? `<img src="/api/Files${settings.signatureImagePath.replace('/uploads', '')}" onerror="this.style.display='none'" />` : ''}
+              <div class="sl">Prescribing Physician</div>
+            </div>
+          </div>
+          <div style="font-size:8px;color:#a0aec0;line-height:1.6;padding-top:8px;border-top:1px dashed #e2e8f0"><strong style="color:#718096">Disclaimer:</strong> This prescription is issued based on the clinical assessment of the patient. Self-medication is strictly not advised. Please follow the prescribed dosage and consult your physician if symptoms persist.</div>
+          <div class="footer-text">${settings.footerText || 'We wish you a speedy recovery. Thank you for your trust in our services.'}</div>
+        </div>
+        <div class="np" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:12px 48px;background:#1a365d;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase">Print Prescription</button></div>
+        </body></html>`);
+        w.document.close();
     };
+
 
     const filteredMeds = MEDICINE_DB.filter(m => m.toLowerCase().includes(medSearch.toLowerCase()));
     const filteredRx = prescriptions.filter(rx => {
@@ -491,39 +584,120 @@ Allergy Warnings: ${rx.allergyWarnings || 'None'}
                                 )}
                             </div>
 
-                            {/* Step 2: Quick Templates */}
+                            {/* Step 2: Diagnosis & Templates */}
+
                             <div>
+
                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                    <FileText size={12} /> Step 2: Diagnosis & Template (Optional)
+
+                                    <FileText size={12} /> Step 2: Select Conditions (combine multiple)
+
                                 </p>
+
                                 <div className="flex flex-wrap gap-2 mb-3">
+
                                     {templates.map(t => (
+
                                         <button key={t.id} onClick={() => applyTemplate(t)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${form.diagnosis === t.name
-                                                ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300'
+
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${appliedTemplates.includes(t.id)
+
+                                                ? 'bg-blue-600 text-white ring-2 ring-blue-300 shadow-md'
+
                                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+
+                                            {appliedTemplates.includes(t.id) && <Check size={12} />}
+
                                             {t.name}
+
                                         </button>
+
                                     ))}
+
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
                                     <div>
+
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Diagnosis</label>
+
                                         <input type="text" value={form.diagnosis}
+
                                             onChange={e => setForm(prev => ({ ...prev, diagnosis: e.target.value }))}
-                                            placeholder="Primary diagnosis"
+
+                                            placeholder="Auto-filled from templates above"
+
                                             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
                                     </div>
+
                                     <div>
+
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+
                                             <AlertTriangle size={11} className="text-amber-500" /> Allergy Warnings
+
                                         </label>
+
                                         <input type="text" value={form.allergyWarnings}
+
                                             onChange={e => setForm(prev => ({ ...prev, allergyWarnings: e.target.value }))}
+
                                             placeholder="Known allergies or drug interactions"
+
                                             className="w-full px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+
                                     </div>
+
                                 </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+                                    <div>
+
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weight (kg)</label>
+
+                                        <input type="number" step="0.1" value={form.patientWeight}
+
+                                            onChange={e => setForm(prev => ({ ...prev, patientWeight: e.target.value }))}
+
+                                            placeholder="e.g. 72"
+
+                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                                    </div>
+
+                                    <div>
+
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Height (cm)</label>
+
+                                        <input type="number" step="0.1" value={form.patientHeight}
+
+                                            onChange={e => setForm(prev => ({ ...prev, patientHeight: e.target.value }))}
+
+                                            placeholder="e.g. 170"
+
+                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                                    </div>
+
+                                    <div className="md:col-span-2">
+
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Chief Complaint (Patient's words)</label>
+
+                                        <input type="text" value={form.clinicalNotes}
+
+                                            onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))}
+
+                                            placeholder="e.g. Headache since 3 days, mild fever, body ache..."
+
+                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                                    </div>
+
+                                </div>
+
                             </div>
 
                             {/* Step 3: Add Medicines */}
@@ -536,28 +710,59 @@ Allergy Warnings: ${rx.allergyWarnings || 'None'}
                                 {form.medicines.length > 0 && (
                                     <div className="space-y-2 mb-4">
                                         {form.medicines.map((med, i) => (
+
                                             <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
+
                                                 <div className="w-7 h-7 rounded-lg bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-xs flex-shrink-0 mt-0.5">{i + 1}</div>
-                                                <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-5 gap-2">
+
+                                                <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-6 gap-2">
+
                                                     <input className="col-span-2 md:col-span-1 px-3 py-1.5 rounded-lg border border-blue-200 text-xs font-semibold bg-white" value={med.name}
+
                                                         onChange={e => updateMedicine(i, 'name', e.target.value)} placeholder="Name" />
+
                                                     <input className="px-3 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.dosage}
+
                                                         onChange={e => updateMedicine(i, 'dosage', e.target.value)} placeholder="Dosage" />
+
                                                     <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.frequency}
+
                                                         onChange={e => updateMedicine(i, 'frequency', e.target.value)}>
+
                                                         {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
+
                                                     </select>
+
                                                     <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.duration}
+
                                                         onChange={e => updateMedicine(i, 'duration', e.target.value)}>
+
                                                         {DURATIONS.map(d => <option key={d}>{d}</option>)}
+
                                                     </select>
-                                                    <input className="col-span-2 md:col-span-5 px-3 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.instructions || ''}
+
+                                                    <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white font-semibold" value={med.timing || 'After food'}
+
+                                                        onChange={e => updateMedicine(i, 'timing', e.target.value)}>
+
+                                                        <option>Before food</option><option>After food</option><option>With food</option><option>Empty stomach</option><option>At bedtime</option><option>As needed</option>
+
+                                                    </select>
+
+                                                    <input className="col-span-2 md:col-span-6 px-3 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.instructions || ''}
+
                                                         onChange={e => updateMedicine(i, 'instructions', e.target.value)} placeholder="Special instructions (optional)" />
+
                                                 </div>
+
                                                 <button onClick={() => removeMedicine(i)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+
                                                     <Trash2 size={14} />
+
                                                 </button>
+
                                             </div>
+
                                         ))}
                                     </div>
                                 )}
@@ -596,27 +801,51 @@ Allergy Warnings: ${rx.allergyWarnings || 'None'}
                                         </select>
                                     </div>
                                     <div className="flex gap-3">
+
                                         <input type="text" value={currentMed.instructions} placeholder="Special instructions..."
+
                                             onChange={e => setCurrentMed(prev => ({ ...prev, instructions: e.target.value }))}
+
                                             className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                                        <select value={currentMed.timing} onChange={e => setCurrentMed(prev => ({ ...prev, timing: e.target.value }))}
+
+                                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold">
+
+                                            <option>Before food</option><option>After food</option><option>With food</option><option>Empty stomach</option><option>At bedtime</option><option>As needed</option>
+
+                                        </select>
+
                                         <button onClick={addMedicine}
+
                                             className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors flex items-center gap-1">
+
                                             <Plus size={14} /> Add
+
                                         </button>
+
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Clinical Notes */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Clinical Notes</label>
-                                <textarea value={form.clinicalNotes}
-                                    onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))}
-                                    placeholder="Additional clinical notes, follow-up instructions..."
-                                    rows={3}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                            </div>
 
+
+                            {/* Follow-Up Appointment */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Next Appointment Date</label>
+                                    <input type="date" value={form.followUpDate}
+                                        onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value }))}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Follow-Up Notes</label>
+                                    <input type="text" value={form.followUpNotes}
+                                        onChange={e => setForm(prev => ({ ...prev, followUpNotes: e.target.value }))}
+                                        placeholder="e.g. Review blood reports, check wound healing..."
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                            </div>
                             {/* Action Buttons */}
                             <div className="flex items-center gap-3 pt-2 flex-wrap">
                                 <button onClick={() => savePrescription(false)} disabled={saving}
@@ -678,9 +907,9 @@ Allergy Warnings: ${rx.allergyWarnings || 'None'}
                                             <div className="flex items-center gap-2">
                                                 <h4 className="font-bold text-gray-900">{rx.diagnosis || 'General Prescription'}</h4>
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${rx.status === 'sent_to_pharmacy' ? 'bg-green-100 text-green-700' :
-                                                        rx.status === 'finalized' ? 'bg-blue-100 text-blue-700' :
-                                                            rx.status === 'dispensed' ? 'bg-purple-100 text-purple-700' :
-                                                                'bg-gray-100 text-gray-600'}`}>
+                                                    rx.status === 'finalized' ? 'bg-blue-100 text-blue-700' :
+                                                        rx.status === 'dispensed' ? 'bg-purple-100 text-purple-700' :
+                                                            'bg-gray-100 text-gray-600'}`}>
                                                     {rx.status?.replace(/_/g, ' ')}
                                                 </span>
                                             </div>

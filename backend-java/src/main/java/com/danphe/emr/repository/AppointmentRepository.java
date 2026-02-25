@@ -19,4 +19,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Intege
 
         java.util.Optional<Appointment> findByHospitalIdAndAppointmentDateAndPerformerIdAndAppointmentStatusNot(
                         Integer hospitalId, LocalDateTime date, Integer performerId, String status);
+
+        List<Appointment> findByHospitalIdAndPatientIdOrderByAppointmentDateDesc(Integer hospitalId, Integer patientId);
 }

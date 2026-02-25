@@ -1,379 +1,302 @@
 import React, { useState } from 'react';
 import {
-    BookOpen, ChevronDown, ChevronRight, Shield, Stethoscope, Users, UserCog, Headset,
+    BookOpen, ChevronDown, Shield, Stethoscope, Users, UserCog, Headset,
     LayoutDashboard, Calendar, Bed, ClipboardList, Pill, Heart, FileText, Bell, Search,
-    Building, Activity, Lock, ArrowRight, CheckCircle, AlertTriangle, Eye, Settings,
-    UserCheck, Play, Phone, MapPin, Clock, CreditCard, Briefcase, Monitor, Zap,
-    Star, HelpCircle, LogIn, Key, RefreshCw, Download, Send, Edit3, Trash2, Plus
+    Activity, ArrowRight, CheckCircle, Play, Clock, IndianRupee, Package,
+    Star, HelpCircle, Zap, Settings, Key
 } from 'lucide-react';
 
-// ─── Role Config ───────────────────────────────────────────────
 const roles = [
     {
         id: 'admin', label: 'Hospital Admin', icon: <Shield size={22} />,
-        color: 'from-blue-500 to-cyan-600', ring: 'ring-blue-200', bg: 'bg-blue-50',
-        text: 'text-blue-700', tagline: 'Full hospital operations management',
-        description: 'The Hospital Admin manages day-to-day operations of a single hospital. You have access to patient management, appointments, ADT (Admission-Discharge-Transfer), doctor management, staff management, attendance tracking, audit logs, and notifications.',
+        color: 'from-blue-500 to-cyan-600', bg: 'bg-blue-50', text: 'text-blue-700',
+        tagline: 'Full hospital operations management',
+        description: 'As an Admin, you manage the entire hospital — patients, doctors, appointments, admissions, billing, staff, and reports.',
         credentials: { user: 'apollo', pass: 'apollo' },
         features: [
-            { icon: <LayoutDashboard size={18} />, title: 'Analytics Dashboard', desc: 'Real-time stats: total patients, today\'s appointments, active admissions, revenue trends, and department analytics.' },
-            { icon: <Users size={18} />, title: 'Patient Management', desc: 'Register patients, view profiles, edit details, and track medical history with comprehensive patient records.' },
-            { icon: <Calendar size={18} />, title: 'Appointment Booking', desc: 'Search patients, select doctors, pick date/time, and book appointments with double-booking prevention.' },
-            { icon: <Bed size={18} />, title: 'ADT Module', desc: 'Manage admissions, bed assignments, ward transfers, and discharges. View bed occupancy dashboard.' },
-            { icon: <Stethoscope size={18} />, title: 'Doctor Management', desc: 'Add doctors with auto-generated login credentials, reset passwords, toggle active status, and repair accounts.' },
-            { icon: <UserCog size={18} />, title: 'Staff Management', desc: 'Add, edit, and manage staff profiles. View staff details and employment history.' },
-            { icon: <Clock size={18} />, title: 'Attendance Tracking', desc: 'QR-based attendance check-in/check-out with daily reports, late arrivals, and overtime tracking.' },
-            { icon: <FileText size={18} />, title: 'Audit Trail', desc: 'Complete audit log of all system actions with filtering by date, action type, and user.' },
-            { icon: <Bell size={18} />, title: 'Notifications', desc: 'Real-time notification center with unread badge count and priority alerts.' },
+            { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'See total patients, revenue, appointments, bed occupancy — all at a glance with charts.' },
+            { icon: <Users size={18} />, title: 'Patients', desc: 'Register new patients, view profiles, edit records, and track visit history.' },
+            { icon: <Calendar size={18} />, title: 'Appointments', desc: 'Book appointments for patients, select a doctor and time. System prevents double-booking.' },
+            { icon: <Stethoscope size={18} />, title: 'Doctors', desc: 'Add doctors to the system. The system auto-creates login credentials for them.' },
+            { icon: <Bed size={18} />, title: 'ADT (Admissions)', desc: 'Admit patients, assign beds, transfer wards, and discharge. Track bed occupancy.' },
+            { icon: <IndianRupee size={18} />, title: 'Billing', desc: 'Generate OPD/IPD bills, add services & medicines, apply discounts, and track payments.' },
+            { icon: <Package size={18} />, title: 'Service Rates', desc: 'Set up service catalog with categories, unit prices, and GST. Used in billing.' },
+            { icon: <UserCog size={18} />, title: 'Staff', desc: 'Add staff members, assign roles, select which pages they can access.' },
+            { icon: <Clock size={18} />, title: 'Attendance', desc: 'QR-based check-in/check-out. View daily attendance, late arrivals, overtime.' },
+            { icon: <Settings size={18} />, title: 'Settings', desc: 'Upload hospital logo, set address, phone, registration number, and doctor signature.' },
+            { icon: <Bell size={18} />, title: 'Notifications', desc: 'System alerts and reminders — unread count shown in the top bar.' },
         ],
         workflows: [
             {
-                title: 'Register a New Patient',
+                title: 'Register a Patient & Book Appointment',
                 steps: [
-                    'Go to "Patients" from the sidebar.',
-                    'Click "Register New Patient" button.',
-                    'Fill in patient details: Name, Age, Gender, Phone, Address, Blood Group, Email.',
-                    'Click "Save" — the system auto-generates a unique Patient Code.',
-                    'The patient now appears in the Patient List and can be searched globally.',
+                    'Open "Patients" → Click "Register New Patient".',
+                    'Fill in Name, Phone, Age, Gender, Address, Blood Group.',
+                    'Click "Save" — a unique Patient ID is auto-created.',
+                    'Go to "Appointments" → Click "Book Appointment".',
+                    'Search the patient, select a doctor, pick date & time.',
+                    'Click "Confirm" — it appears in the doctor\'s queue automatically.',
                 ]
             },
             {
-                title: 'Book an Appointment',
+                title: 'Create a Bill',
                 steps: [
-                    'Go to "Appointments" from the sidebar.',
-                    'Click "Book Appointment".',
-                    'Search and select a patient by name, phone, or code.',
-                    'Select a doctor from the dropdown (only active doctors appear).',
-                    'Pick a date and time — the system prevents double-booking.',
-                    'Click "Confirm Booking" — the appointment status is set to "Booked".',
-                    'The appointment auto-appears in the doctor\'s queue for that day.',
+                    'Go to "Billing" → Click "New Bill".',
+                    'Select OPD or IPD, search and select the patient.',
+                    'Add services from the catalog — quantity and price auto-calculate.',
+                    'Apply discount or tax if needed.',
+                    'Click "Save Bill" — mark payment as Paid/Unpaid.',
+                    'You can view and edit bills from the billing list anytime.',
                 ]
             },
             {
-                title: 'Add a New Doctor',
+                title: 'Add a Doctor',
                 steps: [
-                    'Go to "Doctors" from the sidebar.',
-                    'Click "Add Doctor".',
-                    'Fill in: Full Name, Department, Specialization, Phone, Email.',
-                    'Click "Save Doctor" — the system auto-generates a username and password.',
-                    'Share the credentials with the doctor — they will be prompted to change password on first login.',
-                    'The doctor can now log in to their own Doctor Portal.',
+                    'Go to "Doctors" → Click "Add Doctor".',
+                    'Fill in Name, Department, Specialization, Phone, Email.',
+                    'Click "Save" — username and password are auto-generated.',
+                    'Share credentials with the doctor for their portal login.',
                 ]
             },
             {
-                title: 'Admit a Patient (ADT)',
+                title: 'Admit a Patient',
                 steps: [
-                    'Go to "ADT" from the sidebar.',
-                    'Click "New Admission".',
-                    'Search and select a patient, assign a doctor, select an available bed.',
-                    'Fill in admission reason and notes.',
-                    'Click "Admit" — the bed is now marked as occupied.',
-                    'The patient\'s profile will show "Currently Admitted" status.',
+                    'Go to "ADT" → Click "New Admission".',
+                    'Search patient, select doctor, choose an available bed.',
+                    'Add admission reason, click "Admit".',
+                    'The bed status changes to "Occupied" automatically.',
+                    'To discharge: open the patient\'s admission → click "Discharge".',
                 ]
             },
         ]
     },
     {
         id: 'doctor', label: 'Doctor', icon: <Stethoscope size={22} />,
-        color: 'from-emerald-500 to-teal-600', ring: 'ring-emerald-200', bg: 'bg-emerald-50',
-        text: 'text-emerald-700', tagline: 'Clinical workspace & patient care',
-        description: 'Doctors have a dedicated clinical portal with their own workspace. You can manage your patient queue, write prescriptions, schedule follow-ups, view lab results, and manage your profile — all tailored for efficient clinical workflows.',
-        credentials: { user: 'dr.firstname', pass: 'pass123 (auto-generated)' },
+        color: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', text: 'text-emerald-700',
+        tagline: 'Clinical workspace & patient care',
+        description: 'As a Doctor, you have your own clinical portal — manage patient queue, write prescriptions, schedule follow-ups, and update your profile.',
+        credentials: { user: 'Auto-generated by Admin', pass: 'pass123 (default)' },
         features: [
-            { icon: <Activity size={18} />, title: 'My Workspace', desc: 'Personal dashboard showing today\'s patient count, pending consultations, prescriptions written, and follow-ups due.' },
-            { icon: <ClipboardList size={18} />, title: 'Patient Queue', desc: 'Today\'s appointment queue with status flow: Booked → Check In → Start Consult → Complete. Emergency priority sorting.' },
-            { icon: <Search size={18} />, title: 'Patient Search', desc: 'Search any patient by name, phone, or ID. View complete medical profiles including history, prescriptions, and follow-ups.' },
-            { icon: <Pill size={18} />, title: 'Prescriptions', desc: 'Create prescriptions with disease templates, inline medicine editing, dosage/frequency/duration. Save as template, send to pharmacy.' },
-            { icon: <Heart size={18} />, title: 'Follow-Up Care', desc: 'Schedule follow-up appointments with priority levels (Routine, Urgent, Critical). Track overdue and completed follow-ups.' },
-            { icon: <UserCog size={18} />, title: 'My Profile', desc: 'View and update your profile: specialization, email, phone. Change your password securely.' },
+            { icon: <Activity size={18} />, title: 'My Workspace', desc: 'Your personal dashboard — today\'s patients, pending consultations, and follow-ups due.' },
+            { icon: <ClipboardList size={18} />, title: 'Patient Queue', desc: 'Today\'s appointments in order. Mark Check-In → Start Consult → Complete.' },
+            { icon: <Search size={18} />, title: 'Search Patient', desc: 'Find any patient by name, phone, or ID. View their full medical history.' },
+            { icon: <Pill size={18} />, title: 'Prescriptions', desc: 'Write prescriptions using templates. Add medicines with dosage, timing, and duration. Download PDF.' },
+            { icon: <Heart size={18} />, title: 'Follow-Ups', desc: 'Schedule follow-up visits with priority. Track due, overdue, and completed follow-ups.' },
+            { icon: <UserCog size={18} />, title: 'My Profile', desc: 'Update your specialization, contact info, and change password.' },
         ],
         workflows: [
             {
-                title: 'Complete Patient Consultation',
+                title: 'See a Patient (Full Flow)',
                 steps: [
-                    'Go to "Patient Queue" — your today\'s patients appear automatically.',
-                    'Click "Check In" on a booked patient to mark them as arrived.',
-                    'Click "Start Consult" to begin the consultation — status changes to "In Consultation".',
-                    'Click "Prescribe" to go directly to the prescription form with the patient pre-selected.',
-                    'Select a disease template (e.g., Common Cold, UTI, Diabetes) or add medicines manually.',
-                    'Add diagnosis, clinical notes, and adjust medicines as needed.',
-                    'Click "Save Prescription" or "Save & Send to Pharmacy".',
-                    'Return to queue and click "Complete" to finish the consultation.',
-                ]
-            },
-            {
-                title: 'Using Prescription Templates',
-                steps: [
-                    'Go to "Prescriptions" page.',
-                    'Select a patient (auto-linked if coming from queue).',
-                    'Click on a template from the template panel (e.g., "Common Cold", "UTI").',
-                    'The template auto-fills diagnosis, medicines, and clinical notes.',
-                    'Edit any medicines inline — change dosage, frequency, or duration.',
-                    'To create your own template: fill out a prescription, then click "Save as Template".',
-                    'Manage templates: click "Templates" tab to Create, Edit, or Delete custom templates.',
+                    'Open "Patient Queue" — your today\'s appointments show automatically.',
+                    'Click "Check In" when the patient arrives.',
+                    'Click "Start Consult" to begin the visit.',
+                    'Click "Prescribe" to open the prescription form (patient is pre-selected).',
+                    'Pick a template (Fever, UTI, Diabetes etc.) or add medicines manually.',
+                    'Add diagnosis, chief complaint, weight/height if needed.',
+                    'Click "Save" or "Save & Send to Pharmacy".',
+                    'Go back to queue → Click "Complete" to finish.',
                 ]
             },
             {
                 title: 'Schedule a Follow-Up',
                 steps: [
-                    'Go to "Follow-Ups" from the sidebar.',
-                    'Click "Schedule Follow-Up".',
-                    'Enter the Patient ID, select a date, set priority (Routine / Urgent / Critical).',
-                    'Add reason, care instructions, and treatment plan.',
-                    'Click "Schedule Follow-Up" to save.',
-                    'Track all follow-ups: view Due Today, Overdue, and Completed stats.',
-                    'Mark follow-ups as "Complete" or "Missed" with one click.',
+                    'Go to "Follow-Ups" → Click "Schedule Follow-Up".',
+                    'Enter Patient ID, pick a date, set priority (Routine/Urgent/Critical).',
+                    'Add reason and care instructions.',
+                    'Click "Save" — track it in the Follow-Up dashboard.',
                 ]
             },
         ]
     },
     {
         id: 'helpdesk', label: 'Helpdesk', icon: <Headset size={22} />,
-        color: 'from-amber-500 to-orange-600', ring: 'ring-amber-200', bg: 'bg-amber-50',
-        text: 'text-amber-700', tagline: 'Patient intake & appointment coordination',
-        description: 'The Helpdesk role is designed for front-desk staff who handle patient registration, appointment booking, and basic queries. You have streamlined access to the most common tasks without administrative complexity.',
-        credentials: { user: 'helpdesk', pass: 'Assigned by Admin' },
+        color: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', text: 'text-amber-700',
+        tagline: 'Patient intake & appointment coordination',
+        description: 'As Helpdesk, you handle the front desk — register patients, book appointments, and manage billing. Quick and simple access.',
+        credentials: { user: 'Assigned by Admin', pass: 'Assigned by Admin' },
         features: [
-            { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'Quick overview of today\'s appointments, patient counts, and recent activity.' },
-            { icon: <Users size={18} />, title: 'Patient Registration', desc: 'Register new patients and search existing records quickly.' },
-            { icon: <Calendar size={18} />, title: 'Appointments', desc: 'Book, view, and manage patient appointments with available doctors.' },
-            { icon: <Clock size={18} />, title: 'Attendance', desc: 'Check in/check out for your own attendance via QR code.' },
-            { icon: <Bell size={18} />, title: 'Notifications', desc: 'Stay updated with system alerts and reminders.' },
+            { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'Quick view of today\'s appointments and patient counts.' },
+            { icon: <Users size={18} />, title: 'Patients', desc: 'Register new patients and search existing records.' },
+            { icon: <Calendar size={18} />, title: 'Appointments', desc: 'Book and manage patient appointments.' },
+            { icon: <IndianRupee size={18} />, title: 'Billing', desc: 'Create bills for patients and track payment status.' },
+            { icon: <Clock size={18} />, title: 'Attendance', desc: 'Check in/out for your daily attendance.' },
+            { icon: <Bell size={18} />, title: 'Notifications', desc: 'View system alerts and reminders.' },
         ],
         workflows: [
             {
-                title: 'Quick Patient Registration & Booking',
+                title: 'Register + Book Appointment',
                 steps: [
-                    'Search for the patient in "Patients" — if they exist, proceed to book.',
-                    'If new patient: click "Register New Patient", fill in details, and save.',
+                    'Search the patient in "Patients" — if found, skip to step 4.',
+                    'Click "Register New Patient", fill details, save.',
                     'Go to "Appointments" → "Book Appointment".',
-                    'Search and select the patient, pick a doctor and time slot.',
-                    'Confirm the booking — the patient will appear in the doctor\'s queue.',
-                    'Inform the patient of their appointment details.',
+                    'Select patient, doctor, date & time → Confirm.',
+                    'Inform the patient of their appointment.',
                 ]
             },
         ]
     },
     {
         id: 'staff', label: 'Staff', icon: <Users size={22} />,
-        color: 'from-gray-500 to-slate-600', ring: 'ring-gray-200', bg: 'bg-gray-50',
-        text: 'text-gray-700', tagline: 'Basic access & patient viewing',
-        description: 'Staff members have basic read access to essential modules. You can view the dashboard and patient records, and receive notifications. This role is ideal for support staff who need visibility without modification rights.',
-        credentials: { user: 'staff', pass: 'Assigned by Admin' },
+        color: 'from-gray-500 to-slate-600', bg: 'bg-gray-50', text: 'text-gray-700',
+        tagline: 'View access based on admin permissions',
+        description: 'Staff members see only the pages the Admin has enabled. By default you can view the dashboard and patient list.',
+        credentials: { user: 'Assigned by Admin', pass: 'Assigned by Admin' },
         features: [
-            { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'View hospital summary statistics and key metrics.' },
-            { icon: <Users size={18} />, title: 'Patient List', desc: 'View patient records and search the patient database (read-only).' },
-            { icon: <Bell size={18} />, title: 'Notifications', desc: 'Receive and view system notifications and alerts.' },
+            { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'View hospital summary and basic statistics.' },
+            { icon: <Users size={18} />, title: 'Patients', desc: 'View patient records (read-only access).' },
+            { icon: <Bell size={18} />, title: 'Notifications', desc: 'Receive system alerts and reminders.' },
         ],
         workflows: [
             {
-                title: 'Viewing Patient Information',
+                title: 'View Patient Info',
                 steps: [
                     'Go to "Patients" from the sidebar.',
-                    'Use the search bar to find a patient by name, phone, or code.',
-                    'Click on a patient to view their full profile.',
-                    'View appointment history, admission details, and contact information.',
+                    'Search by name, phone, or patient code.',
+                    'Click on a patient to see their full profile.',
                 ]
             },
         ]
     },
 ];
 
-// ─── Quick Tips ────────────────────────────────────────────────
-const quickTips = [
-    { icon: <LogIn size={16} />, text: 'Use the default credentials shown for each role to log in. Change your password on first login for security.' },
-    { icon: <Search size={16} />, text: 'Patient search works globally — search by name, phone number, or patient code from any module.' },
-    { icon: <Bell size={16} />, text: 'The notification bell in the top-right shows unread count. Click it to view all alerts.' },
-    { icon: <RefreshCw size={16} />, text: 'Doctor queue auto-refreshes every 30 seconds. Emergency appointments are always shown first.' },
-    { icon: <Download size={16} />, text: 'Prescriptions can be downloaded as text files for printing and pharmacy use.' },
-    { icon: <Lock size={16} />, text: 'Sessions expire after 24 hours. You\'ll be automatically redirected to login if your session expires.' },
-    { icon: <Zap size={16} />, text: 'Use keyboard shortcuts: press "/" to focus the search bar in patient-heavy pages.' },
-    { icon: <AlertTriangle size={16} />, text: 'Double-booking prevention is built-in — the system won\'t allow two appointments for the same doctor at the same time.' },
+const tips = [
+    { icon: <Search size={15} />, text: 'Search works everywhere — type name, phone, or patient code to find a patient instantly.' },
+    { icon: <Bell size={15} />, text: 'The bell icon in the top bar shows unread notification count. Click to see all alerts.' },
+    { icon: <Pill size={15} />, text: 'Prescriptions can be saved as templates for quick reuse with similar patients.' },
+    { icon: <Calendar size={15} />, text: 'Double-booking is prevented — the system won\'t allow overlapping appointment slots.' },
+    { icon: <IndianRupee size={15} />, text: 'Bills can be marked as Paid, Unpaid, or Partial. Payment mode (Cash/UPI/Card) is tracked.' },
+    { icon: <Shield size={15} />, text: 'Admin controls which pages each staff member can access through the Staff form.' },
 ];
 
-// ─── Accordion Component ───────────────────────────────────────
-const Accordion = ({ title, children, defaultOpen = false, icon }) => {
+const Accordion = ({ title, children, defaultOpen = false }) => {
     const [open, setOpen] = useState(defaultOpen);
     return (
-        <div className={`rounded-2xl border transition-all duration-300 ${open ? 'border-gray-200 shadow-lg bg-white' : 'border-gray-100 bg-white/60 hover:bg-white'}`}>
-            <button
-                onClick={() => setOpen(!open)}
-                className="flex w-full items-center justify-between px-6 py-4 text-left"
-            >
-                <div className="flex items-center gap-3">
-                    {icon && <span className="text-gray-400">{icon}</span>}
-                    <span className="text-sm font-bold text-gray-900">{title}</span>
+        <div className={`rounded-xl border transition-all ${open ? 'border-gray-200 shadow-md bg-white' : 'border-gray-100 bg-white/80 hover:bg-white'}`}>
+            <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between px-5 py-3.5 text-left">
+                <div className="flex items-center gap-2.5">
+                    <Play size={13} className={`text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+                    <span className="text-sm font-bold text-gray-800">{title}</span>
                 </div>
-                <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown size={16} className={`text-gray-300 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
-            <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                <div className="px-6 pb-5">
-                    {children}
-                </div>
+            <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[1500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="px-5 pb-4">{children}</div>
             </div>
         </div>
     );
 };
 
-// ─── Main Component ────────────────────────────────────────────
 const PortalGuide = () => {
     const [activeRole, setActiveRole] = useState('admin');
-    const currentRole = roles.find(r => r.id === activeRole);
+    const current = roles.find(r => r.id === activeRole);
 
     return (
         <div className="space-y-8 pb-12">
-            {/* Hero Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-8 md:p-12 text-white">
+
+            {/* Header */}
+            <div className="rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-8 md:p-10 text-white relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2" />
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3" />
                 </div>
                 <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
-                            <BookOpen size={28} />
-                        </div>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2.5 bg-white/10 rounded-xl"><BookOpen size={24} /></div>
                         <div>
-                            <h1 className="text-3xl md:text-4xl font-black tracking-tight">Portal Guide</h1>
-                            <p className="text-gray-300 text-sm mt-1">Trikaar EMR — Hospital Management System</p>
+                            <h1 className="text-2xl md:text-3xl font-black tracking-tight">Portal Guide</h1>
+                            <p className="text-gray-400 text-sm"><span className="text-white font-bold">Trikaar</span> HMS — Hospital Management System</p>
                         </div>
                     </div>
-                    <p className="text-gray-300 max-w-2xl text-sm md:text-base leading-relaxed mt-4">
-                        Welcome to the Trikaar EMR system. This guide covers everything you need to know about using the portal —
-                        from patient registration to clinical workflows, prescriptions, and administration.
-                        Select your role below to see role-specific instructions.
+                    <p className="text-gray-300 text-sm leading-relaxed mt-3 max-w-2xl">
+                        Welcome to <span className="text-white font-bold">Trikaar</span> HMS. This guide explains all features and how to use them based on your role.
+                        Select your role below to get started.
                     </p>
-
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8">
-                        {[
-                            { label: '4 User Roles', icon: <Users size={16} /> },
-                            { label: '20+ Features', icon: <Zap size={16} /> },
-                            { label: 'Role-Based Access', icon: <Shield size={16} /> },
-                            { label: 'Real-Time Updates', icon: <Activity size={16} /> },
-                        ].map(s => (
-                            <div key={s.label} className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
-                                <span className="text-white/70">{s.icon}</span>
-                                <span className="text-xs font-semibold text-white/90">{s.label}</span>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
 
-            {/* Quick Tips */}
-            <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 p-6 ring-1 ring-amber-100">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-amber-800 mb-4">
-                    <Star size={16} className="text-amber-500" />
-                    Quick Tips & Best Practices
+            {/* Tips */}
+            <div className="rounded-2xl bg-amber-50/60 p-5 ring-1 ring-amber-100">
+                <h3 className="flex items-center gap-2 text-xs font-bold text-amber-700 mb-3 uppercase tracking-wider">
+                    <Star size={14} className="text-amber-500" /> Quick Tips
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {quickTips.map((tip, i) => (
-                        <div key={i} className="flex items-start gap-3 bg-white/60 rounded-xl px-4 py-3">
-                            <span className="text-amber-500 mt-0.5 flex-shrink-0">{tip.icon}</span>
-                            <p className="text-xs text-gray-700 leading-relaxed">{tip.text}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {tips.map((t, i) => (
+                        <div key={i} className="flex items-start gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+                            <span className="text-amber-500 mt-0.5 flex-shrink-0">{t.icon}</span>
+                            <p className="text-[11px] text-gray-600 leading-relaxed">{t.text}</p>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* Role Selector Tabs */}
+            {/* Role Tabs */}
             <div>
-                <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <HelpCircle size={20} className="text-primary-500" />
-                    Select Your Role
+                <h2 className="text-sm font-black text-gray-900 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                    <HelpCircle size={16} className="text-blue-500" /> Select Your Role
                 </h2>
                 <div className="flex flex-wrap gap-2">
-                    {roles.map(role => (
-                        <button
-                            key={role.id}
-                            onClick={() => setActiveRole(role.id)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${activeRole === role.id
-                                ? `bg-gradient-to-r ${role.color} text-white shadow-lg scale-105`
-                                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:ring-gray-300 hover:shadow-sm'
-                                }`}
-                        >
-                            {role.icon}
-                            {role.label}
+                    {roles.map(r => (
+                        <button key={r.id} onClick={() => setActiveRole(r.id)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeRole === r.id ? `bg-gradient-to-r ${r.color} text-white shadow-lg scale-105` : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:ring-gray-300'
+                                }`}>
+                            {r.icon} {r.label}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Role Detail Panel */}
-            {currentRole && (
-                <div className="space-y-6 animate-in fade-in duration-300">
-                    {/* Role Header Card */}
-                    <div className={`rounded-3xl bg-gradient-to-r ${currentRole.color} p-8 text-white shadow-xl`}>
-                        <div className="flex flex-col md:flex-row md:items-center gap-6">
-                            <div className="p-4 bg-white/15 rounded-2xl backdrop-blur-sm self-start">
-                                {currentRole.icon}
-                            </div>
+            {/* Role Content */}
+            {current && (
+                <div className="space-y-6">
+
+                    {/* Role Header */}
+                    <div className={`rounded-2xl bg-gradient-to-r ${current.color} p-6 text-white shadow-lg`}>
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-white/15 rounded-xl">{current.icon}</div>
                             <div className="flex-1">
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-2xl font-black">{currentRole.label}</h2>
-                                    <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                                        {currentRole.tagline}
-                                    </span>
-                                </div>
-                                <p className="mt-3 text-white/85 text-sm leading-relaxed max-w-3xl">
-                                    {currentRole.description}
-                                </p>
+                                <h2 className="text-xl font-black">{current.label}</h2>
+                                <p className="text-white/70 text-xs font-semibold uppercase mt-0.5">{current.tagline}</p>
+                                <p className="text-white/80 text-sm mt-2 leading-relaxed">{current.description}</p>
                             </div>
                         </div>
-
-                        {/* Credentials */}
-                        <div className="mt-6 flex flex-wrap items-center gap-4 bg-white/10 rounded-2xl px-5 py-4 backdrop-blur-sm">
-                            <Key size={16} className="text-white/70" />
-                            <div className="text-xs">
-                                <span className="text-white/60 font-medium">Default Login: </span>
-                                <span className="font-bold bg-white/20 px-2 py-0.5 rounded-md ml-1">{currentRole.credentials.user}</span>
-                            </div>
-                            <div className="text-xs">
-                                <span className="text-white/60 font-medium">Password: </span>
-                                <span className="font-bold bg-white/20 px-2 py-0.5 rounded-md ml-1">{currentRole.credentials.pass}</span>
-                            </div>
+                        <div className="mt-4 flex flex-wrap gap-3 bg-white/10 rounded-xl px-4 py-3">
+                            <Key size={14} className="text-white/60" />
+                            <span className="text-xs text-white/60">Login:</span>
+                            <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded">{current.credentials.user}</span>
+                            <span className="text-xs text-white/60">Password:</span>
+                            <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded">{current.credentials.pass}</span>
                         </div>
                     </div>
 
-                    {/* Features Grid */}
+                    {/* Features */}
                     <div>
-                        <h3 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <Zap size={16} className="text-yellow-500" />
-                            Available Features
+                        <h3 className="text-xs font-black text-gray-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <Zap size={14} className="text-yellow-500" /> What You Can Do
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {currentRole.features.map((feat, i) => (
-                                <div
-                                    key={i}
-                                    className={`rounded-2xl bg-white p-5 ring-1 ring-gray-100 hover:ring-gray-200 hover:shadow-lg transition-all duration-200 group`}
-                                >
-                                    <div className={`inline-flex p-2.5 rounded-xl ${currentRole.bg} ${currentRole.text} mb-3 group-hover:scale-110 transition-transform`}>
-                                        {feat.icon}
-                                    </div>
-                                    <h4 className="text-sm font-bold text-gray-900">{feat.title}</h4>
-                                    <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{feat.desc}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {current.features.map((f, i) => (
+                                <div key={i} className="rounded-xl bg-white p-4 ring-1 ring-gray-100 hover:shadow-md transition-all group">
+                                    <div className={`inline-flex p-2 rounded-lg ${current.bg} ${current.text} mb-2 group-hover:scale-110 transition-transform`}>{f.icon}</div>
+                                    <h4 className="text-sm font-bold text-gray-900">{f.title}</h4>
+                                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{f.desc}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Workflows (Accordion) */}
+                    {/* Workflows */}
                     <div>
-                        <h3 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <ArrowRight size={16} className="text-blue-500" />
-                            Step-by-Step Workflows
+                        <h3 className="text-xs font-black text-gray-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <ArrowRight size={14} className="text-blue-500" /> How To (Step by Step)
                         </h3>
-                        <div className="space-y-3">
-                            {currentRole.workflows.map((wf, i) => (
-                                <Accordion key={i} title={wf.title} defaultOpen={i === 0} icon={<Play size={14} />}>
-                                    <div className="space-y-3 ml-1">
-                                        {wf.steps.map((step, j) => (
-                                            <div key={j} className="flex items-start gap-3 group">
-                                                <div className={`flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br ${currentRole.color} text-white flex items-center justify-center text-[11px] font-black shadow-sm group-hover:scale-110 transition-transform`}>
-                                                    {j + 1}
-                                                </div>
-                                                <p className="text-sm text-gray-700 leading-relaxed pt-0.5">{step}</p>
+                        <div className="space-y-2">
+                            {current.workflows.map((wf, i) => (
+                                <Accordion key={i} title={wf.title} defaultOpen={i === 0}>
+                                    <div className="space-y-2.5 ml-1">
+                                        {wf.steps.map((s, j) => (
+                                            <div key={j} className="flex items-start gap-2.5">
+                                                <div className={`flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br ${current.color} text-white flex items-center justify-center text-[10px] font-black`}>{j + 1}</div>
+                                                <p className="text-sm text-gray-700 leading-relaxed pt-0.5">{s}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -384,82 +307,9 @@ const PortalGuide = () => {
                 </div>
             )}
 
-            {/* System Architecture Overview */}
-            <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
-                    <Settings size={20} className="text-gray-400" />
-                    System Architecture
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 p-6 ring-1 ring-blue-100">
-                        <div className="p-2 bg-blue-100 rounded-xl inline-flex text-blue-600 mb-3">
-                            <Monitor size={20} />
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-sm">Frontend — React</h4>
-                        <ul className="mt-3 space-y-2 text-xs text-gray-600">
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-blue-500 mt-0.5 flex-shrink-0" /> Modern React with Vite for fast builds</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-blue-500 mt-0.5 flex-shrink-0" /> Role-based sidebar navigation</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-blue-500 mt-0.5 flex-shrink-0" /> Lucide icons & Framer Motion animations</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-blue-500 mt-0.5 flex-shrink-0" /> JWT-based auth with auto-redirect on expiry</li>
-                        </ul>
-                    </div>
-                    <div className="rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 p-6 ring-1 ring-green-100">
-                        <div className="p-2 bg-green-100 rounded-xl inline-flex text-green-600 mb-3">
-                            <Zap size={20} />
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-sm">Backend — Spring Boot</h4>
-                        <ul className="mt-3 space-y-2 text-xs text-gray-600">
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-green-500 mt-0.5 flex-shrink-0" /> RESTful APIs with Spring Security</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-green-500 mt-0.5 flex-shrink-0" /> JWT authentication with hospitalId claims</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-green-500 mt-0.5 flex-shrink-0" /> Multi-tenant isolation by hospital</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-green-500 mt-0.5 flex-shrink-0" /> Auto-seeding of demo data on startup</li>
-                        </ul>
-                    </div>
-                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 p-6 ring-1 ring-purple-100">
-                        <div className="p-2 bg-purple-100 rounded-xl inline-flex text-purple-600 mb-3">
-                            <CreditCard size={20} />
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-sm">Database — MySQL</h4>
-                        <ul className="mt-3 space-y-2 text-xs text-gray-600">
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-purple-500 mt-0.5 flex-shrink-0" /> Auto-creates schema on first run</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-purple-500 mt-0.5 flex-shrink-0" /> JPA/Hibernate ORM with auto DDL</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-purple-500 mt-0.5 flex-shrink-0" /> Persistent data across container restarts</li>
-                            <li className="flex items-start gap-2"><CheckCircle size={12} className="text-purple-500 mt-0.5 flex-shrink-0" /> Docker volume for data persistence</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            {/* Security & Access Control */}
-            <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
-                    <Lock size={20} className="text-red-400" />
-                    Security & Access Control
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                        { title: 'JWT Authentication', desc: 'Every API request is secured with a Bearer token that expires after 24 hours.', icon: <Key size={16} /> },
-                        { title: 'Role-Based Navigation', desc: 'The sidebar dynamically shows only the modules your role has access to.', icon: <Shield size={16} /> },
-                        { title: 'Multi-Tenant Isolation', desc: 'All data is scoped to your hospital. You can never see data from another hospital.', icon: <Building size={16} /> },
-                        { title: 'Password Security', desc: 'Doctor passwords can be reset by Admin. First-login prompts password change.', icon: <Lock size={16} /> },
-                        { title: 'Audit Logging', desc: 'Every critical action (create, update, delete) is logged with user, timestamp, and details.', icon: <FileText size={16} /> },
-                        { title: '401 Auto-Redirect', desc: 'If your session expires mid-use, you\'re automatically redirected to the login page.', icon: <LogIn size={16} /> },
-                    ].map((item, i) => (
-                        <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                            <div className="p-2 bg-white rounded-lg text-gray-500 shadow-sm flex-shrink-0">{item.icon}</div>
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-900">{item.title}</h4>
-                                <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* Footer */}
             <div className="text-center text-xs text-gray-400 pt-4">
-                <p className="font-medium">Trikaar EMR v1.0 — Hospital Management System</p>
-                <p className="mt-1">Built for production enterprise healthcare environments</p>
+                <p><span className="text-gray-900 font-bold">Trikaar</span> HMS v1.0 — Hospital Management System</p>
             </div>
         </div>
     );

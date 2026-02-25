@@ -22,12 +22,13 @@ public class UserDetailsImpl implements UserDetails {
     private String password;
 
     private String role;
+    private String assignedModules;
 
     private Collection<? extends GrantedAuthority> authorities;
 
     public UserDetailsImpl(Integer id, Integer employeeId, Integer doctorId, Integer hospitalId, String username,
             String password,
-            String role,
+            String role, String assignedModules,
             Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.employeeId = employeeId;
@@ -36,6 +37,7 @@ public class UserDetailsImpl implements UserDetails {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.assignedModules = assignedModules;
         this.authorities = authorities;
     }
 
@@ -44,6 +46,7 @@ public class UserDetailsImpl implements UserDetails {
         Integer empId = emp != null ? emp.getEmployeeId() : user.getEmployeeId();
         Integer docId = emp != null ? emp.getDoctorId() : null;
         Integer hospId = emp != null ? emp.getHospitalId() : user.getHospitalId();
+        String modules = emp != null ? emp.getAssignedModules() : null;
 
         return new UserDetailsImpl(
                 user.getUserId(),
@@ -53,6 +56,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.getUserName(),
                 user.getPassword(),
                 role,
+                modules,
                 java.util.Collections
                         .singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority(role)));
     }
@@ -71,6 +75,10 @@ public class UserDetailsImpl implements UserDetails {
 
     public String getRole() {
         return role;
+    }
+
+    public String getAssignedModules() {
+        return assignedModules;
     }
 
     @Override

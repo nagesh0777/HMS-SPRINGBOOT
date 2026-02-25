@@ -294,15 +294,51 @@ const StaffForm = () => {
                             </select>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Assigned Modules (Comma separated)</label>
-                            <input
-                                type="text"
-                                name="assignedModules"
-                                value={formData.assignedModules}
-                                onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 outline-none transition-all"
-                                placeholder="e.g. Patients, Appointments, ADT"
-                            />
+                            <label className="mb-3 block text-[10px] font-black uppercase text-gray-400">Page Access Permissions</label>
+                            <p className="text-xs text-gray-400 mb-3">Select pages this staff member can access. Without any selection, staff will only see Dashboard.</p>
+                            <div className="flex gap-2 mb-3">
+                                <button type="button" onClick={() => setFormData({ ...formData, assignedModules: 'Patients,Appointments,ADT,Billing,Notifications,Attendance' })}
+                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">Select All</button>
+                                <button type="button" onClick={() => setFormData({ ...formData, assignedModules: '' })}
+                                    className="px-3 py-1.5 bg-gray-50 text-gray-500 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors">Deselect All</button>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {[
+                                    { id: 'Patients', label: 'Patients', desc: 'View & manage patients' },
+                                    { id: 'Appointments', label: 'Appointments', desc: 'Schedule & manage appointments' },
+                                    { id: 'ADT', label: 'ADT (Admissions)', desc: 'Admit, discharge, transfer' },
+                                    { id: 'Billing', label: 'Billing', desc: 'Bills & invoices' },
+                                    { id: 'Notifications', label: 'Notifications', desc: 'View notifications' },
+                                    { id: 'Attendance', label: 'Attendance', desc: 'Mark & view attendance' },
+                                    { id: 'Doctors', label: 'Doctors', desc: 'Doctor management' },
+                                    { id: 'Staff', label: 'Staff', desc: 'Staff directory' },
+                                    { id: 'Services', label: 'Service Catalog', desc: 'Service rates & catalog' },
+                                    { id: 'Settings', label: 'Settings', desc: 'Hospital settings' },
+                                ].map(mod => {
+                                    const currentModules = (formData.assignedModules || '').split(',').map(m => m.trim()).filter(Boolean);
+                                    const isChecked = currentModules.includes(mod.id);
+                                    return (
+                                        <button key={mod.id} type="button"
+                                            onClick={() => {
+                                                const updated = isChecked
+                                                    ? currentModules.filter(m => m !== mod.id)
+                                                    : [...currentModules, mod.id];
+                                                setFormData({ ...formData, assignedModules: updated.join(',') });
+                                            }}
+                                            className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${isChecked
+                                                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}>
+                                            <div className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isChecked ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
+                                                {isChecked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                            </div>
+                                            <div>
+                                                <p className={`text-sm font-bold ${isChecked ? 'text-blue-700' : 'text-gray-700'}`}>{mod.label}</p>
+                                                <p className="text-[10px] text-gray-400">{mod.desc}</p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>

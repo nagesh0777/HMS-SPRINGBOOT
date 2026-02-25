@@ -29,7 +29,10 @@ import {
     FlaskConical,
     Settings,
     Zap,
-    ExternalLink
+    ExternalLink,
+    Receipt,
+    Settings2,
+    Package
 } from 'lucide-react';
 
 const notifTypeConfig = {
@@ -127,37 +130,97 @@ const DashboardLayout = () => {
     };
 
     const menuItems = [
+
+        // Core Hospital Workflow
+
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-        { id: 'hospitals', label: 'Hospitals', icon: <Building size={20} />, path: '/dashboard/hospitals' },
+
         { id: 'patients', label: 'Patients', icon: <Users size={20} />, path: '/dashboard/patients' },
+
         { id: 'appointments', label: 'Appointments', icon: <Calendar size={20} />, path: '/dashboard/appointments' },
-        { id: 'adt', label: 'ADT', icon: <Bed size={20} />, path: '/dashboard/adt' },
+
         { id: 'doctors', label: 'Doctors', icon: <Stethoscope size={20} />, path: '/dashboard/doctors' },
+
+        { id: 'adt', label: 'ADT', icon: <Bed size={20} />, path: '/dashboard/adt' },
+
+        { id: 'billing', label: 'Billing', icon: <Receipt size={20} />, path: '/dashboard/billing' },
+
+        { id: 'service-catalog', label: 'Service Rates', icon: <Package size={20} />, path: '/dashboard/services' },
+
+        // Staff & Operations
+
         { id: 'staff', label: 'Staff', icon: <Shield size={20} />, path: '/dashboard/staff' },
+
         { id: 'attendance', label: 'Attendance', icon: <Clock size={20} />, path: '/dashboard/staff/attendance' },
-        { id: 'audit-log', label: 'Audit Trail', icon: <FileText size={20} />, path: '/dashboard/audit-log' },
+
         { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, path: '/dashboard/notifications' },
-        // Doctor Self-Service
+
+        // Admin Tools
+
+        { id: 'hospital-settings', label: 'Settings', icon: <Settings2 size={20} />, path: '/dashboard/settings' },
+
+        // Super Admin
+
+        { id: 'hospitals', label: 'Hospitals', icon: <Building size={20} />, path: '/dashboard/hospitals' },
+
+        // Doctor Portal
+
         { id: 'doctor-dashboard', label: 'My Workspace', icon: <Activity size={20} />, path: '/dashboard/doctor' },
+
         { id: 'doctor-queue', label: 'Patient Queue', icon: <ClipboardList size={20} />, path: '/dashboard/doctor/queue' },
+
         { id: 'doctor-patient', label: 'Search Patient', icon: <Search size={20} />, path: '/dashboard/doctor/patient' },
+
         { id: 'doctor-prescriptions', label: 'Prescriptions', icon: <Pill size={20} />, path: '/dashboard/doctor/prescriptions' },
+
         { id: 'doctor-followups', label: 'Follow-Ups', icon: <UserCog size={20} />, path: '/dashboard/doctor/followups' },
+
         { id: 'doctor-profile', label: 'My Profile', icon: <User size={20} />, path: '/dashboard/doctor/profile' },
-        // Portal Guide (all roles)
+
+        // Help
+
         { id: 'portal-guide', label: 'Portal Guide', icon: <BookOpen size={20} />, path: '/dashboard/guide' },
+
     ];
 
+
+
     const rolePermissions = {
+
         'SuperAdmin': ['dashboard', 'hospitals', 'portal-guide'],
-        'Admin': ['dashboard', 'patients', 'appointments', 'adt', 'doctors', 'staff', 'attendance', 'audit-log', 'notifications', 'portal-guide'],
+
+        'Admin': ['dashboard', 'patients', 'appointments', 'doctors', 'adt', 'billing', 'service-catalog', 'staff', 'attendance', 'notifications', 'hospital-settings', 'portal-guide'],
+
         'Doctor': ['doctor-dashboard', 'doctor-queue', 'doctor-patient', 'doctor-prescriptions', 'doctor-followups', 'doctor-profile', 'adt', 'notifications', 'portal-guide'],
-        'Helpdesk': ['dashboard', 'patients', 'appointments', 'attendance', 'notifications', 'portal-guide'],
+
+        'Helpdesk': ['dashboard', 'patients', 'appointments', 'billing', 'attendance', 'notifications', 'portal-guide'],
+
         'Staff': ['dashboard', 'patients', 'notifications', 'portal-guide']
+
+    };
+
+    // For Staff/Helpdesk: if admin assigned specific modules, use ONLY those + dashboard + portal-guide
+    const getEffectivePermissions = () => {
+        const basePerms = rolePermissions[userRole] || rolePermissions['Staff'];
+        if (userRole === 'Admin' || userRole === 'SuperAdmin' || userRole === 'Doctor') return basePerms;
+        const modules = localStorage.getItem('assignedModules');
+        if (!modules || !modules.trim()) return ['dashboard', 'portal-guide']; // No access by default
+        const allowed = modules.split(',').map(m => m.trim().toLowerCase());
+        // Map module names to menu item IDs
+        const moduleMap = {
+            'patients': 'patients', 'appointments': 'appointments', 'adt': 'adt',
+            'doctors': 'doctors', 'staff': 'staff', 'attendance': 'attendance',
+            'billing': 'billing', 'service catalog': 'service-catalog', 'services': 'service-catalog',
+            'notifications': 'notifications',
+            'settings': 'hospital-settings',
+        };
+        const result = ['dashboard', 'portal-guide'];
+        allowed.forEach(mod => { if (moduleMap[mod]) result.push(moduleMap[mod]); });
+        return result;
     };
 
     const allowedItems = menuItems.filter(item =>
-        (rolePermissions[userRole] || rolePermissions['Staff']).includes(item.id)
+        getEffectivePermissions().includes(item.id)
     );
 
     const handleLogout = () => {
@@ -185,7 +248,7 @@ const DashboardLayout = () => {
                 <div className="flex items-center justify-between h-20 px-6 border-b border-gray-100">
                     <div className="flex items-center gap-2 text-primary-600">
                         <HeartPulse className="h-8 w-8" />
-                        <span className="text-xl font-bold tracking-tight">Trikaar EMR</span>
+                        <span className="text-xl font-bold tracking-tight">Trikaar HMS</span>
                     </div>
                     <button className="md:hidden p-2 text-gray-400" onClick={() => setIsSidebarOpen(false)}>
                         <X size={20} />
@@ -238,7 +301,7 @@ const DashboardLayout = () => {
                             <Menu size={24} />
                         </button>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800 md:text-2xl leading-tight">EMR System</h2>
+                            <h2 className="text-lg font-bold text-gray-800 md:text-2xl leading-tight">Trikaar HMS</h2>
                             <p className="hidden text-xs text-gray-500 md:block">Welcome back, {userName}</p>
                         </div>
                     </div>
@@ -309,8 +372,8 @@ const DashboardLayout = () => {
                                                     <div
                                                         key={n.notificationId || i}
                                                         className={`group flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 border-b border-gray-50 last:border-0 ${n.isRead
-                                                                ? 'bg-white hover:bg-gray-50'
-                                                                : 'bg-blue-50/40 hover:bg-blue-50/70'
+                                                            ? 'bg-white hover:bg-gray-50'
+                                                            : 'bg-blue-50/40 hover:bg-blue-50/70'
                                                             }`}
                                                         onClick={() => {
                                                             if (!n.isRead) markAsRead(n.notificationId);

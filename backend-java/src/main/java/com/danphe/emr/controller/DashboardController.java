@@ -157,4 +157,157 @@ public class DashboardController {
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(response));
     }
+
+    @Autowired
+    com.danphe.emr.repository.BillingRepository billingRepository;
+
+    @Autowired
+    com.danphe.emr.repository.BedRepository bedRepository;
+
+    @Autowired
+    com.danphe.emr.repository.EmployeeRepository employeeRepository;
+
+    @GetMapping("/FullAnalytics")
+    public ResponseEntity<?> getFullAnalytics() {
+        Integer hospitalId = com.danphe.emr.security.SecurityUtil.getCurrentHospitalId();
+        if (hospitalId == null)
+            return ResponseEntity.status(401).body("Hospital ID not found");
+
+        Map<String, Object> data = new HashMap<>();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+        LocalDateTime sevenDaysAgo = now.minusDays(7);
+
+        // 1. Revenue Data
+        var allBills = billingRepository.findByHospitalId(hospitalId);
+        double totalRevenue = allBills.stream().mapToDouble(b -> b.getGrandTotal() != null ? b.getGrandTotal() : 0)
+                .sum();
+        double paidRevenue = allBills.stream().filter(b -> "paid".equalsIgnoreCase(b.getPaymentStatus()))
+                .mapToDouble(b -> b.getGrandTotal() != null ? b.getGrandTotal() : 0).sum();
+        double pendingRevenue = totalRevenue - paidRevenue;
+        long totalBills = allBills.size();
+        long paidBills = allBills.stream().filter(b -> "paid".equalsIgnoreCase(b.getPaymentStatus())).count();
+        long pendingBills = totalBills - paidBills;
+
+        Map<String, Object> revenue = new HashMap<>();
+        revenue.put("total", totalRevenue);
+        revenue.put("paid", paidRevenue);
+        revenue.put("pending", pendingRevenue);
+        revenue.put("totalBills", totalBills);
+        revenue.put("paidBills", paidBills);
+        revenue.put("pendingBills", pendingBills);
+        data.put("revenue", revenue);
+
+        // 2. Monthly Revenue Chart (last 6 months)
+        java.util.List<Map<String, Object>> monthlyRevenue = new java.util.ArrayList<>();
+        for (int i = 5; i >= 0; i--) {
+            LocalDateTime mStart = now.minusMonths(i).withDayOfMonth(1).with(LocalTime.MIN);
+            LocalDateTime mEnd = i == 0 ? now : mStart.plusMonths(1).minusSeconds(1);
+            double monthTotal = allBills.stream()
+                    .filter(b -> b.getCreatedAt() != null && !b.getCreatedAt().isBefore(mStart)
+                            && !b.getCreatedAt().isAfter(mEnd))
+                    .mapToDouble(b -> b.getGrandTotal() != null ? b.getGrandTotal() : 0).sum();
+            double monthPaid = allBills.stream()
+                    .filter(b -> b.getCreatedAt() != null && !b.getCreatedAt().isBefore(mStart)
+                            && !b.getCreatedAt().isAfter(mEnd) && "paid".equalsIgnoreCase(b.getPaymentStatus()))
+                    .mapToDouble(b -> b.getGrandTotal() != null ? b.getGrandTotal() : 0).sum();
+            Map<String, Object> m = new HashMap<>();
+            m.put("month", mStart.getMonth().toString().substring(0, 3));
+            m.put("revenue", monthTotal);
+            m.put("collected", monthPaid);
+            monthlyRevenue.add(m);
+        }
+        data.put("monthlyRevenue", monthlyRevenue);
+
+        // 3. Department-wise Revenue
+        Map<String, Double> deptRevenue = new HashMap<>();
+        for (var b : allBills) {
+            if (b.getBillItems() != null) {
+                try {
+                    var items = new com.fasterxml.jackson.databind.ObjectMapper().readValue(b.getBillItems(),
+                            java.util.List.class);
+                    for (Object item : items) {
+                        if (item instanceof Map) {
+                            Map<?, ?> it = (Map<?, ?>) item;
+                            String cat = it.get("category") != null ? it.get("category").toString() : "General";
+                            double amt = 0;
+                            try {
+                                amt = Double.parseDouble(it.get("total") != null ? it.get("total").toString() : "0");
+                            } catch (Exception ignore) {
+                            }
+                            deptRevenue.merge(cat, amt, Double::sum);
+                        }
+                    }
+                } catch (Exception ignore) {
+                }
+            }
+        }
+        java.util.List<Map<String, Object>> deptList = new java.util.ArrayList<>();
+        deptRevenue.forEach((k, v) -> {
+            Map<String, Object> d = new HashMap<>();
+            d.put("department", k);
+            d.put("amount", v);
+            deptList.add(d);
+        });
+        deptList.sort((a, b) -> Double.compare((Double) b.get("amount"), (Double) a.get("amount")));
+        data.put("departmentRevenue", deptList);
+
+        // 4. Bed Occupancy
+        var allBeds = bedRepository.findByHospitalId(hospitalId);
+        long totalBeds = allBeds.size();
+        long occupiedBeds = allBeds.stream().filter(b -> "occupied".equalsIgnoreCase(b.getStatus())).count();
+        long availableBeds = totalBeds - occupiedBeds;
+        Map<String, Object> beds = new HashMap<>();
+        beds.put("total", totalBeds);
+        beds.put("occupied", occupiedBeds);
+        beds.put("available", availableBeds);
+        beds.put("occupancyRate", totalBeds > 0 ? Math.round((occupiedBeds * 100.0) / totalBeds) : 0);
+        data.put("beds", beds);
+
+        // 5. Patient Stats
+        long totalPatients = patientRepository.countByHospitalId(hospitalId);
+        long newPatientsWeek = patientRepository.countByHospitalIdAndCreatedOnBetween(hospitalId, sevenDaysAgo, now);
+        long newPatientsMonth = patientRepository.countByHospitalIdAndCreatedOnBetween(hospitalId, thirtyDaysAgo, now);
+        Map<String, Object> patientStats = new HashMap<>();
+        patientStats.put("total", totalPatients);
+        patientStats.put("newThisWeek", newPatientsWeek);
+        patientStats.put("newThisMonth", newPatientsMonth);
+        data.put("patientStats", patientStats);
+
+        // 6. Appointment Stats
+        var todayAppts = appointmentRepository.findByHospitalIdAndAppointmentDateBetween(hospitalId,
+                LocalDateTime.of(LocalDate.now(), LocalTime.MIN), LocalDateTime.of(LocalDate.now(), LocalTime.MAX));
+        var weekAppts = appointmentRepository.findByHospitalIdAndAppointmentDateBetween(hospitalId, sevenDaysAgo, now);
+        Map<String, Object> apptStats = new HashMap<>();
+        apptStats.put("today", todayAppts.size());
+        apptStats.put("thisWeek", weekAppts.size());
+        long completed = weekAppts.stream().filter(a -> "completed".equalsIgnoreCase(a.getAppointmentStatus())).count();
+        long cancelled = weekAppts.stream().filter(a -> "cancelled".equalsIgnoreCase(a.getAppointmentStatus())).count();
+        apptStats.put("completed", completed);
+        apptStats.put("cancelled", cancelled);
+        data.put("appointmentStats", apptStats);
+
+        // 7. Active Admissions
+        var admissions = admissionRepository.findByHospitalIdAndAdmissionStatus(hospitalId, "admitted");
+        data.put("activeAdmissions", admissions.size());
+
+        // 8. Daily patient trend (last 7 days)
+        java.util.List<Map<String, Object>> dailyTrend = new java.util.ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            LocalDate d = LocalDate.now().minusDays(i);
+            LocalDateTime ds = LocalDateTime.of(d, LocalTime.MIN);
+            LocalDateTime de = LocalDateTime.of(d, LocalTime.MAX);
+            long pc = patientRepository.countByHospitalIdAndCreatedOnBetween(hospitalId, ds, de);
+            long ac = appointmentRepository.findByHospitalIdAndAppointmentDateBetween(hospitalId, ds, de).size();
+            Map<String, Object> dd = new HashMap<>();
+            dd.put("day", d.getDayOfWeek().toString().substring(0, 3));
+            dd.put("date", d.toString());
+            dd.put("patients", pc);
+            dd.put("appointments", ac);
+            dailyTrend.add(dd);
+        }
+        data.put("dailyTrend", dailyTrend);
+
+        return ResponseEntity.ok(DanpheHttpResponse.ok(data));
+    }
 }

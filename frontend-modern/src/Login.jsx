@@ -47,6 +47,7 @@ const Login = () => {
                     if (payload.doctorId) localStorage.setItem("doctorId", payload.doctorId);
                     if (payload.employeeId) localStorage.setItem("employeeId", payload.employeeId);
                     if (payload.hospitalId) localStorage.setItem("hospitalId", payload.hospitalId);
+                    if (payload.assignedModules) localStorage.setItem("assignedModules", payload.assignedModules);
                 } catch (e) {
                     console.error("Failed to decode token for role", e);
                     localStorage.setItem("role", "Staff");
@@ -80,7 +81,7 @@ const Login = () => {
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
                         <HeartPulse size={40} className="text-white" />
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight">Trikaar EMR</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Trikaar HMS</h1>
                     <p className="mt-2 text-blue-100">Next-Gen Hospital Management</p>
                 </div>
 

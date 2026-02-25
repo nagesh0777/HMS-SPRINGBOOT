@@ -24,6 +24,8 @@ public class Hospital {
 
     private Boolean isActive;
 
+    private String logoPath;
+
     // License/Subscription fields can be added here
     private LocalDateTime subscriptionExpiry;
 

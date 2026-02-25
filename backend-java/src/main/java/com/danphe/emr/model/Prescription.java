@@ -3,6 +3,7 @@ package com.danphe.emr.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,15 +33,25 @@ public class Prescription {
     private String diagnosis;
 
     @Column(length = 2000)
-    private String clinicalNotes;
+    private String clinicalNotes; // Chief complaint - what the patient reported
 
     @Column(length = 1000)
     private String allergyWarnings;
+
+    // Patient vitals at time of consultation
+    private Double patientWeight; // in kg
+    private Double patientHeight; // in cm
 
     // "draft", "finalized", "sent_to_pharmacy", "dispensed"
     private String status;
 
     private String templateName;
+
+    // Follow-up / Next appointment
+    private LocalDate followUpDate;
+
+    @Column(length = 500)
+    private String followUpNotes;
 
     // Audit
     private LocalDateTime createdOn;

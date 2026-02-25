@@ -41,9 +41,11 @@ import DoctorProfile from './pages/doctor/DoctorProfile';
 
 // Admin Modules
 import DoctorManagementPage from './pages/doctors/DoctorManagementPage';
-import AuditLogPage from './pages/admin/AuditLogPage';
+import HospitalSettingsPage from './pages/admin/HospitalSettingsPage';
+import ServiceCatalogPage from './pages/admin/ServiceCatalogPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import PortalGuide from './pages/PortalGuide';
+import BillingDashboard from './pages/billing/BillingDashboard';
 
 
 
@@ -123,9 +125,16 @@ function App() {
             <Route path="doctor/profile" element={<DoctorProfile />} />
 
             {/* Admin Tools */}
-            <Route path="audit-log" element={<AuditLogPage />} />
+
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="guide" element={<PortalGuide />} />
+
+            {/* Billing Module */}
+            <Route path="billing" element={<BillingDashboard />} />
+            <Route path="services" element={<ServiceCatalogPage />} />
+
+            {/* Hospital Settings */}
+            <Route path="settings" element={<HospitalSettingsPage />} />
 
             {/* Fallback */}
             <Route path="*" element={<div>Page Under Construction</div>} />
