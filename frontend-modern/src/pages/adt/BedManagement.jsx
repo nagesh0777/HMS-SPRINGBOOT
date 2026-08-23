@@ -3,11 +3,13 @@ import axios from 'axios';
 import { Plus, Trash, BedDouble, Save, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
 
 const BedManagement = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const [beds, setBeds] = useState([]);
+    const [confirmDeleteBedId, setConfirmDeleteBedId] = useState(null);
     const [newBed, setNewBed] = useState({
         bedNumber: '',
         ward: 'General Ward',
@@ -48,12 +50,20 @@ const BedManagement = () => {
         }
     };
 
-    const handleDeleteBed = async (id) => {
+    const handleDeleteBed = (id) => {
+        setConfirmDeleteBedId(id);
+    };
+
+    const handleConfirmDeleteBed = async () => {
+        if (!confirmDeleteBedId) return;
         try {
-            await axios.delete(`/api/Adt/Beds/${id}`);
+            await axios.delete(`/api/Adt/Beds/${confirmDeleteBedId}`);
             fetchBeds();
+            toast.success("Bed configuration deleted successfully");
+            setConfirmDeleteBedId(null);
         } catch (error) {
             console.error("Failed to delete bed", error);
+            toast.error("Failed to delete bed.");
         }
     };
 
@@ -120,7 +130,7 @@ const BedManagement = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">Price Per Day ($)</label>
+                            <label className="mb-1 block text-sm font-medium text-gray-700">Price Per Day (₹)</label>
                             <input
                                 type="number"
                                 required
@@ -166,7 +176,7 @@ const BedManagement = () => {
                                         </td>
                                         <td className="px-6 py-4 text-gray-600">{bed.ward}</td>
                                         <td className="px-6 py-4 text-gray-600">{bed.floor}</td>
-                                        <td className="px-6 py-4 font-medium text-gray-900">${bed.pricePerDay}</td>
+                                        <td className="px-6 py-4 font-medium text-gray-900">₹{bed.pricePerDay}</td>
                                         <td className="px-6 py-4 text-right">
                                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bed.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                                 }`}>
@@ -194,6 +204,18 @@ const BedManagement = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Bed Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!confirmDeleteBedId}
+                onClose={() => setConfirmDeleteBedId(null)}
+                onConfirm={handleConfirmDeleteBed}
+                title="Remove Bed Configuration"
+                message="Are you sure you want to permanently delete this bed configuration from the hospital directory? Patients currently active in the EMR census system might lose their ward mappings."
+                confirmText="Delete Bed"
+                cancelText="Cancel"
+                type="danger"
+            />
         </div>
     );
 };

@@ -28,6 +28,9 @@ public class Hospital {
 
     // License/Subscription fields can be added here
     private LocalDateTime subscriptionExpiry;
+    private String subscriptionPlan;
+    private String subscriptionStatus;
+    private String billingCycle;
 
     @Column(updatable = false)
     private LocalDateTime createdOn;

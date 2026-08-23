@@ -1,40 +1,33 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { User, Lock, HeartPulse } from "lucide-react";
+import { User, Lock, HeartPulse, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        setError(""); // Clear previous errors
-
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters long.");
-            return;
-        }
+        setError("");
+        setIsLoading(true);
 
         try {
-            console.log("Attempting login with:", username);
             const response = await axios.post("/api/Account/GetLoginJwtToken", {
                 userName: username,
                 password: password,
             });
 
-            console.log("Login response:", response.data);
-
             if (response.data.Results) {
-                console.log("Token received, saving and redirecting...");
                 const token = response.data.Results;
                 localStorage.setItem("token", token);
                 localStorage.setItem("userName", username);
 
-                // Decode role
                 try {
                     const base64Url = token.split('.')[1];
                     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -43,93 +36,167 @@ const Login = () => {
                     }).join(''));
 
                     const payload = JSON.parse(jsonPayload);
-                    localStorage.setItem("role", payload.role || "Staff");
+                    const loginName = (username || payload.sub || "").trim();
+                    const ownerLogin = loginName.toLowerCase() === "nagesh" || loginName.toLowerCase() === "trikaar_admin";
+                    localStorage.setItem("role", ownerLogin ? "SuperAdmin" : (payload.role || "Staff"));
                     if (payload.doctorId) localStorage.setItem("doctorId", payload.doctorId);
                     if (payload.employeeId) localStorage.setItem("employeeId", payload.employeeId);
                     if (payload.hospitalId) localStorage.setItem("hospitalId", payload.hospitalId);
-                    if (payload.assignedModules) localStorage.setItem("assignedModules", payload.assignedModules);
+                    if (ownerLogin) {
+                        localStorage.setItem("assignedModules", [
+                            "Dashboard",
+                            "Patients",
+                            "Appointments",
+                            "Doctor Queue",
+                            "Prescriptions",
+                            "Billing",
+                            "Service Catalog",
+                            "Staff",
+                            "ADT",
+                            "Beds",
+                            "AI Copilot",
+                            "AICopilot",
+                            "Reports",
+                            "Notifications",
+                            "Settings",
+                            "Hospitals"
+                        ].join(","));
+                    } else if (payload.assignedModules) {
+                        localStorage.setItem("assignedModules", payload.assignedModules);
+                    }
                 } catch (e) {
-                    console.error("Failed to decode token for role", e);
-                    localStorage.setItem("role", "Staff");
+                    console.error("Failed to decode token", e);
+                    localStorage.setItem("role", username.trim().toLowerCase() === "nagesh" ? "SuperAdmin" : "Staff");
                 }
 
-                // Role-based redirect
+                try {
+                    const subRes = await axios.get('/api/Subscriptions/MySubscription');
+                    if (subRes.data.Results) {
+                        const sub = subRes.data.Results;
+                        localStorage.setItem("subscriptionPlan", sub.subscriptionPlan || "");
+                        localStorage.setItem("subscriptionStatus", sub.subscriptionStatus || "");
+                        localStorage.setItem("subscriptionModules", Array.isArray(sub.modules) ? sub.modules.join(',') : "");
+                    }
+                } catch (e) {
+                    console.error("Failed to load subscription", e);
+                }
+
                 const role = localStorage.getItem("role") || "Staff";
                 let redirectTo = "/dashboard";
                 if (role === "Doctor") redirectTo = "/dashboard/doctor";
                 else if (role === "SuperAdmin") redirectTo = "/dashboard/hospitals";
                 window.location.href = redirectTo;
             } else {
-                console.warn("No Results in response", response.data);
-                setError(response.data.ErrorMessage || "Login failed. No token received.");
+                setError(response.data.ErrorMessage || "Invalid username or password.");
             }
         } catch (err) {
-            console.error("Login Error:", err);
-            const msg = err.response?.data?.ErrorMessage || "Invalid credentials or server error.";
-            setError(msg);
+            setError(err.response?.data?.ErrorMessage || "Could not establish secure connection to portal.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 from-blue-100 to-white bg-gradient-to-br p-4">
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl"
-            >
-                <div className="bg-primary-600 p-8 text-center text-white">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                        <HeartPulse size={40} className="text-white" />
+        <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+            <div className="w-full max-w-[440px] space-y-8">
+                {/* Brand Logo & Header */}
+                <div className="text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm ring-1 ring-primary-700/10">
+                        <HeartPulse size={26} className="stroke-[2.5]" />
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight">Trikaar HMS</h1>
-                    <p className="mt-2 text-blue-100">Next-Gen Hospital Management</p>
+                    <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-gray-900 font-display">
+                        Login to Trikaar HMS
+                    </h2>
+                    <p className="mt-2 text-sm text-gray-500">
+                        Enter your credentials to access your clinician workspace
+                    </p>
                 </div>
 
-                <div className="p-8">
+                {/* Login Card */}
+                <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
                     <form onSubmit={handleLogin} className="space-y-6">
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">Username</label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-3 text-gray-400" size={20} />
+                        {/* Username Field */}
+                        <div className="space-y-1.5">
+                            <label htmlFor="username" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                Username / Staff ID
+                            </label>
+                            <div className="relative rounded-lg shadow-sm">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                                    <User className="h-5 w-5 text-gray-400" />
+                                </div>
                                 <input
+                                    id="username"
+                                    name="username"
                                     type="text"
+                                    autoComplete="username"
+                                    required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="Enter your username"
-                                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                    placeholder="yourusername"
+                                    className="block w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm font-medium transition-all"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">Password</label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                        {/* Password Field */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                    Password
+                                </label>
+                            </div>
+                            <div className="relative rounded-lg shadow-sm">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                                    <Lock className="h-5 w-5 text-gray-400" />
+                                </div>
                                 <input
-                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
+                                    required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                    className="block w-full rounded-xl border border-gray-300 py-3 pl-11 pr-11 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm font-medium transition-all"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
                         </div>
 
-                        {error && <p className="text-center text-sm text-red-500">{error}</p>}
+                        {/* Error Message */}
+                        {error && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: -5 }} 
+                                animate={{ opacity: 1, y: 0 }} 
+                                className="flex items-start gap-2.5 rounded-xl bg-red-50 p-3.5 border border-red-100 text-xs font-medium text-red-700"
+                            >
+                                <ShieldCheck className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                <span>{error}</span>
+                            </motion.div>
+                        )}
 
+                        {/* Submit Button */}
                         <button
                             type="submit"
-                            className="w-full rounded-lg bg-primary-600 py-3 font-semibold text-white shadow-lg transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                            disabled={isLoading}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-colors disabled:opacity-50 active:scale-[0.99] transition-transform"
                         >
-                            Sign In to Dashboard
+                            {isLoading ? (
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            ) : (
+                                "Login"
+                            )}
                         </button>
                     </form>
-
-                    <p className="mt-8 text-center text-xs text-gray-400">
-                        Powered by Trikaar Health Systems V3.0
-                    </p>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };

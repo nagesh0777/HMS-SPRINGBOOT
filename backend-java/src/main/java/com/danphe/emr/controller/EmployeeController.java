@@ -30,6 +30,9 @@ public class EmployeeController {
     @Autowired
     private com.danphe.emr.repository.DoctorRepository doctorRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     private String getCurrentUser() {
         org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication();
@@ -88,7 +91,7 @@ public class EmployeeController {
                 String pwd = (employee.getPassword() != null && !employee.getPassword().trim().isEmpty())
                         ? employee.getPassword().trim()
                         : "pass123";
-                user.setPassword(pwd);
+                user.setPassword(passwordEncoder.encode(pwd));
 
                 user.setEmployeeId(saved.getEmployeeId());
                 user.setIsActive(true);
@@ -115,6 +118,7 @@ public class EmployeeController {
                 d.setEmail(saved.getEmail());
                 d.setIsActive(saved.getIsActive());
                 d.setEmployeeId(saved.getEmployeeId());
+                d.setPhotoPath(saved.getPhotoPath());
                 // Defaults
                 d.setStartTime("09:00");
                 d.setEndTime("17:00");
@@ -159,14 +163,23 @@ public class EmployeeController {
                 existing.setStatus(details.getStatus());
                 existing.setAdminNotes(details.getAdminNotes());
                 existing.setIsActive(details.getIsActive());
+                existing.setPhotoPath(details.getPhotoPath());
 
                 Employee saved = employeeRepository.save(existing);
+
+                // Sync with associated Doctor
+                if (saved.getDoctorId() != null) {
+                    doctorRepository.findById(saved.getDoctorId()).ifPresent(d -> {
+                        d.setPhotoPath(saved.getPhotoPath());
+                        doctorRepository.save(d);
+                    });
+                }
 
                 // Update user credentials if needed
                 userRepository.findByHospitalIdAndEmployeeId(hospitalId, id).ifPresent(user -> {
                     user.setUserName(saved.getUserName());
                     if (details.getPassword() != null && !details.getPassword().isEmpty()) {
-                        user.setPassword(details.getPassword());
+                        user.setPassword(passwordEncoder.encode(details.getPassword()));
                     }
                     user.setIsActive(saved.getIsActive());
                     userRepository.save(user);

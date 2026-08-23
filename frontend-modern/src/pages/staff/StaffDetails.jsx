@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Edit, Mail, Phone, Briefcase, MapPin, Calendar, Clock,
@@ -8,6 +7,9 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
+import Skeleton from '../../components/ui/Skeleton';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
+import PromptModal from '../../components/ui/PromptModal';
 
 const StaffDetails = () => {
     const { id } = useParams();
@@ -16,6 +18,12 @@ const StaffDetails = () => {
     const [staff, setStaff] = useState(null);
     const [loading, setLoading] = useState(true);
     const [attendance, setAttendance] = useState([]);
+    
+    // Modal Overlay States
+    const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+    const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showChangePasswordPrompt, setShowChangePasswordPrompt] = useState(false);
 
     useEffect(() => {
         const userRole = localStorage.getItem('role');
@@ -51,42 +59,64 @@ const StaffDetails = () => {
     };
 
     const handleDeactivate = async () => {
-        if (window.confirm("Are you sure you want to change this user's active status?")) {
-            try {
-                const updated = { ...staff, isActive: !staff.isActive };
-                await axios.put(`/api/Employee/${id}`, updated);
-                fetchStaff();
-            } catch (error) {
-                toast.error("Failed to update status");
-            }
+        try {
+            const updated = { ...staff, isActive: !staff.isActive };
+            await axios.put(`/api/Employee/${id}`, updated);
+            toast.success(staff.isActive ? "User access deactivated" : "User access activated");
+            fetchStaff();
+        } catch (error) {
+            toast.error("Failed to update status");
         }
     };
 
-    const handleChangePassword = async () => {
-        const newPassword = window.prompt("Enter new password for this user:");
-        if (newPassword && newPassword.trim().length > 0) {
-            try {
-                await axios.put(`/api/Employee/${id}`, { ...staff, password: newPassword });
-                toast.success("Password updated successfully!");
-                fetchStaff();
-            } catch (error) {
-                toast.error("Failed to update password.");
-            }
+    const handleChangePassword = async (newPassword) => {
+        try {
+            await axios.put(`/api/Employee/${id}`, { ...staff, password: newPassword });
+            toast.success("Password updated successfully!");
+            fetchStaff();
+        } catch (error) {
+            toast.error("Failed to update password.");
+        }
+    };
+
+    const handleResetPassword = async () => {
+        try {
+            await axios.put(`/api/Employee/${id}`, { ...staff, password: 'pass123' });
+            toast.success("Password reset to 'pass123' successfully!");
+            fetchStaff();
+        } catch (error) {
+            toast.error("Failed to reset password.");
         }
     };
 
     const handleDelete = async () => {
-        if (window.confirm("CRITICAL: This will permanently delete the staff record and their login account. This action cannot be undone. \n\nAre you sure?")) {
-            try {
-                await axios.delete(`/api/Employee/${id}`);
-                navigate('/dashboard/staff');
-            } catch (error) {
-                toast.error("Failed to delete staff member.");
-            }
+        try {
+            await axios.delete(`/api/Employee/${id}`);
+            toast.success("Staff record deleted successfully");
+            navigate('/dashboard/staff');
+        } catch (error) {
+            toast.error("Failed to delete staff member.");
         }
     };
 
-    if (loading) return <div className="p-10 text-center">Loading staff profile...</div>;
+    if (loading) {
+        return (
+            <div className="max-w-6xl mx-auto space-y-8 pb-20">
+                <Skeleton variant="text" className="h-6 w-32" animation="shimmer" />
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                    <div className="space-y-8 lg:col-span-1">
+                        <Skeleton variant="rectangular" className="h-[400px] w-full" animation="shimmer" />
+                        <Skeleton variant="rectangular" className="h-[300px] w-full" animation="shimmer" />
+                    </div>
+                    <div className="space-y-8 lg:col-span-2">
+                        <Skeleton variant="rectangular" className="h-[200px] w-full" animation="shimmer" />
+                        <Skeleton variant="rectangular" className="h-[150px] w-full" animation="shimmer" />
+                        <Skeleton variant="rectangular" className="h-[350px] w-full" animation="shimmer" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
     if (!staff) return <div className="p-10 text-center text-red-500 font-bold">Staff member not found.</div>;
 
     return (
@@ -110,11 +140,14 @@ const StaffDetails = () => {
                         <div className="bg-gradient-to-br from-gray-900 to-primary-900 p-8 text-white text-center">
                             <div className="relative mx-auto mb-6 h-32 w-32">
                                 <img
-                                    src={`https://ui-avatars.com/api/?name=${staff.firstName}+${staff.lastName}&background=random&color=fff&size=128`}
-                                    alt=""
+                                    src={staff.photoPath || `https://ui-avatars.com/api/?name=${staff.firstName}+${staff.lastName}&background=random&color=fff&size=128`}
+                                    alt="Staff Profile"
                                     className="h-full w-full rounded-2xl border-4 border-white/10 object-cover shadow-2xl"
                                 />
-                                <div className={`absolute -bottom-2 -right-2 h-6 w-6 rounded-full border-4 border-gray-950 ${staff.status === 'Active' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                                <div className={`absolute -bottom-2 -right-2 h-6 w-6 rounded-full border-4 border-gray-950 ${
+                                    staff.status === 'Active' ? 'bg-green-500' :
+                                    staff.status === 'On Leave' ? 'bg-amber-500' : 'bg-red-500'
+                                }`}></div>
                             </div>
                             <h1 className="text-2xl font-black">{staff.firstName} {staff.lastName}</h1>
                             <p className="mt-1 text-sm font-bold text-primary-300 uppercase tracking-widest">{staff.role}</p>
@@ -157,21 +190,21 @@ const StaffDetails = () => {
                                     Edit Profile
                                 </button>
                                 <button
-                                    onClick={handleChangePassword}
+                                    onClick={() => setShowChangePasswordPrompt(true)}
                                     className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-white hover:shadow-md active:scale-95"
                                 >
                                     <Lock size={18} className="text-blue-600" />
                                     Change Password
                                 </button>
                                 <button
-                                    onClick={handleChangePassword}
+                                    onClick={() => setShowResetPasswordConfirm(true)}
                                     className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-white hover:shadow-md active:scale-95"
                                 >
                                     <RefreshCw size={18} className="text-orange-600" />
                                     Reset Password
                                 </button>
                                 <button
-                                    onClick={handleDeactivate}
+                                    onClick={() => setShowDeactivateConfirm(true)}
                                     className={`flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3 text-sm font-bold transition-all hover:shadow-md active:scale-95 ${staff.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'
                                         }`}
                                 >
@@ -180,7 +213,7 @@ const StaffDetails = () => {
                                 </button>
                                 <div className="pt-2">
                                     <button
-                                        onClick={handleDelete}
+                                        onClick={() => setShowDeleteConfirm(true)}
                                         className="flex w-full items-center gap-3 rounded-xl border-2 border-red-50 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition-all hover:bg-red-600 hover:text-white hover:shadow-xl active:scale-95"
                                     >
                                         <Trash2 size={18} />
@@ -216,19 +249,7 @@ const StaffDetails = () => {
                                 </span>
                             </div>
 
-                            {/* Attendance QR Code */}
-                            <div className="md:col-span-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Internal ID QR (Attendance)</p>
-                                <div className="p-4 bg-white border-2 border-dashed border-gray-100 rounded-3xl inline-block shadow-sm">
-                                    <QRCodeCanvas
-                                        value={staff.employeeId.toString()}
-                                        size={90}
-                                        level="H"
-                                        includeMargin={false}
-                                    />
-                                </div>
-                                <p className="mt-2 text-[9px] font-bold text-gray-400 italic">Scan for presence tracking</p>
-                            </div>
+                            {/* Attendance QR Code block removed as system is now purely manual */}
 
                             <div className="md:col-span-2">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Assigned Modules</p>
@@ -317,6 +338,58 @@ const StaffDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Deactivation Modal Overlay */}
+            <ConfirmationModal
+                isOpen={showDeactivateConfirm}
+                onClose={() => setShowDeactivateConfirm(false)}
+                onConfirm={handleDeactivate}
+                title={staff.isActive ? "Deactivate Staff Access" : "Activate Staff Access"}
+                message={staff.isActive 
+                    ? `Are you sure you want to deactivate system login and duty shifts for ${staff.firstName} ${staff.lastName}? They will be blocked from logging into the portal immediately.`
+                    : `Are you sure you want to reactivate access for ${staff.firstName} ${staff.lastName}? They will be able to log back into the system.`
+                }
+                confirmText={staff.isActive ? "Deactivate" : "Activate"}
+                cancelText="Cancel"
+                type={staff.isActive ? "danger" : "info"}
+            />
+
+            {/* Reset Password Modal Overlay */}
+            <ConfirmationModal
+                isOpen={showResetPasswordConfirm}
+                onClose={() => setShowResetPasswordConfirm(false)}
+                onConfirm={handleResetPassword}
+                title="Reset Password to Default"
+                message={`Are you sure you want to reset the password for ${staff.firstName} ${staff.lastName} to the default secure credential 'pass123'?`}
+                confirmText="Reset Password"
+                cancelText="Cancel"
+                type="warning"
+            />
+
+            {/* Delete Record Modal Overlay */}
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleDelete}
+                title="Delete Staff Record"
+                message={`CRITICAL WARNING:\n\nThis will permanently delete the profile, role permissions, and active credential account for employee ${staff.firstName} ${staff.lastName}.\n\nThis administrative action is irreversible. Continue?`}
+                confirmText="Permanently Delete"
+                cancelText="Cancel"
+                type="danger"
+            />
+
+            {/* Custom Change Password Prompt Modal */}
+            <PromptModal
+                isOpen={showChangePasswordPrompt}
+                onClose={() => setShowChangePasswordPrompt(false)}
+                onSubmit={handleChangePassword}
+                title="Change Staff Password"
+                message={`Enter the new secure login passcode for ${staff.firstName} ${staff.lastName}:`}
+                placeholder="Enter new password (min. 6 characters)"
+                inputType="password"
+                submitText="Update Password"
+                cancelText="Cancel"
+            />
         </div>
     );
 };

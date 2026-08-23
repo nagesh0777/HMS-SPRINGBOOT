@@ -33,31 +33,34 @@ const PatientList = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h1 className="text-2xl font-bold text-gray-900">Patient Management</h1>
+        <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-gray-100 pb-5">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight font-display">Patient Management</h1>
+                    <p className="text-xs text-gray-500 font-semibold mt-0.5">Search, filter, and register patients in the master clinical records database.</p>
+                </div>
                 <button
                     onClick={() => navigate('/dashboard/patients/new')}
-                    className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
+                    className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-black transition-all active:scale-95 text-xs font-black uppercase tracking-wider shadow-sm self-start sm:self-auto"
                 >
-                    <Plus size={20} />
+                    <Plus size={16} />
                     Register Patient
                 </button>
             </div>
 
             {/* Search Bar */}
             <div className="relative max-w-md">
-                <Search className={`absolute left-3 top-3 transition-colors ${searching ? 'text-primary-500 animate-pulse' : 'text-gray-400'}`} size={20} />
+                <Search className={`absolute left-3.5 top-3.5 transition-colors ${searching ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`} size={16} />
                 <input
                     type="text"
                     placeholder="Search by name, mobile, or code..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full rounded-xl border-gray-200 bg-white py-2.5 pl-10 pr-4 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    className="w-full pl-11 pr-10 py-3 rounded-2xl border border-gray-200 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 bg-white placeholder-gray-400"
                 />
                 {searching && (
-                    <div className="absolute right-3 top-3">
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+                    <div className="absolute right-3.5 top-3.5">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
                     </div>
                 )}
             </div>
@@ -88,14 +91,28 @@ const PatientList = () => {
                                     <tr key={patient.patientId} className="hover:bg-gray-50">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                                                    <User size={20} />
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 overflow-hidden border border-gray-150">
+                                                    {patient.photoPath ? (
+                                                        <img src={patient.photoPath} alt="Patient" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User size={20} />
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium text-gray-900">
-                                                        {patient.firstName} {patient.lastName}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-gray-900">
+                                                            {patient.firstName} {patient.lastName}
+                                                        </span>
+                                                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            patient.status === 'Inpatient' ? 'bg-teal-50 text-teal-700 ring-1 ring-teal-100' :
+                                                            patient.status === 'Emergency' ? 'bg-red-50 text-red-700 ring-1 ring-red-100' :
+                                                            patient.status === 'Discharged' ? 'bg-gray-50 text-gray-700 ring-1 ring-gray-100' :
+                                                            'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                                                        }`}>
+                                                            {patient.status || 'Outpatient'}
+                                                        </span>
                                                     </div>
-                                                    <div className="text-sm text-gray-500">
+                                                    <div className="text-xs text-gray-500">
                                                         {patient.patientCode} • {patient.gender} • {patient.age}
                                                     </div>
                                                 </div>

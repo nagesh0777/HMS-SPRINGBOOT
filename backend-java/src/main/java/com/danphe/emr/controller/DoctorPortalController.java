@@ -40,6 +40,9 @@ public class DoctorPortalController {
     @Autowired
     private DoctorRepository doctorRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     // =========================================================================
     // 1. DOCTOR DASHBOARD
     // =========================================================================
@@ -51,19 +54,31 @@ public class DoctorPortalController {
 
         Map<String, Object> dashboard = new HashMap<>();
 
-        LocalDateTime startOfDay = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
-        LocalDateTime endOfDay = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
+        // Timezone-safe date query: Fetch appointments within a +/- 1 day window
+        LocalDateTime startRange = LocalDateTime.of(LocalDate.now().minusDays(1), LocalTime.MIN);
+        LocalDateTime endRange = LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.MAX);
 
-        // Today's Appointments
         List<Appointment> todaysAppts;
         if (doctorId != null) {
             todaysAppts = appointmentRepository
-                    .findByHospitalIdAndAppointmentDateBetweenAndPerformerId(hospitalId, startOfDay, endOfDay,
+                    .findByHospitalIdAndAppointmentDateBetweenAndPerformerId(hospitalId, startRange, endRange,
                             doctorId);
         } else {
             todaysAppts = appointmentRepository
-                    .findByHospitalIdAndAppointmentDateBetween(hospitalId, startOfDay, endOfDay);
+                    .findByHospitalIdAndAppointmentDateBetween(hospitalId, startRange, endRange);
         }
+
+        // Filter: Keep all active appointments, but only Completed/Cancelled ones that fall on today's calendar date
+        LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+        LocalDateTime todayEnd = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
+
+        todaysAppts = todaysAppts.stream().filter(a -> {
+            String status = a.getAppointmentStatus();
+            if ("Completed".equalsIgnoreCase(status) || "Cancelled".equalsIgnoreCase(status)) {
+                return a.getAppointmentDate().isAfter(todayStart) && a.getAppointmentDate().isBefore(todayEnd);
+            }
+            return true;
+        }).collect(Collectors.toList());
         dashboard.put("appointmentsToday", todaysAppts.size());
 
         // Appointment status breakdown
@@ -119,18 +134,31 @@ public class DoctorPortalController {
         UserDetailsImpl user = SecurityUtil.getCurrentUser();
         Integer doctorId = user != null ? user.getDoctorId() : null;
 
-        LocalDateTime startOfDay = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
-        LocalDateTime endOfDay = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
+        // Timezone-safe date query: Fetch appointments within a +/- 1 day window
+        LocalDateTime startRange = LocalDateTime.of(LocalDate.now().minusDays(1), LocalTime.MIN);
+        LocalDateTime endRange = LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.MAX);
 
         List<Appointment> queue;
         if (doctorId != null) {
             queue = appointmentRepository
-                    .findByHospitalIdAndAppointmentDateBetweenAndPerformerId(hospitalId, startOfDay, endOfDay,
+                    .findByHospitalIdAndAppointmentDateBetweenAndPerformerId(hospitalId, startRange, endRange,
                             doctorId);
         } else {
             queue = appointmentRepository
-                    .findByHospitalIdAndAppointmentDateBetween(hospitalId, startOfDay, endOfDay);
+                    .findByHospitalIdAndAppointmentDateBetween(hospitalId, startRange, endRange);
         }
+
+        // Filter: Keep all active appointments, but only Completed/Cancelled ones that fall on today's calendar date
+        LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+        LocalDateTime todayEnd = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
+
+        queue = queue.stream().filter(a -> {
+            String status = a.getAppointmentStatus();
+            if ("Completed".equalsIgnoreCase(status) || "Cancelled".equalsIgnoreCase(status)) {
+                return a.getAppointmentDate().isAfter(todayStart) && a.getAppointmentDate().isBefore(todayEnd);
+            }
+            return true;
+        }).collect(Collectors.toList());
 
         // Sort: emergency first, then by appointment date
         queue.sort((a, b) -> {
@@ -160,6 +188,75 @@ public class DoctorPortalController {
         appt.setAppointmentStatus(newStatus);
         appointmentRepository.save(appt);
         return ResponseEntity.ok(DanpheHttpResponse.ok("Status updated to " + newStatus));
+    }
+
+    @GetMapping("/TreatedHistory")
+    public ResponseEntity<?> getTreatedHistory(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String searchQuery,
+            @RequestParam(required = false) String status) {
+
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        UserDetailsImpl user = SecurityUtil.getCurrentUser();
+        Integer doctorId = user != null ? user.getDoctorId() : null;
+
+        if (doctorId == null) {
+            return ResponseEntity.ok(DanpheHttpResponse.ok(Collections.emptyList()));
+        }
+
+        // Fetch all appointments for this doctor at this hospital
+        List<Appointment> list = appointmentRepository.findByHospitalId(hospitalId);
+
+        // Filter by doctor
+        list = list.stream()
+                .filter(a -> doctorId.equals(a.getPerformerId()))
+                .collect(Collectors.toList());
+
+        // Filter by date range if provided (format expected: YYYY-MM-DD)
+        if (startDate != null && !startDate.isBlank()) {
+            try {
+                LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
+                list = list.stream()
+                        .filter(a -> a.getAppointmentDate().isAfter(start) || a.getAppointmentDate().isEqual(start))
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                // Ignore parse errors silently
+            }
+        }
+        if (endDate != null && !endDate.isBlank()) {
+            try {
+                LocalDateTime end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+                list = list.stream()
+                        .filter(a -> a.getAppointmentDate().isBefore(end) || a.getAppointmentDate().isEqual(end))
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                // Ignore parse errors silently
+            }
+        }
+
+        // Filter by status if provided (e.g. Completed, CheckedIn, etc.)
+        if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+            list = list.stream()
+                    .filter(a -> status.equalsIgnoreCase(a.getAppointmentStatus()))
+                    .collect(Collectors.toList());
+        }
+
+        // Filter by search query (patient name, code, contact number)
+        if (searchQuery != null && !searchQuery.isBlank()) {
+            String q = searchQuery.toLowerCase();
+            list = list.stream().filter(a -> {
+                String fullName = ((a.getFirstName() != null ? a.getFirstName() : "") + " " + (a.getLastName() != null ? a.getLastName() : "")).toLowerCase();
+                String code = a.getPatientCode() != null ? a.getPatientCode().toLowerCase() : "";
+                String phone = a.getContactNumber() != null ? a.getContactNumber().toLowerCase() : "";
+                return fullName.contains(q) || code.contains(q) || phone.contains(q);
+            }).collect(Collectors.toList());
+        }
+
+        // Sort by appointment date descending (most recent first)
+        list.sort((a, b) -> b.getAppointmentDate().compareTo(a.getAppointmentDate()));
+
+        return ResponseEntity.ok(DanpheHttpResponse.ok(list));
     }
 
     // =========================================================================
@@ -262,6 +359,11 @@ public class DoctorPortalController {
         }
 
         Prescription saved = prescriptionRepository.save(prescription);
+        try {
+            syncFollowUp(saved, user);
+        } catch (Exception ex) {
+            System.err.println("Failed to automatically sync follow-up: " + ex.getMessage());
+        }
         return ResponseEntity.ok(DanpheHttpResponse.ok(saved));
     }
 
@@ -277,6 +379,8 @@ public class DoctorPortalController {
         existing.setDiagnosis(updated.getDiagnosis());
         existing.setClinicalNotes(updated.getClinicalNotes());
         existing.setAllergyWarnings(updated.getAllergyWarnings());
+        existing.setRecommendedTests(updated.getRecommendedTests());
+        existing.setAdvice(updated.getAdvice());
         existing.setStatus(updated.getStatus());
         existing.setTemplateName(updated.getTemplateName());
 
@@ -285,8 +389,16 @@ public class DoctorPortalController {
             existing.setModifiedBy(user.getEmployeeId());
         }
 
-        prescriptionRepository.save(existing);
-        return ResponseEntity.ok(DanpheHttpResponse.ok(existing));
+        existing.setFollowUpDate(updated.getFollowUpDate());
+        existing.setFollowUpNotes(updated.getFollowUpNotes());
+
+        Prescription saved = prescriptionRepository.save(existing);
+        try {
+            syncFollowUp(saved, user);
+        } catch (Exception ex) {
+            System.err.println("Failed to automatically sync follow-up: " + ex.getMessage());
+        }
+        return ResponseEntity.ok(DanpheHttpResponse.ok(saved));
     }
 
     @PutMapping("/Prescriptions/{id}/SendToPharmacy")
@@ -300,6 +412,34 @@ public class DoctorPortalController {
         p.setStatus("sent_to_pharmacy");
         prescriptionRepository.save(p);
         return ResponseEntity.ok(DanpheHttpResponse.ok("Prescription sent to pharmacy"));
+    }
+
+    @PostMapping("/Prescriptions/{id}/SendPdf")
+    public ResponseEntity<?> sendPrescriptionPdf(@PathVariable Integer id) {
+        Integer hospitalId = SecurityUtil.getCurrentHospitalId();
+        Optional<Prescription> opt = prescriptionRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.ok(DanpheHttpResponse.error("Prescription not found"));
+        }
+        
+        Prescription rx = opt.get();
+        var patOpt = patientRepository.findByHospitalIdAndPatientId(hospitalId, rx.getPatientId());
+        if (patOpt.isEmpty()) {
+            return ResponseEntity.ok(DanpheHttpResponse.error("Patient details not found"));
+        }
+        
+        var patient = patOpt.get();
+        String phone = patient.getPhoneNumber();
+        if (phone == null || phone.trim().isEmpty()) {
+            return ResponseEntity.ok(DanpheHttpResponse.error("Patient does not have a registered mobile number."));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", "SUCCESS");
+        result.put("patientPhone", phone);
+        result.put("message", "Prescription PDF successfully dispatched via WhatsApp & SMS to " + phone);
+        
+        return ResponseEntity.ok(DanpheHttpResponse.ok(result));
     }
 
     // =========================================================================
@@ -439,6 +579,10 @@ public class DoctorPortalController {
         profile.put("startTime", doc.getStartTime());
         profile.put("endTime", doc.getEndTime());
         profile.put("isActive", doc.getIsActive());
+        profile.put("photoPath", doc.getPhotoPath());
+        profile.put("consultationQrPath", doc.getConsultationQrPath());
+        profile.put("qualifications", doc.getQualifications());
+        profile.put("registrationNumber", doc.getRegistrationNumber());
         profile.put("userName", user.getUsername());
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(profile));
@@ -461,7 +605,7 @@ public class DoctorPortalController {
         }
 
         Doctor doc = opt.get();
-        // Doctors can update: specialization, phone, email, availability
+        // Doctors can update: specialization, phone, email, availability, consultationQrPath
         if (body.containsKey("specialization"))
             doc.setSpecialization(body.get("specialization"));
         if (body.containsKey("phoneNumber"))
@@ -472,6 +616,18 @@ public class DoctorPortalController {
             doc.setStartTime(body.get("startTime"));
         if (body.containsKey("endTime"))
             doc.setEndTime(body.get("endTime"));
+        if (body.containsKey("qualifications"))
+            doc.setQualifications(body.get("qualifications"));
+        if (body.containsKey("registrationNumber"))
+            doc.setRegistrationNumber(body.get("registrationNumber"));
+        if (body.containsKey("consultationQrPath")) {
+            String val = body.get("consultationQrPath");
+            if (val == null || val.trim().isEmpty() || "null".equals(val)) {
+                doc.setConsultationQrPath(null);
+            } else {
+                doc.setConsultationQrPath(val);
+            }
+        }
         doctorRepository.save(doc);
 
         // Sync employee record
@@ -514,14 +670,81 @@ public class DoctorPortalController {
         com.danphe.emr.model.User dbUser = optUser.get();
 
         // Verify old password
-        if (!dbUser.getPassword().equals(oldPassword)) {
+        if (!passwordEncoder.matches(oldPassword, dbUser.getPassword())) {
             return ResponseEntity.ok(DanpheHttpResponse.error("Current password is incorrect"));
         }
 
-        dbUser.setPassword(newPassword);
+        dbUser.setPassword(passwordEncoder.encode(newPassword));
         dbUser.setNeedsPasswordUpdate(false);
         userRepository.save(dbUser);
 
         return ResponseEntity.ok(DanpheHttpResponse.ok("Password changed successfully"));
     }
+
+    private void syncFollowUp(Prescription prescription, UserDetailsImpl user) {
+        if (prescription == null || prescription.getPrescriptionId() == null) return;
+        
+        if (prescription.getFollowUpDate() != null) {
+            Optional<FollowUp> opt = followUpRepository.findFirstByPrescriptionId(prescription.getPrescriptionId());
+            FollowUp fu;
+            if (opt.isPresent()) {
+                fu = opt.get();
+            } else {
+                fu = new FollowUp();
+                fu.setPrescriptionId(prescription.getPrescriptionId());
+                fu.setHospitalId(prescription.getHospitalId());
+                fu.setPatientId(prescription.getPatientId());
+                fu.setDoctorId(prescription.getDoctorId());
+                fu.setStatus("scheduled");
+                fu.setPriority("routine");
+            }
+            fu.setFollowUpDate(prescription.getFollowUpDate());
+            fu.setReason("Prescription Follow-Up - " + (prescription.getDiagnosis() != null ? prescription.getDiagnosis() : "General Assessment"));
+            fu.setCareInstructions(prescription.getFollowUpNotes() != null ? prescription.getFollowUpNotes() : prescription.getClinicalNotes());
+            if (user != null) {
+                fu.setCreatedBy(user.getEmployeeId());
+            }
+            followUpRepository.save(fu);
+        } else {
+            followUpRepository.findFirstByPrescriptionId(prescription.getPrescriptionId()).ifPresent(fu -> {
+                followUpRepository.delete(fu);
+            });
+        }
+    }
+    // =========================================================================
+    // PRESCRIPTION TEMPLATES — stored per doctor in DB
+    // =========================================================================
+
+    @GetMapping("/Templates")
+    public ResponseEntity<?> getMyTemplates() {
+        UserDetailsImpl user = SecurityUtil.getCurrentUser();
+        if (user == null || user.getDoctorId() == null)
+            return ResponseEntity.ok(DanpheHttpResponse.error("Not authenticated as a doctor"));
+
+        Optional<Doctor> optDoctor = doctorRepository.findById(user.getDoctorId());
+        if (optDoctor.isEmpty())
+            return ResponseEntity.ok(DanpheHttpResponse.error("Doctor record not found"));
+
+        String templatesJson = optDoctor.get().getPrescriptionTemplates();
+        // Return the raw JSON string; frontend will parse it
+        return ResponseEntity.ok(DanpheHttpResponse.ok(templatesJson != null ? templatesJson : "[]"));
+    }
+
+    @PutMapping("/Templates")
+    public ResponseEntity<?> saveMyTemplates(@RequestBody Map<String, String> body) {
+        UserDetailsImpl user = SecurityUtil.getCurrentUser();
+        if (user == null || user.getDoctorId() == null)
+            return ResponseEntity.ok(DanpheHttpResponse.error("Not authenticated as a doctor"));
+
+        Optional<Doctor> optDoctor = doctorRepository.findById(user.getDoctorId());
+        if (optDoctor.isEmpty())
+            return ResponseEntity.ok(DanpheHttpResponse.error("Doctor record not found"));
+
+        Doctor doctor = optDoctor.get();
+        doctor.setPrescriptionTemplates(body.get("templates"));
+        doctorRepository.save(doctor);
+
+        return ResponseEntity.ok(DanpheHttpResponse.ok("Templates saved successfully"));
+    }
+
 }

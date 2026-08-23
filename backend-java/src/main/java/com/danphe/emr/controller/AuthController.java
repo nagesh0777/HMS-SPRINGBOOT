@@ -13,6 +13,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -32,6 +33,9 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
     // Login DTO - camelCase to match Modern Frontend Axios calls
     public static class LoginRequest {
         @NotBlank(message = "Username is required")
@@ -48,28 +52,14 @@ public class AuthController {
             String username = (loginRequest.userName != null) ? loginRequest.userName.trim() : "";
             String password = (loginRequest.password != null) ? loginRequest.password : "";
 
-            System.out.println("--- LOGIN ATTEMPT ---");
-            System.out.println("Username: [" + username + "]");
-            System.out.println("Password length: " + password.length());
-
-            userRepository.findByUserName(username).ifPresentOrElse(
-                    u -> {
-                        System.out.println("User exists in DB.");
-                        System.out.println("DB Password: [" + u.getPassword() + "]");
-                        System.out.println("Match: " + u.getPassword().equals(password));
-                    },
-                    () -> System.out.println("User NOT FOUND in DB."));
-
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String jwt = jwtUtils.generateJwtToken(authentication);
 
-            System.out.println("Login Success!");
             return ResponseEntity.ok(DanpheHttpResponse.ok(jwt));
         } catch (Exception e) {
-            System.out.println("Login Failure: " + e.getMessage());
             return ResponseEntity.ok(DanpheHttpResponse.error("Invalid Username or Password"));
         }
     }
@@ -78,7 +68,7 @@ public class AuthController {
     public ResponseEntity<?> seedUser() {
         com.danphe.emr.model.User existing = userRepository.findByUserName("trikaar_admin").orElse(null);
         if (existing != null) {
-            existing.setPassword("pass123");
+            existing.setPassword(passwordEncoder.encode("pass123"));
             userRepository.save(existing);
             return ResponseEntity.ok("Trikaar Admin password reset to pass123");
         }
@@ -96,7 +86,7 @@ public class AuthController {
         // 2. Create User
         User user = new User();
         user.setUserName("trikaar_admin");
-        user.setPassword("trikaar_admin123"); // Updated to be more secure and compliant
+        user.setPassword(passwordEncoder.encode("trikaar_admin123")); // Updated to be more secure and compliant
         user.setEmployeeId(adminEmp.getEmployeeId());
         user.setIsActive(true);
         user.setHospitalId(null); // Seeded admin is global

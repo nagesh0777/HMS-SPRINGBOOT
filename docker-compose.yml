@@ -2,13 +2,13 @@ services:
   db:
     image: mysql:8.0
     container_name: trikaar-db
+    restart: unless-stopped
     command: >
       --innodb-buffer-pool-size=64M --performance_schema=OFF --max_connections=20
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Kolkata
+      MYSQL_ROOT_PASSWORD: Tr1kaar@DB#2026
       MYSQL_DATABASE: trikaar_emr
-    ports:
-      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -20,16 +20,23 @@ services:
   backend:
     build: ./backend-java
     container_name: trikaar-backend
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
+      TZ: Asia/Kolkata
       SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/trikaar_emr?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATASOURCE_PASSWORD: Tr1kaar@DB#2026
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0 -Xss512k"
       APP_JWT_SECRET: 9B7E3C5A2D8F614B09E273A5D4C1B098FE7D6C5B4A3928170D6E5F4C3B2A10985
       APP_JWT_EXPIRATION_MS: 86400000
+      SMTP_USERNAME: croctechconnect@gmail.com
+      APP_MAIL_FROM: croctechconnect@gmail.com
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -38,11 +45,20 @@ services:
   frontend:
     build: ./frontend-modern
     container_name: trikaar-frontend
+    restart: unless-stopped
     ports:
       - "8085:80"
     depends_on:
       - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hms-frontend.rule=Host(`hms.trikaar.tech`)"
+      - "traefik.http.routers.hms-frontend.entrypoints=websecure"
+      - "traefik.http.routers.hms-frontend.tls=true"
+      - "traefik.http.routers.hms-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.hms-frontend.loadbalancer.server.port=80"
     mem_limit: 80m
 
 volumes:
   mysql_data:
+  uploads_data:

@@ -20,12 +20,19 @@ public class Doctor {
     private String specialization;
     private String phoneNumber;
     private String email;
+    private String qualifications; // e.g., "MD, DM"
+    private String registrationNumber; // e.g., "KMC-12345"
 
     // Availability Settings (Simple for now: startTime to endTime)
     private String startTime; // e.g., "09:00"
     private String endTime; // e.g., "17:00"
 
     private Boolean isActive;
+    private String photoPath;
+    private String consultationQrPath;
+
+    @Column(columnDefinition = "TEXT")
+    private String prescriptionTemplates; // JSON array of custom prescription templates
 
     private Integer employeeId;
 

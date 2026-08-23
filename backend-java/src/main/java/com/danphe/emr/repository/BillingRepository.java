@@ -26,4 +26,6 @@ public interface BillingRepository extends JpaRepository<Billing, Integer> {
     long countByHospitalId(Integer hospitalId);
 
     long countByHospitalIdAndPaymentStatus(Integer hospitalId, String paymentStatus);
+
+    void deleteByHospitalId(Integer hospitalId);
 }

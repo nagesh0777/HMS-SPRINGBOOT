@@ -38,6 +38,12 @@ public class Prescription {
     @Column(length = 1000)
     private String allergyWarnings;
 
+    @Column(length = 2000)
+    private String recommendedTests;
+
+    @Column(length = 2000)
+    private String advice;
+
     // Patient vitals at time of consultation
     private Double patientWeight; // in kg
     private Double patientHeight; // in cm

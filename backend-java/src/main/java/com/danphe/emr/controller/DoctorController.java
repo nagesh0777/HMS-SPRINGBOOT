@@ -29,6 +29,9 @@ public class DoctorController {
     @Autowired
     private com.danphe.emr.repository.EmployeeLogRepository logRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     @GetMapping("")
     public ResponseEntity<?> getDoctors(@RequestParam(required = false) Boolean isActive) {
         Integer hospitalId = SecurityUtil.getCurrentHospitalId();
@@ -101,7 +104,8 @@ public class DoctorController {
             emp.setHospitalId(hospitalId);
 
             // Generate username from name
-            String baseUsername = "dr." + names[0].toLowerCase().replaceAll("[^a-z]", "");
+            String baseUsername = names[0].toLowerCase().replaceAll("[^a-z]", "");
+            if (baseUsername.isEmpty()) baseUsername = "doctor";
             String username = baseUsername;
             int suffix = 1;
             while (userRepository.findByUserName(username).isPresent()) {
@@ -118,7 +122,7 @@ public class DoctorController {
             com.danphe.emr.model.User user = new com.danphe.emr.model.User();
             user.setHospitalId(hospitalId);
             user.setUserName(username);
-            user.setPassword("pass123");
+            user.setPassword(passwordEncoder.encode("pass123"));
             user.setEmployeeId(savedEmp.getEmployeeId());
             user.setIsActive(true);
             user.setEmail(doc.getEmail());
@@ -151,7 +155,7 @@ public class DoctorController {
         if (doctor.getUserName() != null && !doctor.getUserName().trim().isEmpty()) {
             username = doctor.getUserName().trim();
         } else {
-            String base = "dr." + firstName;
+            String base = firstName;
             username = base;
             int suffix = 1;
             while (userRepository.findByUserName(username).isPresent()) {
@@ -183,6 +187,7 @@ public class DoctorController {
         emp.setStatus("Active");
         emp.setDoctorId(savedDoc.getDoctorId());
         emp.setHospitalId(hospitalId);
+        emp.setPhotoPath(savedDoc.getPhotoPath());
         com.danphe.emr.model.Employee savedEmp = employeeRepository.save(emp);
 
         // Update doctor with employee id
@@ -193,9 +198,9 @@ public class DoctorController {
         com.danphe.emr.model.User user = new com.danphe.emr.model.User();
         user.setHospitalId(hospitalId);
         user.setUserName(username);
-        user.setPassword((doctor.getPassword() != null && !doctor.getPassword().trim().isEmpty())
+        user.setPassword(passwordEncoder.encode((doctor.getPassword() != null && !doctor.getPassword().trim().isEmpty())
                 ? doctor.getPassword().trim()
-                : "pass123");
+                : "pass123"));
         user.setEmployeeId(savedEmp.getEmployeeId());
         user.setIsActive(true);
         user.setEmail(savedDoc.getEmail());
@@ -229,6 +234,18 @@ public class DoctorController {
                 return ResponseEntity.ok(DanpheHttpResponse.error("Doctor not found in this hospital"));
             }
 
+            // Check username uniqueness first
+            if (updated.getUserName() != null && !updated.getUserName().trim().isEmpty()
+                    && doc.getEmployeeId() != null) {
+                String newUsername = updated.getUserName().trim();
+                com.danphe.emr.model.User currentUser = userRepository.findByHospitalIdAndEmployeeId(hospitalId, doc.getEmployeeId()).orElse(null);
+                if (currentUser != null && !currentUser.getUserName().equals(newUsername)) {
+                    if (userRepository.findByUserName(newUsername).isPresent()) {
+                        return ResponseEntity.ok(DanpheHttpResponse.error("Username '" + newUsername + "' is already taken. Try a different name."));
+                    }
+                }
+            }
+
             doc.setFullName(updated.getFullName());
             doc.setDepartment(updated.getDepartment());
             doc.setSpecialization(updated.getSpecialization());
@@ -236,6 +253,8 @@ public class DoctorController {
             doc.setEmail(updated.getEmail());
             doc.setStartTime(updated.getStartTime());
             doc.setEndTime(updated.getEndTime());
+            doc.setPhotoPath(updated.getPhotoPath());
+            doc.setConsultationQrPath(updated.getConsultationQrPath());
 
             if (updated.getIsActive() != null) {
                 doc.setIsActive(updated.getIsActive());
@@ -254,6 +273,10 @@ public class DoctorController {
                     emp.setEmail(doc.getEmail());
                     emp.setIsActive(doc.getIsActive());
                     emp.setStatus(doc.getIsActive() ? "Active" : "Inactive");
+                    emp.setPhotoPath(doc.getPhotoPath());
+                    if (updated.getUserName() != null && !updated.getUserName().trim().isEmpty()) {
+                        emp.setUserName(updated.getUserName().trim());
+                    }
                     employeeRepository.save(emp);
                 });
             }
@@ -264,7 +287,7 @@ public class DoctorController {
                 userRepository.findByHospitalIdAndEmployeeId(hospitalId, doc.getEmployeeId()).ifPresent(user -> {
                     user.setUserName(updated.getUserName().trim());
                     if (updated.getPassword() != null && !updated.getPassword().trim().isEmpty()) {
-                        user.setPassword(updated.getPassword().trim());
+                        user.setPassword(passwordEncoder.encode(updated.getPassword().trim()));
                     }
                     user.setIsActive(doc.getIsActive());
                     userRepository.save(user);
@@ -342,7 +365,7 @@ public class DoctorController {
                 return ResponseEntity.ok(DanpheHttpResponse.error("Doctor has no linked account. Use Repair first."));
             }
             userRepository.findByHospitalIdAndEmployeeId(hospitalId, doc.getEmployeeId()).ifPresent(user -> {
-                user.setPassword(newPassword);
+                user.setPassword(passwordEncoder.encode(newPassword));
                 user.setNeedsPasswordUpdate(true);
                 userRepository.save(user);
             });

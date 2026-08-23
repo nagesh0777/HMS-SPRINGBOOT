@@ -23,4 +23,8 @@ public interface AdmissionRepository extends JpaRepository<Admission, Integer> {
                         LocalDateTime toDate);
 
         List<Admission> findByHospitalIdAndPatientIdOrderByAdmissionDateDesc(Integer hospitalId, Integer patientId);
+
+        List<Admission> findByHospitalId(Integer hospitalId);
+
+        void deleteByHospitalId(Integer hospitalId);
 }

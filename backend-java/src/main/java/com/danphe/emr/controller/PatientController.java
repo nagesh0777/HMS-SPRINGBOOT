@@ -48,6 +48,19 @@ public class PatientController {
             if (hospitalId == null)
                 return ResponseEntity.status(401).body("Hospital ID not found");
 
+            // Duplicate mobile number check
+            if (patient.getPhoneNumber() != null && !patient.getPhoneNumber().isBlank()) {
+                java.util.Optional<Patient> existing = patientRepository
+                        .findByHospitalIdAndPhoneNumber(hospitalId, patient.getPhoneNumber());
+                if (existing.isPresent()) {
+                    Patient dup = existing.get();
+                    return ResponseEntity.ok(DanpheHttpResponse.error(
+                            "A patient with mobile number " + patient.getPhoneNumber()
+                            + " already exists: " + dup.getFirstName() + " " + dup.getLastName()
+                            + " (" + dup.getPatientCode() + ")"));
+                }
+            }
+
             patient.setHospitalId(hospitalId);
 
             System.out.println("Registering patient: " + patient.getFirstName() + " " + patient.getLastName());
@@ -72,6 +85,9 @@ public class PatientController {
                     System.out.println("Could not parse age: " + patient.getAge());
                 }
             }
+            if (patient.getStatus() == null || patient.getStatus().isBlank()) {
+                patient.setStatus("Outpatient");
+            }
 
             Patient saved = patientRepository.save(patient);
             return ResponseEntity.ok(DanpheHttpResponse.ok(saved));
@@ -89,7 +105,27 @@ public class PatientController {
         if (hospitalId == null)
             return ResponseEntity.status(401).body("Hospital ID not found");
 
-        return patientRepository.findByHospitalIdAndPatientId(hospitalId, id).map(existingPatient -> {
+        try {
+            java.util.Optional<Patient> opt = patientRepository.findByHospitalIdAndPatientId(hospitalId, id);
+            if (opt.isEmpty()) {
+                return ResponseEntity.ok(DanpheHttpResponse.error("Patient not found"));
+            }
+
+            // Duplicate mobile check on update (exclude the current patient)
+            String newPhone = patientDetails.getPhoneNumber();
+            if (newPhone != null && !newPhone.isBlank()) {
+                java.util.Optional<Patient> dupOpt = patientRepository
+                        .findByHospitalIdAndPhoneNumber(hospitalId, newPhone);
+                if (dupOpt.isPresent() && !dupOpt.get().getPatientId().equals(id)) {
+                    Patient dup = dupOpt.get();
+                    return ResponseEntity.ok(DanpheHttpResponse.error(
+                            "Mobile number " + newPhone
+                            + " is already registered to " + dup.getFirstName() + " " + dup.getLastName()
+                            + " (" + dup.getPatientCode() + ")"));
+                }
+            }
+
+            Patient existingPatient = opt.get();
             existingPatient.setFirstName(patientDetails.getFirstName());
             existingPatient.setLastName(patientDetails.getLastName());
             existingPatient.setGender(patientDetails.getGender());
@@ -97,6 +133,11 @@ public class PatientController {
             existingPatient.setPhoneNumber(patientDetails.getPhoneNumber());
             existingPatient.setAddress(patientDetails.getAddress());
             existingPatient.setEmail(patientDetails.getEmail());
+            existingPatient.setPhotoPath(patientDetails.getPhotoPath());
+            existingPatient.setStatus(patientDetails.getStatus());
+            existingPatient.setWeight(patientDetails.getWeight());
+            existingPatient.setHeight(patientDetails.getHeight());
+            existingPatient.setBloodGroup(patientDetails.getBloodGroup());
 
             // Re-calculate DOB if Age changed
             if (patientDetails.getAge() != null && !patientDetails.getAge().equals(existingPatient.getAge())) {
@@ -106,12 +147,14 @@ public class PatientController {
                         int age = Integer.parseInt(ageStr);
                         existingPatient.setDateOfBirth(java.time.LocalDate.now().minusYears(age));
                     }
-                } catch (Exception e) {
+                } catch (Exception ignored) {
                 }
             }
 
             Patient updated = patientRepository.save(existingPatient);
             return ResponseEntity.ok(DanpheHttpResponse.ok(updated));
-        }).orElse(ResponseEntity.ok(DanpheHttpResponse.error("Patient not found")));
+        } catch (Exception e) {
+            return ResponseEntity.ok(DanpheHttpResponse.error("Update failed: " + e.getMessage()));
+        }
     }
 }

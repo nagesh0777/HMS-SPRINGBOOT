@@ -3,6 +3,7 @@ import { ToastProvider } from './components/Toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './Login';
+
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 
@@ -14,19 +15,16 @@ import PatientDetails from './pages/patients/PatientDetails';
 // Appointment Modules
 import AppointmentList from './pages/appointments/AppointmentList';
 import NewAppointment from './pages/appointments/NewAppointment';
-import DoctorManagement from './pages/appointments/DoctorManagement';
 
 // ADT Modules
 import AdtDashboard from './pages/adt/AdtDashboard';
 import NewAdmission from './pages/adt/NewAdmission';
 import BedManagement from './pages/adt/BedManagement';
 
-// Staff Modules
-import StaffList from './pages/staff/StaffList';
+// Staff / Employee Management Modules
+import EmployeeManagement from './pages/staff/EmployeeManagement';
 import StaffDetails from './pages/staff/StaffDetails';
 import StaffForm from './pages/staff/StaffForm';
-import Attendance from './pages/staff/Attendance';
-import StaffQR from './pages/staff/StaffQR';
 
 // Super Admin Modules
 import Hospitals from './pages/superadmin/Hospitals';
@@ -38,6 +36,7 @@ import DoctorPatientProfile from './pages/doctor/DoctorPatientProfile';
 import PrescriptionManagement from './pages/doctor/PrescriptionManagement';
 import FollowUpCare from './pages/doctor/FollowUpCare';
 import DoctorProfile from './pages/doctor/DoctorProfile';
+import TreatedHistory from './pages/doctor/TreatedHistory';
 
 // Admin Modules
 import DoctorManagementPage from './pages/doctors/DoctorManagementPage';
@@ -81,6 +80,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Navigate to="/login" />} />
+          <Route path="/pricing" element={<Navigate to="/login" />} />
 
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />}>
@@ -97,20 +98,19 @@ function App() {
             {/* Appointment Routes */}
             <Route path="appointments" element={<AppointmentList />} />
             <Route path="appointments/new" element={<NewAppointment />} />
-            <Route path="appointments/doctors" element={<DoctorManagement />} />
 
             {/* ADT Routes */}
             <Route path="adt" element={<AdtDashboard />} />
             <Route path="adt/admit" element={<NewAdmission />} />
             <Route path="adt/beds" element={<BedManagement />} />
 
-            {/* Staff Routes */}
-            <Route path="staff" element={<StaffList />} />
+            {/* Employee Management Routes */}
+            <Route path="staff" element={<EmployeeManagement />} />
+            <Route path="staff/attendance" element={<EmployeeManagement />} />
+            <Route path="staff/logs" element={<EmployeeManagement />} />
             <Route path="staff/:id" element={<StaffDetails />} />
             <Route path="staff/edit/:id" element={<StaffForm />} />
             <Route path="staff/new" element={<StaffForm />} />
-            <Route path="staff/attendance" element={<Attendance />} />
-            <Route path="staff/qr" element={<StaffQR />} />
 
             {/* Doctor Management (Admin) */}
             <Route path="doctors" element={<DoctorManagementPage />} />
@@ -123,6 +123,7 @@ function App() {
             <Route path="doctor/prescriptions" element={<PrescriptionManagement />} />
             <Route path="doctor/followups" element={<FollowUpCare />} />
             <Route path="doctor/profile" element={<DoctorProfile />} />
+            <Route path="doctor/history" element={<TreatedHistory />} />
 
             {/* Admin Tools */}
 

@@ -13,4 +13,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, Integer> {
     List<Doctor> findByHospitalId(Integer hospitalId);
 
     List<Doctor> findByHospitalIdAndIsActive(Integer hospitalId, Boolean isActive);
+
+    void deleteByHospitalId(Integer hospitalId);
 }

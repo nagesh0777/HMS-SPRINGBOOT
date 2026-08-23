@@ -161,7 +161,24 @@ const DoctorPatientProfile = () => {
                         <p className="text-sm text-gray-500 mt-1">{patient.patientCode || `Patient #${patient.patientId}`}</p>
                         <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-600">
                             <span className="flex items-center gap-1"><User size={14} /> {patient.gender} • {patient.age}</span>
-                            {patient.bloodGroup && <span className="flex items-center gap-1"><Heart size={14} className="text-red-500" /> {patient.bloodGroup}</span>}
+                            {patient.bloodGroup && <span className="flex items-center gap-1"><Heart size={14} className="text-red-500" /> Blood Group: {patient.bloodGroup}</span>}
+                            {patient.height && <span className="flex items-center gap-1"><Activity size={14} className="text-blue-500" /> Height: {patient.height} cm</span>}
+                            {patient.weight && <span className="flex items-center gap-1"><Activity size={14} className="text-emerald-500" /> Weight: {patient.weight} kg</span>}
+                            {patient.height && patient.weight && (
+                                (() => {
+                                    const bmi = (patient.weight / ((patient.height / 100) * (patient.height / 100))).toFixed(1);
+                                    let catColor = "bg-green-50 text-green-700 ring-green-100";
+                                    let bmiNum = parseFloat(bmi);
+                                    if (bmiNum < 18.5) catColor = "bg-amber-50 text-amber-700 ring-amber-100";
+                                    else if (bmiNum >= 25 && bmiNum < 30) catColor = "bg-orange-50 text-orange-700 ring-orange-100";
+                                    else if (bmiNum >= 30) catColor = "bg-red-50 text-red-700 ring-red-100";
+                                    return (
+                                        <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ring-1 ${catColor}`}>
+                                            BMI: {bmi}
+                                        </span>
+                                    );
+                                })()
+                            )}
                             {patient.phoneNumber && <span className="flex items-center gap-1"><Phone size={14} /> {patient.phoneNumber}</span>}
                             {patient.email && <span className="flex items-center gap-1"><Mail size={14} /> {patient.email}</span>}
                             {patient.address && <span className="flex items-center gap-1"><MapPin size={14} /> {patient.address}</span>}

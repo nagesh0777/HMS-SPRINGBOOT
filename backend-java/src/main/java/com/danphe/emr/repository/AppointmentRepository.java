@@ -21,4 +21,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Intege
                         Integer hospitalId, LocalDateTime date, Integer performerId, String status);
 
         List<Appointment> findByHospitalIdAndPatientIdOrderByAppointmentDateDesc(Integer hospitalId, Integer patientId);
+
+        List<Appointment> findByHospitalId(Integer hospitalId);
+
+        void deleteByHospitalId(Integer hospitalId);
 }

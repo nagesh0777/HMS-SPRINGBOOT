@@ -17,12 +17,12 @@ const roles = [
             { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'See total patients, revenue, appointments, bed occupancy — all at a glance with charts.' },
             { icon: <Users size={18} />, title: 'Patients', desc: 'Register new patients, view profiles, edit records, and track visit history.' },
             { icon: <Calendar size={18} />, title: 'Appointments', desc: 'Book appointments for patients, select a doctor and time. System prevents double-booking.' },
-            { icon: <Stethoscope size={18} />, title: 'Doctors', desc: 'Add doctors to the system. The system auto-creates login credentials for them.' },
+            { icon: <Stethoscope size={18} />, title: 'Doctors', desc: 'Add doctors to the system with auto-suggested usernames to prevent overlaps.' },
             { icon: <Bed size={18} />, title: 'ADT (Admissions)', desc: 'Admit patients, assign beds, transfer wards, and discharge. Track bed occupancy.' },
-            { icon: <IndianRupee size={18} />, title: 'Billing', desc: 'Generate OPD/IPD bills, add services & medicines, apply discounts, and track payments.' },
+            { icon: <IndianRupee size={18} />, title: 'Billing Ledger', desc: 'Generate OPD/IPD bills in seconds with keyboard shortcuts, discount presets, and payment mode grids.' },
             { icon: <Package size={18} />, title: 'Service Rates', desc: 'Set up service catalog with categories, unit prices, and GST. Used in billing.' },
-            { icon: <UserCog size={18} />, title: 'Staff', desc: 'Add staff members, assign roles, select which pages they can access.' },
-            { icon: <Clock size={18} />, title: 'Attendance', desc: 'QR-based check-in/check-out. View daily attendance, late arrivals, overtime.' },
+            { icon: <UserCog size={18} />, title: 'Staff & Roles', desc: 'Add staff members, type custom roles, and select which pages they can access in the permissions grid.' },
+            { icon: <Clock size={18} />, title: 'Attendance Logs', desc: 'Clock-In/Clock-Out logs for employees. View daily attendance, late arrivals, overtime.' },
             { icon: <Settings size={18} />, title: 'Settings', desc: 'Upload hospital logo, set address, phone, registration number, and doctor signature.' },
             { icon: <Bell size={18} />, title: 'Notifications', desc: 'System alerts and reminders — unread count shown in the top bar.' },
         ],
@@ -31,31 +31,44 @@ const roles = [
                 title: 'Register a Patient & Book Appointment',
                 steps: [
                     'Open "Patients" → Click "Register New Patient".',
-                    'Fill in Name, Phone, Age, Gender, Address, Blood Group.',
+                    'Fill in Name, Phone, Age, Gender, Address, Weight, and upload a Profile Photo.',
                     'Click "Save" — a unique Patient ID is auto-created.',
                     'Go to "Appointments" → Click "Book Appointment".',
-                    'Search the patient, select a doctor, pick date & time.',
+                    'Search the patient by mobile number or name, select a doctor, pick date & time.',
                     'Click "Confirm" — it appears in the doctor\'s queue automatically.',
                 ]
             },
             {
-                title: 'Create a Bill',
+                title: 'Create a Bill (High-Speed Key Shortcuts)',
                 steps: [
-                    'Go to "Billing" → Click "New Bill".',
-                    'Select OPD or IPD, search and select the patient.',
-                    'Add services from the catalog — quantity and price auto-calculate.',
-                    'Apply discount or tax if needed.',
-                    'Click "Save Bill" — mark payment as Paid/Unpaid.',
-                    'You can view and edit bills from the billing list anytime.',
+                    'Press [F1] from anywhere (or click "Generate New Bill") to start the billing page.',
+                    'Search for a patient using their Mobile Number. Select them to load their profile.',
+                    'On selection, focus is shifted automatically to the Service Search box.',
+                    'Type a service keyword (e.g. "cbc") and press [Enter] to instantly select and add the first result to your checkout cart.',
+                    'Use the convenient [+] and [-] stepper buttons next to quantities to quickly adjust consultancy days or stay consults.',
+                    'Click one-click Discount Presets (0%, 5%, 10%, etc.) and Payment Selector blocks (marking "Paid" automatically defaults mode to Cash).',
+                    'Press [F8] or click "Generate Bill" to complete checkout and trigger the print/PDF invoice overlay.',
                 ]
             },
             {
-                title: 'Add a Doctor',
+                title: 'Add a Doctor & Generate Unique Username',
                 steps: [
                     'Go to "Doctors" → Click "Add Doctor".',
                     'Fill in Name, Department, Specialization, Phone, Email.',
+                    'Select one of the dynamically generated Username suggestions (e.g. name.last) or type a custom one. The system automatically enforces duplicates checking.',
+                    'Select and upload a Profile Photo.',
                     'Click "Save" — username and password are auto-generated.',
                     'Share credentials with the doctor for their portal login.',
+                ]
+            },
+            {
+                title: 'Assign Custom Roles & Page Permissions',
+                steps: [
+                    'Go to "Staff" → Click "Add Staff" or edit an employee.',
+                    'Click any Role suggestion badge (Admin, Doctor, Helpdesk, Nurse) or type any custom role in the open text box.',
+                    'Navigate to the "Page Permissions & Features Grid".',
+                    'Toggle access checkboxes (e.g., check Patients and ADT, uncheck Settings) to control which pages the employee can open.',
+                    'Click "Save Staff" to enforce these page-wise security permissions dynamically.',
                 ]
             },
             {
@@ -79,10 +92,10 @@ const roles = [
         features: [
             { icon: <Activity size={18} />, title: 'My Workspace', desc: 'Your personal dashboard — today\'s patients, pending consultations, and follow-ups due.' },
             { icon: <ClipboardList size={18} />, title: 'Patient Queue', desc: 'Today\'s appointments in order. Mark Check-In → Start Consult → Complete.' },
-            { icon: <Search size={18} />, title: 'Search Patient', desc: 'Find any patient by name, phone, or ID. View their full medical history.' },
+            { icon: <Search size={18} />, title: 'Search Patient', desc: 'Find any patient by mobile number, name, or ID. View their full medical history and past prescriptions.' },
             { icon: <Pill size={18} />, title: 'Prescriptions', desc: 'Write prescriptions using templates. Add medicines with dosage, timing, and duration. Download PDF.' },
             { icon: <Heart size={18} />, title: 'Follow-Ups', desc: 'Schedule follow-up visits with priority. Track due, overdue, and completed follow-ups.' },
-            { icon: <UserCog size={18} />, title: 'My Profile', desc: 'Update your specialization, contact info, and change password.' },
+            { icon: <UserCog size={18} />, title: 'My Profile', desc: 'Update your specialization, phone, email, and upload a profile photo.' },
         ],
         workflows: [
             {
@@ -117,18 +130,18 @@ const roles = [
         credentials: { user: 'Assigned by Admin', pass: 'Assigned by Admin' },
         features: [
             { icon: <LayoutDashboard size={18} />, title: 'Dashboard', desc: 'Quick view of today\'s appointments and patient counts.' },
-            { icon: <Users size={18} />, title: 'Patients', desc: 'Register new patients and search existing records.' },
+            { icon: <Users size={18} />, title: 'Patients', desc: 'Register new patients with weight parameters and upload profile photos.' },
             { icon: <Calendar size={18} />, title: 'Appointments', desc: 'Book and manage patient appointments.' },
-            { icon: <IndianRupee size={18} />, title: 'Billing', desc: 'Create bills for patients and track payment status.' },
-            { icon: <Clock size={18} />, title: 'Attendance', desc: 'Check in/out for your daily attendance.' },
+            { icon: <IndianRupee size={18} />, title: 'Billing Ledger', desc: 'Create bills in seconds utilizing high-speed keyboard shortcuts and presets.' },
+            { icon: <Clock size={18} />, title: 'Attendance logs', desc: 'Check in/out for your daily attendance logs.' },
             { icon: <Bell size={18} />, title: 'Notifications', desc: 'View system alerts and reminders.' },
         ],
         workflows: [
             {
                 title: 'Register + Book Appointment',
                 steps: [
-                    'Search the patient in "Patients" — if found, skip to step 4.',
-                    'Click "Register New Patient", fill details, save.',
+                    'Search the patient in "Patients" by mobile number — if found, skip to step 4.',
+                    'Click "Register New Patient", fill details (weight, photo), save.',
                     'Go to "Appointments" → "Book Appointment".',
                     'Select patient, doctor, date & time → Confirm.',
                     'Inform the patient of their appointment.',
@@ -152,8 +165,8 @@ const roles = [
                 title: 'View Patient Info',
                 steps: [
                     'Go to "Patients" from the sidebar.',
-                    'Search by name, phone, or patient code.',
-                    'Click on a patient to see their full profile.',
+                    'Search by name, phone/mobile number, or patient code.',
+                    'Click on a patient to see their full profile (diagnoses timeline and prescriptions history).',
                 ]
             },
         ]
@@ -161,12 +174,12 @@ const roles = [
 ];
 
 const tips = [
-    { icon: <Search size={15} />, text: 'Search works everywhere — type name, phone, or patient code to find a patient instantly.' },
-    { icon: <Bell size={15} />, text: 'The bell icon in the top bar shows unread notification count. Click to see all alerts.' },
-    { icon: <Pill size={15} />, text: 'Prescriptions can be saved as templates for quick reuse with similar patients.' },
-    { icon: <Calendar size={15} />, text: 'Double-booking is prevented — the system won\'t allow overlapping appointment slots.' },
-    { icon: <IndianRupee size={15} />, text: 'Bills can be marked as Paid, Unpaid, or Partial. Payment mode (Cash/UPI/Card) is tracked.' },
-    { icon: <Shield size={15} />, text: 'Admin controls which pages each staff member can access through the Staff form.' },
+    { icon: <Zap size={15} className="text-amber-500" />, text: 'F1/F2 focused keys allow billing workers to select patients, add matched services on [Enter], and generate invoices without a mouse!' },
+    { icon: <Search size={15} className="text-zinc-600" />, text: 'Search works everywhere — lookup patient profiles instantly by typing their Mobile Number, Code, or Full Name.' },
+    { icon: <Pill size={15} className="text-emerald-500" />, text: 'Doctor prescriptions and consultations are saved as detailed patient histories complete with date, time, and dosage schedules.' },
+    { icon: <Calendar size={15} className="text-blue-500" />, text: 'Double-booking is prevented — the system won\'t allow overlapping appointment slots for the same doctor.' },
+    { icon: <Shield size={15} className="text-indigo-500" />, text: 'Hospital Admin can assign page permissions dynamically for each staff member in the Permissions checklist.' },
+    { icon: <UserCog size={15} className="text-purple-500" />, text: 'Doctor profile creations suggest non-overlapping unique usernames to avoid database duplicates.' },
 ];
 
 const Accordion = ({ title, children, defaultOpen = false }) => {
@@ -201,7 +214,7 @@ const PortalGuide = () => {
                 </div>
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2.5 bg-white/10 rounded-xl"><BookOpen size={24} /></div>
+                        <BookOpen size={24} className="text-blue-400" />
                         <div>
                             <h1 className="text-2xl md:text-3xl font-black tracking-tight">Portal Guide</h1>
                             <p className="text-gray-400 text-sm"><span className="text-white font-bold">Trikaar</span> HMS — Hospital Management System</p>
@@ -217,7 +230,7 @@ const PortalGuide = () => {
             {/* Tips */}
             <div className="rounded-2xl bg-amber-50/60 p-5 ring-1 ring-amber-100">
                 <h3 className="flex items-center gap-2 text-xs font-bold text-amber-700 mb-3 uppercase tracking-wider">
-                    <Star size={14} className="text-amber-500" /> Quick Tips
+                    <Star size={14} className="text-amber-500" /> Quick Tips & HMS Features
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {tips.map((t, i) => (

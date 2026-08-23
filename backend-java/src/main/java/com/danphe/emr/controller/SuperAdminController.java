@@ -21,6 +21,9 @@ public class SuperAdminController {
     @Autowired
     com.danphe.emr.repository.UserRepository userRepository;
 
+    @Autowired
+    org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     @GetMapping("/Hospitals")
     public ResponseEntity<?> getAllHospitals() {
         return ResponseEntity.ok(DanpheHttpResponse.ok(hospitalRepository.findAll()));
@@ -54,6 +57,10 @@ public class SuperAdminController {
         h.setContactNumber(request.contactNumber);
         h.setEmail(request.email);
         h.setIsActive(true);
+        h.setSubscriptionPlan("PREMIUM");
+        h.setSubscriptionStatus("active");
+        h.setBillingCycle("unlimited");
+        h.setSubscriptionExpiry(java.time.LocalDateTime.now().plusYears(100));
         Hospital savedHospital = hospitalRepository.save(h);
 
         // 3. Create Admin Employee
@@ -61,6 +68,7 @@ public class SuperAdminController {
         adminEmp.setFirstName("Admin");
         adminEmp.setLastName(request.name);
         adminEmp.setRole("Admin");
+        adminEmp.setAccessLevel("Admin");
         adminEmp.setDepartment("Administration");
         adminEmp.setPhoneNumber(request.contactNumber);
         adminEmp.setEmail(request.email);
@@ -68,12 +76,16 @@ public class SuperAdminController {
         adminEmp.setIsActive(true);
         adminEmp.setHospitalId(savedHospital.getHospitalId());
         adminEmp.setUserName(request.adminUsername); // Redundant but useful
+        
+        java.util.List<String> modules = java.util.List.of("Dashboard", "Patients", "Appointments", "Doctor Queue", "Prescriptions", "Billing", "Service Catalog", "Staff", "ADT", "Beds", "Analytics", "AI Copilot", "Reports", "Notifications");
+        adminEmp.setAssignedModules(String.join(",", modules));
+        
         com.danphe.emr.model.Employee savedEmp = employeeRepository.save(adminEmp);
 
         // 4. Create Admin User
         com.danphe.emr.model.User adminUser = new com.danphe.emr.model.User();
         adminUser.setUserName(request.adminUsername);
-        adminUser.setPassword(request.adminPassword); // In prod, hash this!
+        adminUser.setPassword(passwordEncoder.encode(request.adminPassword));
         adminUser.setEmployeeId(savedEmp.getEmployeeId());
         adminUser.setHospitalId(savedHospital.getHospitalId());
         adminUser.setIsActive(true);
@@ -90,6 +102,18 @@ public class SuperAdminController {
             h.setContactNumber(details.getContactNumber());
             h.setEmail(details.getEmail());
             h.setIsActive(details.getIsActive());
+            h.setSubscriptionPlan("PREMIUM");
+            h.setSubscriptionStatus("active");
+            h.setBillingCycle("unlimited");
+            h.setSubscriptionExpiry(h.getSubscriptionExpiry() != null ? h.getSubscriptionExpiry() : java.time.LocalDateTime.now().plusYears(100));
+            
+            // Sync Admin employee modules
+            employeeRepository.findByHospitalIdAndRole(id, "Admin").stream().findFirst().ifPresent(adminEmp -> {
+                java.util.List<String> modules = java.util.List.of("Dashboard", "Patients", "Appointments", "Doctor Queue", "Prescriptions", "Billing", "Service Catalog", "Staff", "ADT", "Beds", "Analytics", "AI Copilot", "Reports", "Notifications");
+                adminEmp.setAssignedModules(String.join(",", modules));
+                employeeRepository.save(adminEmp);
+            });
+            
             return ResponseEntity.ok(DanpheHttpResponse.ok(hospitalRepository.save(h)));
         }).orElse(ResponseEntity.ok(DanpheHttpResponse.error("Hospital not found")));
     }
@@ -142,7 +166,7 @@ public class SuperAdminController {
         }
 
         if (request.newPassword != null && !request.newPassword.trim().isEmpty()) {
-            user.setPassword(request.newPassword);
+            user.setPassword(passwordEncoder.encode(request.newPassword));
         }
 
         userRepository.save(user);

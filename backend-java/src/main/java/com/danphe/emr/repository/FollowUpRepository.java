@@ -18,4 +18,8 @@ public interface FollowUpRepository extends JpaRepository<FollowUp, Integer> {
             String status);
 
     List<FollowUp> findByHospitalIdAndPatientIdOrderByFollowUpDateDesc(Integer hospitalId, Integer patientId);
+
+    java.util.Optional<FollowUp> findFirstByPrescriptionId(Integer prescriptionId);
+
+    void deleteByHospitalId(Integer hospitalId);
 }

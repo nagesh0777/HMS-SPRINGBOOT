@@ -56,6 +56,7 @@ public class Employee {
     private String adminNotes;
 
     private Boolean isActive;
+    private String photoPath;
 
     @Transient
     @Size(min = 6, message = "Password must be at least 6 characters")

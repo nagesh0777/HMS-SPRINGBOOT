@@ -35,6 +35,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                     return new UsernameNotFoundException("User Not Found with username: " + username);
                 });
 
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            System.out.println("Login Blocked: User [" + username + "] is inactive.");
+            throw new UsernameNotFoundException("User is inactive.");
+        }
+
         // Check Hospital Status and Isolation
         Integer targetHospitalId = user.getHospitalId();
 
@@ -69,6 +74,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         Integer empId = user.getEmployeeId();
         if (empId != null) {
             emp = employeeRepository.findById(empId).orElse(null);
+        }
+        if (emp != null && Boolean.FALSE.equals(emp.getIsActive())) {
+            System.out.println("Login Blocked: Employee [" + username + "] is inactive.");
+            throw new UsernameNotFoundException("Employee is inactive.");
         }
         System.out.println("UserDetailsService: Found. Role=" + (emp != null ? emp.getRole() : "N/A"));
 

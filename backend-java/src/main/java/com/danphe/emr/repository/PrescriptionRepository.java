@@ -15,4 +15,8 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Inte
 
     List<Prescription> findByHospitalIdAndDoctorIdAndStatusOrderByCreatedOnDesc(Integer hospitalId, Integer doctorId,
             String status);
+
+    List<Prescription> findByHospitalId(Integer hospitalId);
+
+    void deleteByHospitalId(Integer hospitalId);
 }

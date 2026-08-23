@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
-import { Settings, Upload, Save, Building, Phone, Mail, FileText, Image, Hash, Shield, Eye } from 'lucide-react';
+import { Settings, Upload, Save, Building, Phone, Mail, FileText, Image, Hash, Shield, Eye, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
 const HospitalSettingsPage = () => {
     const toast = useToast();
@@ -17,7 +17,13 @@ const HospitalSettingsPage = () => {
     const [logoPreview, setLogoPreview] = useState(null);
     const [sigPreview, setSigPreview] = useState(null);
 
-    useEffect(() => { fetchSettings(); }, []);
+
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+
 
     const fetchSettings = async () => {
         try {
@@ -183,6 +189,8 @@ const HospitalSettingsPage = () => {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     placeholder="Thank you for choosing our hospital. Get well soon!" />
             </div>
+
+
 
             {/* Save Button */}
             <button onClick={handleSave} disabled={saving}

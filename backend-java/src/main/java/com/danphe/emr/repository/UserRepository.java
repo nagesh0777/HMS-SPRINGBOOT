@@ -10,4 +10,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByHospitalIdAndEmployeeId(Integer hospitalId, Integer employeeId);
 
     Optional<User> findByEmployeeId(Integer employeeId);
+
+    java.util.List<User> findByHospitalId(Integer hospitalId);
 }

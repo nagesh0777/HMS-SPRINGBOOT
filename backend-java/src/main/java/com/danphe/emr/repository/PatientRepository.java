@@ -26,4 +26,10 @@ public interface PatientRepository extends JpaRepository<Patient, Integer> {
                         java.time.LocalDateTime end);
 
         long countByHospitalId(Integer hospitalId);
+
+        List<Patient> findByHospitalId(Integer hospitalId);
+
+        void deleteByHospitalId(Integer hospitalId);
+
+        java.util.Optional<Patient> findByHospitalIdAndPhoneNumber(Integer hospitalId, String phoneNumber);
 }

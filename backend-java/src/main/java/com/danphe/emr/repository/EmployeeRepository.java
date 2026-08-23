@@ -15,4 +15,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
     java.util.Optional<Employee> findByHospitalIdAndEmployeeId(Integer hospitalId, Integer employeeId);
 
     java.util.Optional<Employee> findByUserName(String userName);
+
+    void deleteByHospitalId(Integer hospitalId);
+
+    void deleteByHospitalIdAndEmployeeIdNot(Integer hospitalId, Integer employeeId);
 }

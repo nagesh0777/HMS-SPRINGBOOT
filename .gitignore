@@ -20,8 +20,14 @@ frontend-modern/.env.production.local
 frontend-modern/npm-debug.log*
 frontend-modern/yarn-debug.log*
 frontend-modern/yarn-error.log*
+
 # Environment Secrets
 .env
+.env.*
 
-# Docker data
+# Docker data & Backups
 mysql_data/
+uploads_data/
+database-backup/
+*.sql
+*.sql.gz

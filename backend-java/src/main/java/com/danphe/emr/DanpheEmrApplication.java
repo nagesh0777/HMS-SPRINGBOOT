@@ -17,43 +17,70 @@ public class DanpheEmrApplication {
 	@Bean
 	CommandLineRunner init(UserRepository userRepository,
 			com.danphe.emr.repository.EmployeeRepository employeeRepository,
-			com.danphe.emr.repository.HospitalRepository hospitalRepository) {
+			com.danphe.emr.repository.HospitalRepository hospitalRepository,
+			org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {
 		return args -> {
 
 			// 1. Seed Default Hospital
 			if (hospitalRepository.count() == 0) {
 				com.danphe.emr.model.Hospital h = new com.danphe.emr.model.Hospital();
-				h.setName("Trikaar HQ");
+				h.setName("Trikaar Owner HQ");
 				h.setAddress("Tech Park");
 				h.setIsActive(true);
 				hospitalRepository.save(h);
 				System.out.println("Default Hospital seeded.");
+			} else {
+				hospitalRepository.findById(1).ifPresent(h -> {
+					if ("Trikaar HQ".equalsIgnoreCase(h.getName()) || "TrikaarHQ".equalsIgnoreCase(h.getName())) {
+						h.setName("Trikaar Owner HQ");
+						hospitalRepository.save(h);
+						System.out.println("Default Hospital renamed to Trikaar Owner HQ.");
+					}
+				});
 			}
 
-			// 2. Seed Super Admin (Trikaar)
-			if (employeeRepository.findByUserName("trikaar_admin").isEmpty()) {
+			// 2. Seed Owner Super Admin (Nagesh)
+			if (employeeRepository.findByUserName("nagesh").isEmpty()) {
 				// Create Employee
 				com.danphe.emr.model.Employee superEmp = new com.danphe.emr.model.Employee();
-				superEmp.setFirstName("Super");
-				superEmp.setLastName("Admin");
+				superEmp.setFirstName("Nagesh");
+				superEmp.setLastName("Owner");
 				superEmp.setRole("SuperAdmin");
 				superEmp.setAccessLevel("SuperAdmin");
-				superEmp.setUserName("trikaar_admin");
+				superEmp.setUserName("nagesh");
 				superEmp.setPhoneNumber("9800000000");
 				superEmp.setIsActive(true);
-				superEmp.setHospitalId(1); // Belongs to Trikaar HQ
+				superEmp.setHospitalId(1); // Belongs to the owner HQ hospital
 				com.danphe.emr.model.Employee savedSuper = employeeRepository.save(superEmp);
 
 				// Create User
 				User superUser = new User();
-				superUser.setUserName("trikaar_admin");
-				superUser.setPassword("trikaar_root");
+				superUser.setUserName("nagesh");
+				superUser.setPassword(passwordEncoder.encode("nagesh@01"));
 				superUser.setEmployeeId(savedSuper.getEmployeeId());
 				superUser.setHospitalId(1);
 				superUser.setIsActive(true);
 				userRepository.save(superUser);
-				System.out.println("Super Admin seeded: trikaar_admin/root");
+				System.out.println("Owner Super Admin seeded: nagesh");
+			} else {
+				userRepository.findByUserName("nagesh").ifPresent(owner -> {
+					owner.setPassword(passwordEncoder.encode("nagesh@01"));
+					owner.setIsActive(true);
+					userRepository.save(owner);
+					System.out.println("Owner Super Admin credentials refreshed: nagesh");
+				});
 			}
+
+			userRepository.findByUserName("trikaar_admin").ifPresent(legacy -> {
+				legacy.setIsActive(false);
+				userRepository.save(legacy);
+				System.out.println("Legacy Super Admin disabled: trikaar_admin");
+			});
+			employeeRepository.findByUserName("trikaar_admin").ifPresent(legacyEmp -> {
+				legacyEmp.setIsActive(false);
+				legacyEmp.setStatus("Inactive");
+				employeeRepository.save(legacyEmp);
+			});
 
 			// 3. Ensure Regular Admin Exists (Legacy support)
 			if (employeeRepository.findById(1).isEmpty()) {
@@ -65,7 +92,7 @@ public class DanpheEmrApplication {
 				adminEmp.setStatus("Active");
 				adminEmp.setPhoneNumber("9811111111");
 				adminEmp.setIsActive(true);
-				adminEmp.setHospitalId(1); // Default to HQ for now
+				adminEmp.setHospitalId(1); // Default to owner HQ for now
 				employeeRepository.save(adminEmp);
 				System.out.println("Admin Employee seeded.");
 			}
@@ -73,7 +100,7 @@ public class DanpheEmrApplication {
 			// 4. Ensure Admin User exists
 			userRepository.findByUserName("admin").ifPresentOrElse(
 					admin -> {
-						admin.setPassword("pass123");
+						admin.setPassword(passwordEncoder.encode("pass123"));
 						admin.setEmployeeId(1);
 						admin.setHospitalId(1);
 						userRepository.save(admin);
@@ -82,7 +109,7 @@ public class DanpheEmrApplication {
 					() -> {
 						User admin = new User();
 						admin.setUserName("admin");
-						admin.setPassword("pass123");
+						admin.setPassword(passwordEncoder.encode("pass123"));
 						admin.setEmployeeId(1);
 						admin.setHospitalId(1);
 						admin.setIsActive(true);

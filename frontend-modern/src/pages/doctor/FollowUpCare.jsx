@@ -6,6 +6,7 @@ import {
     FileText, Search, Filter, ChevronDown, Edit3, Heart
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
+import PatientSearch from '../../components/PatientSearch';
 
 const priorityConfig = {
     routine: { label: 'Routine', color: 'bg-blue-100 text-blue-700', ring: 'ring-blue-200' },
@@ -189,14 +190,11 @@ const FollowUpCare = () => {
                             </h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Patient ID *</label>
-                                    <input
-                                        type="number"
-                                        value={form.patientId}
-                                        onChange={e => setForm(prev => ({ ...prev, patientId: e.target.value }))}
-                                        placeholder="Patient ID"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                <div className="md:col-span-1">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select Patient *</label>
+                                    <PatientSearch
+                                        onSelect={(id) => setForm(prev => ({ ...prev, patientId: id }))}
+                                        selectedPatientId={form.patientId}
                                     />
                                 </div>
                                 <div>

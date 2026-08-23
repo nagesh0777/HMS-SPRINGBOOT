@@ -55,6 +55,10 @@ public class Patient {
     private String countrySubDivisionId; // District/State
 
     private Boolean isActive;
+    private String photoPath;
+    private String status; // Outpatient, Inpatient, Emergency, Discharged
+    private Double weight; // in kg
+    private Double height; // in cm
 
     // Audit fields
     private LocalDateTime createdOn;

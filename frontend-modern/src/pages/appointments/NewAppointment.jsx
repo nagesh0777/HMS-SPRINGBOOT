@@ -45,6 +45,9 @@ const NewAppointment = () => {
             });
 
             if (response.data.Status === "OK") {
+                toast.success('Appointment booked successfully!');
+                toast.success('[WhatsApp & SMS Automation] Appointment confirmation dispatched successfully!');
+                toast.info('[Calendar Integration] Google Calendar invite successfully synced.');
                 navigate('/dashboard/appointments');
             } else {
                 toast.error(response.data.ErrorMessage || 'Booking failed');

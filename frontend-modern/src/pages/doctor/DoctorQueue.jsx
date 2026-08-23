@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,7 +20,7 @@ const statusConfig = {
 
 const Toast = ({ message, type, onClose }) => (
     <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-        className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+        className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
         {type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
         {message}
         <button onClick={onClose} className="ml-2 hover:opacity-80"><X size={14} /></button>
@@ -31,29 +31,64 @@ const DoctorQueue = () => {
     const navigate = useNavigate();
     const [queue, setQueue] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('active'); // Default to active (not completed)
+    const [filter, setFilter] = useState('active');
     const [search, setSearch] = useState('');
     const [updating, setUpdating] = useState(null);
     const [toast, setToast] = useState(null);
+    const [newAlert, setNewAlert] = useState(null);
+    const knownIdsRef = useRef(new Set());
+    const isFirstFetch = useRef(true);
 
     const showToast = useCallback((text, type = 'success') => {
         setToast({ text, type });
         setTimeout(() => setToast(null), 3000);
     }, []);
 
-    const fetchQueue = async () => {
-        setLoading(true);
+    const fetchQueue = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const res = await axios.get('/api/DoctorPortal/Queue');
-            if (res.data.Results) setQueue(res.data.Results);
+            const results = res.data.Results || [];
+
+            if (isFirstFetch.current) {
+                // Seed known IDs on first load — no notification
+                results.forEach(a => knownIdsRef.current.add(a.appointmentId));
+                isFirstFetch.current = false;
+            } else {
+                // Detect genuinely new appointments
+                const newAppts = results.filter(a => !knownIdsRef.current.has(a.appointmentId));
+                if (newAppts.length > 0) {
+                    newAppts.forEach(a => knownIdsRef.current.add(a.appointmentId));
+                    const first = newAppts[0];
+                    const name = `${first.firstName || ''} ${first.lastName || ''}`.trim() || `Patient #${first.patientId}`;
+                    // Fire custom event so sidebar can show notification
+                    window.dispatchEvent(new CustomEvent('new-appointment', {
+                        detail: {
+                            count: newAppts.length,
+                            patientName: name,
+                            appointmentType: first.appointmentType || 'New Visit',
+                            time: first.appointmentDate
+                        }
+                    }));
+                    setNewAlert({ name, count: newAppts.length, type: first.appointmentType || 'New Visit' });
+                    setTimeout(() => setNewAlert(null), 8000);
+                }
+            }
+
+            setQueue(results);
         } catch (e) {
             console.error('Failed to load queue', e);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { fetchQueue(); const interval = setInterval(fetchQueue, 30000); return () => clearInterval(interval); }, []);
+    useEffect(() => {
+        fetchQueue();
+        // Poll every 10 seconds for near-real-time updates
+        const interval = setInterval(() => fetchQueue(true), 10000);
+        return () => clearInterval(interval);
+    }, [fetchQueue]);
 
     const updateStatus = async (appointmentId, newStatus, patientName) => {
         setUpdating(appointmentId);
@@ -103,7 +138,32 @@ const DoctorQueue = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
+
+            {/* New Appointment Alert Banner */}
+            <AnimatePresence>
+                {newAlert && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -20, scale: 0.97 }}
+                        className="flex items-center gap-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-4 rounded-2xl shadow-lg shadow-green-200"
+                    >
+                        <div className="flex-shrink-0 w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center animate-bounce">
+                            <Stethoscope size={20} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-black text-sm">New Patient in Queue!</p>
+                            <p className="text-green-100 text-xs font-medium mt-0.5">
+                                {newAlert.count > 1 ? `${newAlert.count} new appointments` : newAlert.name} • {newAlert.type}
+                            </p>
+                        </div>
+                        <button onClick={() => setNewAlert(null)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+                            <X size={16} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-gray-900">Patient Queue</h1>
@@ -117,7 +177,7 @@ const DoctorQueue = () => {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                     { label: 'Total', value: counts.total, color: 'from-blue-500 to-blue-700' },
                     { label: 'Waiting', value: counts.waiting, color: 'from-amber-500 to-orange-600' },
@@ -139,7 +199,7 @@ const DoctorQueue = () => {
                         value={search} onChange={e => setSearch(e.target.value)}
                         className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl overflow-x-auto whitespace-nowrap scrollbar-none flex-shrink-0">
                     {[
                         { key: 'active', label: 'Active' },
                         { key: 'all', label: 'All' },
@@ -239,7 +299,7 @@ const DoctorQueue = () => {
                                             </div>
 
                                             {/* Actions */}
-                                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap md:flex-nowrap w-full md:w-auto">
                                                 {/* Status progression button */}
                                                 {sc.next && (
                                                     <button

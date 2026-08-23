@@ -33,6 +33,12 @@ public class DashboardController {
     @Autowired
     AdmissionRepository admissionRepository;
 
+    @Autowired
+    com.danphe.emr.repository.DoctorRepository doctorRepository;
+
+    @Autowired
+    com.danphe.emr.repository.PrescriptionRepository prescriptionRepository;
+
     @GetMapping("/Summary")
     public ResponseEntity<?> getDashboardSummary(@RequestParam(required = false) Integer performerId) {
         Integer hospitalId = com.danphe.emr.security.SecurityUtil.getCurrentHospitalId();
@@ -307,6 +313,120 @@ public class DashboardController {
             dailyTrend.add(dd);
         }
         data.put("dailyTrend", dailyTrend);
+
+        // 9. Clinical Analytics (Prescriptions & Diagnoses)
+        var prescriptions = prescriptionRepository.findByHospitalId(hospitalId);
+        long totalPrescriptions = prescriptions.size();
+        
+        Map<String, Integer> diagnosisCounts = new HashMap<>();
+        for (var p : prescriptions) {
+            String diag = p.getDiagnosis();
+            if (diag != null && !diag.trim().isEmpty()) {
+                String normalized = diag.trim().toUpperCase();
+                diagnosisCounts.put(normalized, diagnosisCounts.getOrDefault(normalized, 0) + 1);
+            }
+        }
+        
+        java.util.List<Map<String, Object>> topDiagnoses = diagnosisCounts.entrySet().stream()
+            .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+            .limit(5)
+            .map(e -> {
+                Map<String, Object> m = new HashMap<>();
+                String formattedDiag = e.getKey().charAt(0) + e.getKey().substring(1).toLowerCase();
+                m.put("name", formattedDiag);
+                m.put("count", e.getValue());
+                return m;
+            })
+            .collect(java.util.stream.Collectors.toList());
+
+        Map<String, Object> clinicalStats = new HashMap<>();
+        clinicalStats.put("totalPrescriptions", totalPrescriptions);
+        clinicalStats.put("topDiagnoses", topDiagnoses);
+
+        // Average length of stay (discharged patients)
+        var dischargedAdmissions = admissionRepository.findByHospitalIdAndAdmissionStatus(hospitalId, "discharged");
+        double avgStay = dischargedAdmissions.stream()
+            .filter(a -> a.getAdmissionDate() != null && a.getDischargeDate() != null)
+            .mapToLong(a -> java.time.temporal.ChronoUnit.DAYS.between(a.getAdmissionDate(), a.getDischargeDate()))
+            .average()
+            .orElse(0.0);
+        avgStay = Math.round(avgStay * 10.0) / 10.0;
+        clinicalStats.put("averageLengthOfStay", avgStay);
+        data.put("clinicalStats", clinicalStats);
+
+        // 10. Doctor Workload (Scheduled Appointments in the last 30 days)
+        var activeDoctorsList = doctorRepository.findByHospitalIdAndIsActive(hospitalId, true);
+        var allAppointments = appointmentRepository.findByHospitalIdAndAppointmentDateBetween(hospitalId, now.minusDays(30), now);
+        Map<Integer, Long> doctorApptCount = allAppointments.stream()
+            .filter(a -> a.getPerformerId() != null)
+            .collect(java.util.stream.Collectors.groupingBy(com.danphe.emr.model.Appointment::getPerformerId, java.util.stream.Collectors.counting()));
+        
+        java.util.List<Map<String, Object>> doctorWorkload = new java.util.ArrayList<>();
+        for (var d : activeDoctorsList) {
+            Map<String, Object> dw = new HashMap<>();
+            dw.put("doctorId", d.getDoctorId());
+            dw.put("fullName", d.getFullName());
+            dw.put("department", d.getDepartment());
+            dw.put("specialization", d.getSpecialization());
+            dw.put("appointmentsCount", doctorApptCount.getOrDefault(d.getDoctorId(), 0L));
+            doctorWorkload.add(dw);
+        }
+        doctorWorkload.sort((a, b) -> Long.compare((Long) b.get("appointmentsCount"), (Long) a.get("appointmentsCount")));
+        data.put("doctorWorkload", doctorWorkload);
+        data.put("activeDoctorsCount", activeDoctorsList.size());
+
+        // 11. Ward Bed Occupancy Breakdown
+        Map<String, Map<String, Integer>> wardOccupancy = new HashMap<>();
+        for (var b : allBeds) {
+            String w = b.getWard();
+            if (w == null || w.trim().isEmpty()) {
+                w = "General Ward";
+            }
+            wardOccupancy.putIfAbsent(w, new HashMap<>());
+            var wMap = wardOccupancy.get(w);
+            wMap.put("total", wMap.getOrDefault("total", 0) + 1);
+            if ("occupied".equalsIgnoreCase(b.getStatus())) {
+                wMap.put("occupied", wMap.getOrDefault("occupied", 0) + 1);
+            }
+        }
+        
+        java.util.List<Map<String, Object>> wardList = new java.util.ArrayList<>();
+        wardOccupancy.forEach((k, v) -> {
+            Map<String, Object> wm = new HashMap<>();
+            wm.put("ward", k);
+            wm.put("total", v.getOrDefault("total", 0));
+            wm.put("occupied", v.getOrDefault("occupied", 0));
+            wm.put("available", v.getOrDefault("total", 0) - v.getOrDefault("occupied", 0));
+            wm.put("occupancyRate", v.getOrDefault("total", 0) > 0 ? Math.round((v.getOrDefault("occupied", 0) * 100.0) / v.getOrDefault("total", 0)) : 0);
+            wardList.add(wm);
+        });
+        data.put("wardOccupancy", wardList);
+
+        // 12. Active Admissions Details List
+        java.util.List<Map<String, Object>> activeAdmList = new java.util.ArrayList<>();
+        for (var adm : admissions) {
+            Map<String, Object> admMap = new HashMap<>();
+            admMap.put("admissionId", adm.getPatientAdmissionId());
+            admMap.put("admissionDate", adm.getAdmissionDate());
+            admMap.put("admissionStatus", adm.getAdmissionStatus());
+            admMap.put("bedId", adm.getBedId());
+            
+            patientRepository.findById(adm.getPatientId()).ifPresent(p -> {
+                admMap.put("patientName", p.getFirstName() + " " + p.getLastName());
+                admMap.put("patientCode", p.getPatientCode());
+            });
+            bedRepository.findById(adm.getBedId()).ifPresent(b -> {
+                admMap.put("bedNumber", b.getBedNumber());
+                admMap.put("ward", b.getWard());
+            });
+            if (adm.getAdmittingDoctorId() != null) {
+                doctorRepository.findById(adm.getAdmittingDoctorId()).ifPresent(doc -> {
+                    admMap.put("doctorName", doc.getFullName());
+                });
+            }
+            activeAdmList.add(admMap);
+        }
+        data.put("activeAdmissionsDetails", activeAdmList);
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(data));
     }

@@ -9,7 +9,6 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -41,9 +40,7 @@ public class WebSecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // NOTE: Using NoOp for compatibility with some legacy systems initially.
-        // Switch to BCryptPasswordEncoder for production!
-        return NoOpPasswordEncoder.getInstance();
+        return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
     }
 
     @Bean
@@ -52,7 +49,14 @@ public class WebSecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/Account/**").permitAll()
+                        .requestMatchers("/api/Account/**", "/api/Migration/**").permitAll()
+                        .requestMatchers("/api/Otp/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/Subscriptions/Plans").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/Subscriptions/Register",
+                                "/api/Subscriptions/VerifyPayment", "/api/Subscriptions/RequestDemo")
+                        .permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/Files/photo/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/Files/*/*/*").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll());
 
@@ -67,9 +71,11 @@ public class WebSecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of("*"));
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.List.of("*"));
+        // Read allowed origins from environment variable or default to localhost and the VPS IP
+        configuration.setAllowedOrigins(java.util.Arrays.asList("http://localhost:5173", "http://localhost:3000", "http://localhost:8085", "http://72.61.242.209", "http://trikaar.com", "https://hms.trikaar.tech", "http://hms.trikaar.tech"));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

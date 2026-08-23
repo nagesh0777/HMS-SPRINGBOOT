@@ -26,10 +26,14 @@ const StaffForm = () => {
         assignedWard: '',
         status: 'Active',
         adminNotes: '',
-        isActive: true
+        isActive: true,
+        photoPath: ''
     });
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(isEditMode);
+    const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
+    const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         const userRole = localStorage.getItem('role');
@@ -88,13 +92,67 @@ const StaffForm = () => {
         return Object.keys(newErrors).length === 0;
     };
 
+    const handlePhotoChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.warning("File is too large. Max size is 5MB.");
+            return;
+        }
+
+        if (isEditMode) {
+            setUploading(true);
+            try {
+                const uploadData = new FormData();
+                uploadData.append('file', file);
+                uploadData.append('type', 'employee');
+                uploadData.append('id', id);
+                const res = await axios.post('/api/Files/UploadPhoto', uploadData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                if (res.data.Status === 'OK') {
+                    setFormData(prev => ({ ...prev, photoPath: res.data.Results.path }));
+                    toast.success("Profile photo updated successfully.");
+                } else {
+                    toast.error(res.data.ErrorMessage || "Upload failed.");
+                }
+            } catch (err) {
+                toast.error("Failed to upload photo.");
+            } finally {
+                setUploading(false);
+            }
+        } else {
+            setSelectedPhotoFile(file);
+            setPhotoPreviewUrl(URL.createObjectURL(file));
+        }
+    };
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
-        // Clear error when user changes field
         if (errors[name]) {
             setErrors({ ...errors, [name]: '' });
         }
+    };
+
+    const handleModuleToggle = (moduleId) => {
+        const currentModules = (formData.assignedModules || '')
+            .split(',')
+            .map(m => m.trim())
+            .filter(Boolean);
+        
+        let newModules;
+        if (currentModules.includes(moduleId)) {
+            newModules = currentModules.filter(m => m !== moduleId);
+        } else {
+            newModules = [...currentModules, moduleId];
+        }
+        
+        setFormData(prev => ({
+            ...prev,
+            assignedModules: newModules.join(', ')
+        }));
     };
 
     const handleSubmit = async (e) => {
@@ -111,6 +169,18 @@ const StaffForm = () => {
             }
 
             if (res.data && res.data.Status === "OK") {
+                // Upload photo now if selected
+                if (!isEditMode && selectedPhotoFile && res.data.Results?.employeeId) {
+                    const newId = res.data.Results.employeeId;
+                    const uploadData = new FormData();
+                    uploadData.append('file', selectedPhotoFile);
+                    uploadData.append('type', 'employee');
+                    uploadData.append('id', newId);
+                    await axios.post('/api/Files/UploadPhoto', uploadData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }
+
                 if (isEditMode) {
                     navigate(`/dashboard/staff/${id}`);
                 } else {
@@ -153,6 +223,27 @@ const StaffForm = () => {
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        {/* Photo Upload Widget */}
+                        <div className="md:col-span-2 flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-all gap-4">
+                            <div className="relative group w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-3xl">
+                                {uploading ? (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs font-bold">Uploading...</div>
+                                ) : null}
+                                {photoPreviewUrl || formData.photoPath ? (
+                                    <img src={photoPreviewUrl || formData.photoPath} alt="Staff Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User size={40} className="text-gray-400" />
+                                )}
+                            </div>
+                            <div className="text-center">
+                                <label className="cursor-pointer px-4 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-all">
+                                    {uploading ? 'Uploading Photo...' : (formData.photoPath || photoPreviewUrl ? 'Change Profile Photo' : 'Upload Profile Photo')}
+                                    <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} disabled={uploading} />
+                                </label>
+                                <p className="text-[10px] text-gray-400 mt-2 font-medium">JPEG or PNG, maximum 5MB</p>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">First Name</label>
                             <input
@@ -162,7 +253,7 @@ const StaffForm = () => {
                                 value={formData.firstName}
                                 onChange={handleChange}
                                 className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.firstName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
-                                placeholder="e.g. John"
+                                placeholder="Enter first name"
                             />
                             {errors.firstName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.firstName}</p>}
                         </div>
@@ -175,23 +266,42 @@ const StaffForm = () => {
                                 value={formData.lastName}
                                 onChange={handleChange}
                                 className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.lastName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
-                                placeholder="e.g. Doe"
+                                placeholder="Enter last name"
                             />
                             {errors.lastName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.lastName}</p>}
                         </div>
                         <div>
-                            <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Role</label>
-                            <select
+                            <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Role *</label>
+                            <input
+                                type="text"
                                 name="role"
+                                required
                                 value={formData.role}
                                 onChange={handleChange}
-                                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all"
-                            >
-                                <option>Admin</option>
-                                <option>Doctor</option>
-                                <option>Helpdesk</option>
-                                <option>Staff</option>
-                            </select>
+                                className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.role ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
+                                placeholder="Enter role (e.g. Nurse)"
+                            />
+                            {/* Suggestions */}
+                            <div className="mt-2 space-y-1">
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Suggestions:</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {['Admin', 'Doctor', 'Helpdesk', 'Staff', 'Nurse', 'Technician'].map(sug => (
+                                        <button
+                                            key={sug}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, role: sug }))}
+                                            className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all ${
+                                                formData.role === sug 
+                                                    ? 'bg-primary-600 border-primary-600 text-white shadow-sm' 
+                                                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600'
+                                            }`}
+                                        >
+                                            {sug}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {errors.role && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.role}</p>}
                         </div>
                         <div>
                             <label className="mb-2 block text-[10px] font-black uppercase text-gray-400">Department</label>
@@ -212,7 +322,7 @@ const StaffForm = () => {
                                 value={formData.phoneNumber}
                                 onChange={handleChange}
                                 className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.phoneNumber ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
-                                placeholder="e.g. +1 234 567 890"
+                                placeholder="Enter phone number"
                             />
                             {errors.phoneNumber && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.phoneNumber}</p>}
                         </div>
@@ -224,7 +334,7 @@ const StaffForm = () => {
                                 value={formData.email}
                                 onChange={handleChange}
                                 className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.email ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
-                                placeholder="e.g. john.doe@hospital.com"
+                                placeholder="Enter email address"
                             />
                             {errors.email && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.email}</p>}
                         </div>
@@ -238,6 +348,7 @@ const StaffForm = () => {
                             >
                                 <option>Active</option>
                                 <option>On Leave</option>
+                                <option>Suspended</option>
                             </select>
                         </div>
                     </div>
@@ -264,7 +375,7 @@ const StaffForm = () => {
                                 value={formData.userName}
                                 onChange={handleChange}
                                 className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-4 ${errors.userName ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/10'}`}
-                                placeholder="e.g. jdoe123"
+                                placeholder="e.g. alex.smith"
                             />
                             {errors.userName && <p className="mt-1 text-xs font-bold text-red-500 px-1">{errors.userName}</p>}
                         </div>
@@ -314,6 +425,7 @@ const StaffForm = () => {
                                     { id: 'Staff', label: 'Staff', desc: 'Staff directory' },
                                     { id: 'Services', label: 'Service Catalog', desc: 'Service rates & catalog' },
                                     { id: 'Settings', label: 'Settings', desc: 'Hospital settings' },
+                                    { id: 'AICopilot', label: 'AI Chatbot Access', desc: 'Allow global AI Chatbot Panel' },
                                 ].map(mod => {
                                     const currentModules = (formData.assignedModules || '').split(',').map(m => m.trim()).filter(Boolean);
                                     const isChecked = currentModules.includes(mod.id);
@@ -428,6 +540,56 @@ const StaffForm = () => {
                                 System Access Enabled
                             </label>
                         </div>
+                    </div>
+                </div>
+
+                {/* 5. Page Permissions & Features */}
+                <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
+                    <div className="mb-8 flex items-center gap-4 border-b border-gray-50 pb-6">
+                        <div className="rounded-2xl bg-blue-50 p-3 text-blue-600">
+                            <ShieldCheck size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">Page Permissions & Features</h2>
+                            <p className="text-sm text-gray-500">Configure access levels and module permissions for this employee.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[
+                            { id: 'Patients', label: 'Patient Management', desc: 'Register patients, edit clinical details & view lists' },
+                            { id: 'Doctors', label: 'Doctor Directory', desc: 'Add/edit doctor profiles, availability, reset passwords' },
+                            { id: 'Staff', label: 'Workforce & Attendance', desc: 'Manage employees, schedules, and presence widget' },
+                            { id: 'Appointments', label: 'Appointments', desc: 'Schedule, book, and dispatch appointments' },
+                            { id: 'Billing', label: 'Billing & Invoices', desc: 'Generate bills, process payments, view statements' },
+                            { id: 'ADT', label: 'ADT Ward Tracking', desc: 'Admit, discharge, transfer and monitor bed layouts' },
+                            { id: 'Settings', label: 'System Configuration', desc: 'System settings, backups and global constants' },
+                            { id: 'AICopilot', label: 'AI Chatbot Access', desc: 'Allow global access to Owner Copilot & Staff Agent' }
+                        ].map(mod => {
+                            const isChecked = (formData.assignedModules || '').split(',').map(m => m.trim()).includes(mod.id);
+                            return (
+                                <div 
+                                    key={mod.id} 
+                                    onClick={() => handleModuleToggle(mod.id)}
+                                    className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                                        isChecked 
+                                            ? 'bg-blue-50/30 border-blue-500 shadow-sm ring-1 ring-blue-500/10' 
+                                            : 'bg-white hover:bg-gray-50/50 border-gray-200'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {}} // toggled via parent div click
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
+                                    />
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 text-sm leading-tight">{mod.label}</p>
+                                        <p className="text-[11px] text-gray-400 mt-1 leading-normal">{mod.desc}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
 
