@@ -1,25 +1,10 @@
-import React from 'react';
+import { cn } from '@/lib/utils';
 
-const Skeleton = ({ className = '', variant = 'rectangular', animation = 'pulse' }) => {
-    const baseClasses = 'bg-slate-200';
-    
-    // Determine shape
-    const shapeClasses = {
-        rectangular: 'rounded-xl',
-        circular: 'rounded-full',
-        text: 'rounded-md',
-    }[variant] || 'rounded-xl';
+function Skeleton({ className, ...props }) {
+  return <div className={cn('animate-pulse rounded-md bg-muted', className)} {...props} />;
+}
 
-    // Determine animation
-    const animationClasses = {
-        pulse: 'animate-pulse',
-        shimmer: 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent',
-        none: '',
-    }[animation] || 'animate-pulse';
-
-    return (
-        <div className={`${baseClasses} ${shapeClasses} ${animationClasses} ${className}`} />
-    );
-};
-
+export { Skeleton };
+// Also default-exported so the screens that imported the previous component keep working while
+// they are migrated one at a time, rather than needing a single sweeping change.
 export default Skeleton;

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import AICopilotPanel from '../components/AICopilotPanel';
+import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command-dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -99,15 +102,14 @@ const DashboardLayout = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
 
-    // Register Key Listener on Mount
+    // Only the open shortcut is ours now — closing on Escape is handled by the dialog itself.
+    // Keeping a window-level Escape listener as well would mean two things racing to close it,
+    // and would also swallow Escape for any other dialog open at the time.
     useEffect(() => {
         const handleGlobalKeyDown = (e) => {
             if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === 'F2') {
                 e.preventDefault();
                 setIsSearchOpen(prev => !prev);
-            }
-            if (e.key === 'Escape') {
-                setIsSearchOpen(false);
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
@@ -723,109 +725,81 @@ const DashboardLayout = () => {
 
             {/* Quick Search Overlay */}
             <AnimatePresence>
-                {isSearchOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
-                    >
-                        {/* Backdrop Click */}
-                        <div className="absolute inset-0" onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }} />
-
-                        {/* Search Window */}
-                        <motion.div
-                            initial={{ scale: 0.95, y: 15 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 15 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                            className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 shadow-2xl overflow-hidden relative z-10 p-6 flex flex-col space-y-4"
-                        >
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                <h3 className="font-extrabold text-slate-800 text-sm tracking-tight flex items-center gap-2">
-                                    <Stethoscope className="text-blue-500" size={17} />
-                                    Clinician Command Search Pad
-                                </h3>
-                                <button onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }} className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-950 rounded-xl transition-all">
-                                    <X size={15} />
-                                </button>
+                {/* Radix-backed palette: focus is trapped inside it, Escape closes, and the
+                    page behind is inert. The previous overlay did none of these — Tab walked
+                    straight out of the palette into the page behind the backdrop. */}
+                <CommandDialog
+                    open={isSearchOpen}
+                    onOpenChange={(open) => { setIsSearchOpen(open); if (!open) setSearchQuery(''); }}
+                    label="Patient search"
+                >
+                    <CommandInput
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search patient by name, mobile or code..."
+                    />
+                    <CommandList>
+                        {searching ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-muted border-t-primary" />
                             </div>
-
-                            {/* Search Box Input */}
-                            <div className="relative">
-                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    placeholder="Type Patient Name, Mobile or Code..."
-                                    className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50/50 focus:bg-white transition-all shadow-xs"
-                                    autoFocus
-                                />
-                            </div>
-
-                            {/* Results Panel */}
-                            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 pr-1">
-                                {searching ? (
-                                    <div className="flex justify-center items-center py-10">
-                                        <div className="w-8 h-8 border-4 border-slate-250 border-t-blue-500 rounded-full animate-spin" />
-                                    </div>
-                                ) : searchResults.length > 0 ? (
-                                    searchResults.map(p => (
-                                        <div key={p.patientId} className="flex items-center justify-between py-3 hover:bg-slate-50/50 px-3 rounded-2xl transition-all">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100/50 flex items-center justify-center text-blue-600 font-extrabold text-sm flex-shrink-0">
-                                                    {(p.firstName || '?')[0]}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-900 text-xs">{p.firstName} {p.lastName}</p>
-                                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                                                        {p.patientCode || `#${p.patientId}`} &bull; {p.gender} &bull; {p.phoneNumber} {p.age ? `&bull; Age ${p.age}` : ''}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsSearchOpen(false);
-                                                        setSearchQuery('');
-                                                        navigate(`/dashboard/doctor/prescriptions?patientId=${p.patientId}&patientName=${encodeURIComponent(`${p.firstName} ${p.lastName}`)}`);
-                                                    }}
-                                                    className="inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-700 px-3 py-2 text-[10px] font-black text-white rounded-xl shadow-sm transition-all"
-                                                >
-                                                    <Pill size={11} />
-                                                    Start Rx
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setIsSearchOpen(false);
-                                                        setSearchQuery('');
-                                                        navigate(`/dashboard/doctor/patient/${p.patientId}`);
-                                                    }}
-                                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 text-[10px] font-bold rounded-xl transition-all"
-                                                >
-                                                    Profile
-                                                </button>
-                                            </div>
+                        ) : searchResults.length > 0 ? (
+                            searchResults.map(p => (
+                                <div key={p.patientId} className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-accent/60">
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-accent-foreground">
+                                            {(p.firstName || '?')[0]}
                                         </div>
-                                    ))
-                                ) : searchQuery.length > 1 ? (
-                                    <p className="text-center text-xs text-slate-400 py-10 font-medium">No matches found for "{searchQuery}"</p>
-                                ) : (
-                                    <p className="text-center text-xs text-slate-400 py-10 font-medium bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                        Type above to trigger rapid patient lookup...
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Help Banner footer */}
-                            <div className="bg-slate-50 rounded-2xl p-2.5 flex items-center justify-between text-[10px] text-slate-400 font-bold">
-                                <span>Shortcut: <kbd className="px-1 py-0.5 border border-slate-200 bg-white rounded text-slate-700 font-extrabold shadow-sm">CMD+K</kbd> or <kbd className="px-1 py-0.5 border border-slate-200 bg-white rounded text-slate-700 font-extrabold shadow-sm">F2</kbd></span>
-                                <span>Press <kbd className="px-1 py-0.5 border border-slate-200 bg-white rounded text-slate-700 font-extrabold shadow-sm">ESC</kbd> to close</span>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-foreground">{p.firstName} {p.lastName}</p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                {p.patientCode || `#${p.patientId}`} · {p.gender} · {p.phoneNumber}{p.age ? ` · Age ${p.age}` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setIsSearchOpen(false);
+                                                setSearchQuery('');
+                                                navigate(`/dashboard/doctor/prescriptions?patientId=${p.patientId}&patientName=${encodeURIComponent(`${p.firstName} ${p.lastName}`)}`);
+                                            }}
+                                        >
+                                            <Pill size={13} /> Start Rx
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => {
+                                                setIsSearchOpen(false);
+                                                setSearchQuery('');
+                                                navigate(`/dashboard/doctor/patient/${p.patientId}`);
+                                            }}
+                                        >
+                                            Profile
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))
+                        ) : searchQuery.length > 1 ? (
+                            <CommandEmpty>No patient matches &ldquo;{searchQuery}&rdquo;</CommandEmpty>
+                        ) : (
+                            <CommandEmpty>Start typing to look up a patient</CommandEmpty>
+                        )}
+                    </CommandList>
+                    <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2.5 text-[11px] font-medium text-muted-foreground">
+                        <span>
+                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">⌘K</kbd>
+                            {' or '}
+                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">F2</kbd>
+                            {' to open'}
+                        </span>
+                        <span>
+                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">Esc</kbd> to close
+                        </span>
+                    </div>
+                </CommandDialog>
             </AnimatePresence>
 
             {/* New Appointment Popup Notification (Doctor only) */}

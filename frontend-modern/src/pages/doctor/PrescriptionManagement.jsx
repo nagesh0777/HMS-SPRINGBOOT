@@ -1,4 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { DosageInput, parseDosage, formatDosage } from '@/components/ui/dosage-input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1193,20 +1198,37 @@ const PrescriptionManagement = () => {
                             <h3 className="text-lg font-bold text-gray-900 mb-4">{editingTemplate.id ? 'Edit Template' : 'New Template'}</h3>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Template Name *</label>
-                                    <input type="text" value={editingTemplate.name}
+                                    <Label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">Template name *</Label>
+                                    <Input value={editingTemplate.name}
                                         onChange={e => setEditingTemplate(p => ({ ...p, name: e.target.value }))}
-                                        placeholder="e.g. Common Cold / Flu"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        placeholder="e.g. Common Cold / Flu" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-xs font-bold text-gray-500 uppercase">Medicines</label>
                                     {editingTemplate.medicines.map((m, i) => (
-                                        <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                                        <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-lg bg-muted/40 p-2">
                                             <input className="col-span-12 sm:col-span-5 px-3 py-2 rounded-lg border border-gray-200 text-xs" placeholder="Name" value={m.name}
                                                 onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], name: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }} />
-                                            <input className="col-span-6 sm:col-span-3 px-3 py-2 rounded-lg border border-gray-200 text-xs" placeholder="Dosage" value={m.dosage}
-                                                onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], dosage: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }} />
+                                            {/* Stepper rather than a text box: adjusting a template
+                                                dose (5ml → 7.5ml for a child) is a nudge, not a
+                                                retype. Stored back as the same "7.5 ml" string the
+                                                rest of the app already reads. */}
+                                            <div className="col-span-8 sm:col-span-3">
+                                                <DosageInput
+                                                    amount={parseDosage(m.dosage).amount}
+                                                    unit={parseDosage(m.dosage).unit}
+                                                    onAmountChange={(amount) => {
+                                                        const meds = [...editingTemplate.medicines];
+                                                        meds[i] = { ...meds[i], dosage: formatDosage(amount, parseDosage(meds[i].dosage).unit) };
+                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                    }}
+                                                    onUnitChange={(unit) => {
+                                                        const meds = [...editingTemplate.medicines];
+                                                        meds[i] = { ...meds[i], dosage: formatDosage(parseDosage(meds[i].dosage).amount, unit) };
+                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                    }}
+                                                />
+                                            </div>
                                             <select className="col-span-4 sm:col-span-3 px-2 py-2 rounded-lg border border-gray-200 text-xs bg-white" value={m.frequency}
                                                 onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], frequency: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }}>
                                                 {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
@@ -1215,18 +1237,18 @@ const PrescriptionManagement = () => {
                                                 className="col-span-2 sm:col-span-1 p-2 text-red-400 hover:text-red-600 flex justify-center"><Trash2 size={14} /></button>
                                         </div>
                                     ))}
-                                    <button onClick={() => setEditingTemplate(p => ({ ...p, medicines: [...p.medicines, { name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] }))}
-                                        className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
-                                        <Plus size={12} /> Add Medicine
-                                    </button>
+                                    <Button variant="ghost" size="sm" className="text-primary"
+                                        onClick={() => setEditingTemplate(p => ({ ...p, medicines: [...p.medicines, { name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] }))}>
+                                        <Plus size={14} /> Add medicine
+                                    </Button>
                                 </div>
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <button onClick={() => setEditingTemplate(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold">Cancel</button>
-                                <button onClick={() => {
+                                <Button variant="outline" className="flex-1" onClick={() => setEditingTemplate(null)}>Cancel</Button>
+                                <Button className="flex-1" onClick={() => {
                                     if (!editingTemplate.name.trim()) { showToast('Template name required', 'error'); return; }
                                     saveTemplate(editingTemplate);
-                                }} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold">Save Template</button>
+                                }}>Save template</Button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -1547,9 +1569,22 @@ const PrescriptionManagement = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        <input type="text" value={currentMed.dosage} placeholder="Dosage (e.g. 500mg)"
-                                            onChange={e => setCurrentMed(prev => ({ ...prev, dosage: e.target.value }))}
-                                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        {/* Dose is entered as amount + unit and stored back as the
+                                            same string the API and printed prescription expect, so
+                                            nothing downstream had to change. The step size follows
+                                            the unit: 2.5 for ml, 50 for mg. */}
+                                        <DosageInput
+                                            amount={parseDosage(currentMed.dosage).amount}
+                                            unit={parseDosage(currentMed.dosage).unit}
+                                            onAmountChange={(amount) => setCurrentMed(prev => ({
+                                                ...prev,
+                                                dosage: formatDosage(amount, parseDosage(prev.dosage).unit),
+                                            }))}
+                                            onUnitChange={(unit) => setCurrentMed(prev => ({
+                                                ...prev,
+                                                dosage: formatDosage(parseDosage(prev.dosage).amount, unit),
+                                            }))}
+                                        />
                                         <select value={currentMed.frequency} onChange={e => setCurrentMed(prev => ({ ...prev, frequency: e.target.value }))}
                                             className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                             {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
