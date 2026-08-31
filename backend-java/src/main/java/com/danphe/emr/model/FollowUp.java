@@ -7,7 +7,13 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "follow_up")
+@Table(name = "follow_up", indexes = {
+        // Every query here is scoped by hospitalId; without these the database scans the
+        // whole table and gets slower with each tenant onboarded.
+        @Index(name = "idx_fu_hospital", columnList = "hospitalId"),
+        @Index(name = "idx_fu_hospital_doctor", columnList = "hospitalId, doctorId"),
+        @Index(name = "idx_fu_hospital_status", columnList = "hospitalId, status")
+})
 @Data
 @NoArgsConstructor
 public class FollowUp {

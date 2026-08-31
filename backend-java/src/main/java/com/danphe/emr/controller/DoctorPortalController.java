@@ -330,19 +330,21 @@ public class DoctorPortalController {
         UserDetailsImpl user = SecurityUtil.getCurrentUser();
         Integer doctorId = user != null ? user.getDoctorId() : null;
 
+        // The no-doctorId branch previously called findAll(), which returned every prescription in
+        // every hospital on the platform — a cross-tenant leak of patient data for any staff
+        // account not linked to a doctor record. Scoped to the caller's hospital.
         List<Prescription> prescriptions;
         if (doctorId != null) {
             prescriptions = prescriptionRepository.findByHospitalIdAndDoctorIdOrderByCreatedOnDesc(hospitalId,
                     doctorId);
         } else {
-            prescriptions = prescriptionRepository.findAll();
+            prescriptions = prescriptionRepository.findByHospitalIdOrderByCreatedOnDesc(hospitalId);
         }
 
-        // Enrich with patient names
-        for (Prescription p : prescriptions) {
-            patientRepository.findByHospitalIdAndPatientId(hospitalId, p.getPatientId())
-                    .ifPresent(pat -> p.setPatientName(pat.getFirstName() + " " + pat.getLastName()));
-        }
+        // One query for every name, rather than one query per prescription.
+        java.util.Map<Integer, String> names = patientNamesFor(hospitalId,
+                prescriptions.stream().map(Prescription::getPatientId).collect(Collectors.toList()));
+        prescriptions.forEach(p -> p.setPatientName(names.get(p.getPatientId())));
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(prescriptions));
     }
@@ -457,15 +459,16 @@ public class DoctorPortalController {
                     doctorId, status);
         } else if (doctorId != null) {
             followUps = followUpRepository.findByHospitalIdAndDoctorIdOrderByFollowUpDateAsc(hospitalId, doctorId);
+        } else if (status != null && !status.isBlank()) {
+            followUps = followUpRepository.findByHospitalIdAndStatusOrderByFollowUpDateAsc(hospitalId, status);
         } else {
-            followUps = followUpRepository.findAll();
+            // Was findAll() — every follow-up across every hospital. Scoped to the caller's.
+            followUps = followUpRepository.findByHospitalIdOrderByFollowUpDateAsc(hospitalId);
         }
 
-        // Enrich with patient names
-        for (FollowUp f : followUps) {
-            patientRepository.findByHospitalIdAndPatientId(hospitalId, f.getPatientId())
-                    .ifPresent(pat -> f.setPatientName(pat.getFirstName() + " " + pat.getLastName()));
-        }
+        java.util.Map<Integer, String> names = patientNamesFor(hospitalId,
+                followUps.stream().map(FollowUp::getPatientId).collect(Collectors.toList()));
+        followUps.forEach(f -> f.setPatientName(names.get(f.getPatientId())));
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(followUps));
     }
@@ -515,15 +518,15 @@ public class DoctorPortalController {
 
         List<MedicalRecord> labs;
         if (doctorId != null) {
-            labs = medicalRecordRepository.findByHospitalIdAndDoctorIdOrderByCreatedOnDesc(hospitalId, doctorId);
+            labs = medicalRecordRepository.findByHospitalIdAndDoctorIdOrderByCreatedOnDesc(hospitalId, doctorId)
+                    .stream()
+                    .filter(r -> "lab_result".equals(r.getRecordType()))
+                    .collect(Collectors.toList());
         } else {
-            labs = medicalRecordRepository.findAll();
+            // Was findAll() — every medical record on the platform, then filtered in memory.
+            // Now scoped to the hospital and filtered by the database.
+            labs = medicalRecordRepository.findByHospitalIdAndRecordTypeOrderByCreatedOnDesc(hospitalId, "lab_result");
         }
-
-        // Filter to only lab type records
-        labs = labs.stream()
-                .filter(r -> "lab_result".equals(r.getRecordType()))
-                .collect(Collectors.toList());
 
         return ResponseEntity.ok(DanpheHttpResponse.ok(labs));
     }
@@ -747,4 +750,22 @@ public class DoctorPortalController {
         return ResponseEntity.ok(DanpheHttpResponse.ok("Templates saved successfully"));
     }
 
+
+    /**
+     * Resolves patient names for a list in a single query.
+     *
+     * Each of these lists previously called the patient repository once per row, so rendering a
+     * doctor's prescriptions issued one query per prescription. For a busy clinic that is the
+     * difference between one round trip and several hundred.
+     */
+    private java.util.Map<Integer, String> patientNamesFor(Integer hospitalId, java.util.Collection<Integer> patientIds) {
+        java.util.Set<Integer> ids = patientIds.stream().filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) return java.util.Collections.emptyMap();
+        return patientRepository.findByHospitalIdAndPatientIdIn(hospitalId, ids).stream()
+                .collect(Collectors.toMap(
+                        com.danphe.emr.model.Patient::getPatientId,
+                        pat -> (pat.getFirstName() + " " + pat.getLastName()).trim(),
+                        (a, b) -> a));
+    }
 }

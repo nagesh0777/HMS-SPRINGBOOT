@@ -49,7 +49,7 @@ public class WebSecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/Account/**", "/api/Migration/**").permitAll()
+                        .requestMatchers("/api/Account/**").permitAll()
                         .requestMatchers("/api/Otp/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/Subscriptions/Plans").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/Subscriptions/Register",
@@ -72,7 +72,13 @@ public class WebSecurityConfig {
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
         // Read allowed origins from environment variable or default to localhost and the VPS IP
-        configuration.setAllowedOrigins(java.util.Arrays.asList("http://localhost:5173", "http://localhost:3000", "http://localhost:8085", "http://72.61.242.209", "http://trikaar.com", "https://hms.trikaar.tech", "http://hms.trikaar.tech"));
+        // Origins come from ALLOWED_ORIGINS so a new deployment does not need a code change,
+        // and so production can drop the localhost and plain-http entries this list carried.
+        String configured = System.getenv("ALLOWED_ORIGINS");
+        java.util.List<String> origins = (configured != null && !configured.isBlank())
+                ? java.util.Arrays.stream(configured.split(",")).map(String::trim).filter(o -> !o.isEmpty()).toList()
+                : java.util.Arrays.asList("http://localhost:5173", "http://localhost:3000", "https://hms.trikaar.tech");
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
         configuration.setAllowCredentials(true);

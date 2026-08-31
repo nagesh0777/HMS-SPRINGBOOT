@@ -7,7 +7,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prescription")
+@Table(name = "prescription", indexes = {
+        // Every query here is scoped by hospitalId; without these the database scans the
+        // whole table and gets slower with each tenant onboarded.
+        @Index(name = "idx_rx_hospital", columnList = "hospitalId"),
+        @Index(name = "idx_rx_hospital_doctor", columnList = "hospitalId, doctorId"),
+        @Index(name = "idx_rx_hospital_patient", columnList = "hospitalId, patientId")
+})
 @Data
 @NoArgsConstructor
 public class Prescription {

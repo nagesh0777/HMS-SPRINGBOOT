@@ -1,50 +1,71 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { ToastProvider } from './components/Toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './Login';
 
 import DashboardLayout from './layouts/DashboardLayout';
-import DashboardHome from './pages/DashboardHome';
+/**
+ * Route-level code splitting.
+ *
+ * Every page was previously in the entry bundle, so a receptionist opening the login screen
+ * downloaded the billing dashboard, the superadmin console and the 1,700-line prescription
+ * module before they could type a password. Each page is now its own chunk, fetched when its
+ * route is first visited.
+ *
+ * Login and DashboardLayout stay eagerly imported — they are on the critical path for first
+ * paint, and splitting them would only add a round trip before anything renders.
+ */
+const DashboardHome = lazy(() => import('./pages/DashboardHome'));
 
-// Patient Modules
-import PatientList from './pages/patients/PatientList';
-import PatientRegistration from './pages/patients/PatientRegistration';
-import PatientDetails from './pages/patients/PatientDetails';
+// Patients
+const PatientList = lazy(() => import('./pages/patients/PatientList'));
+const PatientRegistration = lazy(() => import('./pages/patients/PatientRegistration'));
+const PatientDetails = lazy(() => import('./pages/patients/PatientDetails'));
 
-// Appointment Modules
-import AppointmentList from './pages/appointments/AppointmentList';
-import NewAppointment from './pages/appointments/NewAppointment';
+// Appointments
+const AppointmentList = lazy(() => import('./pages/appointments/AppointmentList'));
+const NewAppointment = lazy(() => import('./pages/appointments/NewAppointment'));
 
-// ADT Modules
-import AdtDashboard from './pages/adt/AdtDashboard';
-import NewAdmission from './pages/adt/NewAdmission';
-import BedManagement from './pages/adt/BedManagement';
+// ADT
+const AdtDashboard = lazy(() => import('./pages/adt/AdtDashboard'));
+const NewAdmission = lazy(() => import('./pages/adt/NewAdmission'));
+const BedManagement = lazy(() => import('./pages/adt/BedManagement'));
 
-// Staff / Employee Management Modules
-import EmployeeManagement from './pages/staff/EmployeeManagement';
-import StaffDetails from './pages/staff/StaffDetails';
-import StaffForm from './pages/staff/StaffForm';
+// Staff
+const EmployeeManagement = lazy(() => import('./pages/staff/EmployeeManagement'));
+const StaffDetails = lazy(() => import('./pages/staff/StaffDetails'));
+const StaffForm = lazy(() => import('./pages/staff/StaffForm'));
 
-// Super Admin Modules
-import Hospitals from './pages/superadmin/Hospitals';
+// Super admin
+const Hospitals = lazy(() => import('./pages/superadmin/Hospitals'));
 
-// Doctor Portal Modules
-import DoctorDashboard from './pages/doctor/DoctorDashboard';
-import DoctorQueue from './pages/doctor/DoctorQueue';
-import DoctorPatientProfile from './pages/doctor/DoctorPatientProfile';
-import PrescriptionManagement from './pages/doctor/PrescriptionManagement';
-import FollowUpCare from './pages/doctor/FollowUpCare';
-import DoctorProfile from './pages/doctor/DoctorProfile';
-import TreatedHistory from './pages/doctor/TreatedHistory';
+// Doctor portal
+const DoctorDashboard = lazy(() => import('./pages/doctor/DoctorDashboard'));
+const DoctorQueue = lazy(() => import('./pages/doctor/DoctorQueue'));
+const DoctorPatientProfile = lazy(() => import('./pages/doctor/DoctorPatientProfile'));
+const PrescriptionManagement = lazy(() => import('./pages/doctor/PrescriptionManagement'));
+const FollowUpCare = lazy(() => import('./pages/doctor/FollowUpCare'));
+const DoctorProfile = lazy(() => import('./pages/doctor/DoctorProfile'));
+const TreatedHistory = lazy(() => import('./pages/doctor/TreatedHistory'));
 
-// Admin Modules
-import DoctorManagementPage from './pages/doctors/DoctorManagementPage';
-import HospitalSettingsPage from './pages/admin/HospitalSettingsPage';
-import ServiceCatalogPage from './pages/admin/ServiceCatalogPage';
-import NotificationsPage from './pages/notifications/NotificationsPage';
-import PortalGuide from './pages/PortalGuide';
-import BillingDashboard from './pages/billing/BillingDashboard';
+// Admin
+const DoctorManagementPage = lazy(() => import('./pages/doctors/DoctorManagementPage'));
+const HospitalSettingsPage = lazy(() => import('./pages/admin/HospitalSettingsPage'));
+const ServiceCatalogPage = lazy(() => import('./pages/admin/ServiceCatalogPage'));
+const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
+const PortalGuide = lazy(() => import('./pages/PortalGuide'));
+const BillingDashboard = lazy(() => import('./pages/billing/BillingDashboard'));
+
+/** Shown while a route chunk downloads. Deliberately quiet — a full-page spinner on every
+ *  navigation reads as slower than it is. */
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-muted border-t-primary" />
+    </div>
+  );
+}
 
 
 
@@ -78,7 +99,8 @@ function App() {
   return (
     <ToastProvider>
       <Router>
-        <Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Navigate to="/login" />} />
           <Route path="/pricing" element={<Navigate to="/login" />} />
@@ -143,6 +165,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
+        </Suspense>
       </Router>
     </ToastProvider>
   );

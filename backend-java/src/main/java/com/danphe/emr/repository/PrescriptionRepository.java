@@ -18,5 +18,8 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Inte
 
     List<Prescription> findByHospitalId(Integer hospitalId);
 
+    /** Whole-hospital view, for staff who are not themselves a doctor. Never unscoped. */
+    List<Prescription> findByHospitalIdOrderByCreatedOnDesc(Integer hospitalId);
+
     void deleteByHospitalId(Integer hospitalId);
 }

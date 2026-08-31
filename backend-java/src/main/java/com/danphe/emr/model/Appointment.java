@@ -6,7 +6,13 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "appointment")
+@Table(name = "appointment", indexes = {
+        // Every query here is scoped by hospitalId; without these the database scans the
+        // whole table and gets slower with each tenant onboarded.
+        @Index(name = "idx_appt_hospital", columnList = "hospitalId"),
+        @Index(name = "idx_appt_hospital_doctor", columnList = "hospitalId, doctorId"),
+        @Index(name = "idx_appt_hospital_patient", columnList = "hospitalId, patientId")
+})
 @Data
 @NoArgsConstructor
 public class Appointment {

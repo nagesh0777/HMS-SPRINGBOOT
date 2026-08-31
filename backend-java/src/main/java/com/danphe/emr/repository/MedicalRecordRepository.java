@@ -13,6 +13,13 @@ public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, In
 
     List<MedicalRecord> findByHospitalIdAndDoctorIdOrderByCreatedOnDesc(Integer hospitalId, Integer doctorId);
 
+    /**
+     * Whole-hospital records of one type. Filtering by type in the query rather than pulling
+     * everything and filtering in Java also avoids loading every record in the hospital to throw
+     * most of them away.
+     */
+    List<MedicalRecord> findByHospitalIdAndRecordTypeOrderByCreatedOnDesc(Integer hospitalId, String recordType);
+
     List<MedicalRecord> findByHospitalIdAndDoctorIdAndLabStatus(Integer hospitalId, Integer doctorId, String labStatus);
 
     long countByHospitalIdAndDoctorIdAndLabStatus(Integer hospitalId, Integer doctorId, String labStatus);

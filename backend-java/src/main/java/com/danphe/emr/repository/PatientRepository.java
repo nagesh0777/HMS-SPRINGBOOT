@@ -32,4 +32,10 @@ public interface PatientRepository extends JpaRepository<Patient, Integer> {
         void deleteByHospitalId(Integer hospitalId);
 
         java.util.Optional<Patient> findByHospitalIdAndPhoneNumber(Integer hospitalId, String phoneNumber);
+
+    /**
+     * Batch lookup for list enrichment. Fetching patient names one row at a time turns a single
+     * list request into N+1 queries — 200 prescriptions meant 201 round trips.
+     */
+    List<Patient> findByHospitalIdAndPatientIdIn(Integer hospitalId, java.util.Collection<Integer> patientIds);
 }
