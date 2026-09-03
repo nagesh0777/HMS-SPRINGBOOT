@@ -1,12 +1,19 @@
 # Trikaar HMS — Developer & Agent Handover Document
 
+> **Note on credentials.** This document previously contained the production database password
+> and the VPS root login in plaintext, in a public repository. They have been removed, but they
+> remain in this repository's git history — treat them as compromised and rotate them. Deployment
+> credentials belong in a password manager and in `.env` on the server, never in a file that gets
+> committed.
+
+
 This document summarizes the current status, production details, security configurations, and recent bug fixes for the **Trikaar HMS (Spring Boot + React)** application to get other developers or AI agents up to speed instantly.
 
 ---
 
 ## 🌐 Production Environment Details
 
-* **VPS IP Address:** `72.61.242.209` (user: `root`)
+* **VPS:** see the deployment credentials in your password manager. Not recorded here.
 * **Domain Name:** `https://hms.trikaar.tech`
 * **Port Mappings:**
   * **Traefik SSL/TLS:** Ports `80` (HTTP) & `443` (HTTPS) are exposed. Traefik automatically routes and manages Let's Encrypt certificates.
@@ -20,7 +27,7 @@ This document summarizes the current status, production details, security config
 
 * **MySQL Database Name:** `trikaar_emr`
 * **MySQL Username:** `root`
-* **MySQL Password:** `Tr1kaar@DB#2026` *(Updated from the default "root" password inside the container for both remote `%` and local `localhost` access)*
+* **MySQL Password:** set via `MYSQL_ROOT_PASSWORD` in `.env` on the server. Not recorded here.
 
 ---
 
@@ -59,13 +66,13 @@ To manually synchronize changes and rebuild/restart the application containers o
 
 ```bash
 # 1. Sync local code to the VPS (excluding build artifacts and dependencies)
-rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'target' --exclude '.idea' --exclude '.gradle' --exclude 'build' ./ root@72.61.242.209:/opt/hms-springboot/
+rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'target' --exclude '.idea' --exclude '.gradle' --exclude 'build' ./ root@<vps-host>:/opt/hms-springboot/
 
 # 2. Connect via SSH and rebuild all containers (Vite production assets & Maven build)
-ssh root@72.61.242.209 "cd /opt/hms-springboot && docker compose down && docker compose up --build -d"
+ssh root@<vps-host> "cd /opt/hms-springboot && docker compose down && docker compose up --build -d"
 
 # Or to rebuild ONLY the frontend container (extremely fast):
-ssh root@72.61.242.209 "cd /opt/hms-springboot && docker compose up --build -d frontend"
+ssh root@<vps-host> "cd /opt/hms-springboot && docker compose up --build -d frontend"
 ```
 
 ### 2. GitHub Actions CI/CD Pipeline

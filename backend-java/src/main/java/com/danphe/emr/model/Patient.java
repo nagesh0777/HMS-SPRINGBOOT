@@ -11,8 +11,8 @@ import java.time.LocalDate;
 @Table(name = "patient", indexes = {
         // Every query here is scoped by hospitalId; without these the database scans the
         // whole table and gets slower with each tenant onboarded.
-        @Index(name = "idx_patient_hospital", columnList = "hospitalId"),
-        @Index(name = "idx_patient_hospital_phone", columnList = "hospitalId, phoneNumber")
+        @Index(name = "idx_patient_hospital", columnList = "hospital_id"),
+        @Index(name = "idx_patient_hospital_phone", columnList = "hospital_id,phone_number")
 })
 @Data
 @NoArgsConstructor

@@ -36,63 +36,68 @@ public class AuthController {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    com.danphe.emr.security.LoginAttemptService loginAttempts;
+
     // Login DTO - camelCase to match Modern Frontend Axios calls
     public static class LoginRequest {
         @NotBlank(message = "Username is required")
         public String userName;
 
         @NotBlank(message = "Password is required")
-        @Size(min = 6, message = "Password must be at least 6 characters")
+        @Size(min = 8, message = "Password must be at least 8 characters")
         public String password;
     }
 
     @PostMapping("/GetLoginJwtToken")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        try {
-            String username = (loginRequest.userName != null) ? loginRequest.userName.trim() : "";
-            String password = (loginRequest.password != null) ? loginRequest.password : "";
+    public ResponseEntity<?> authenticateUser(
+            @Valid @RequestBody LoginRequest loginRequest,
+            jakarta.servlet.http.HttpServletRequest request) {
+        String username = (loginRequest.userName != null) ? loginRequest.userName.trim() : "";
+        String password = (loginRequest.password != null) ? loginRequest.password : "";
+        String ip = clientIp(request);
 
+        // Refuse before touching the database, so a locked-out attacker gets no timing signal
+        // about whether the username exists.
+        if (loginAttempts.isBlocked(username, ip)) {
+            long retryAfter = loginAttempts.retryAfterSeconds(username, ip);
+            return ResponseEntity.status(429)
+                    .header("Retry-After", String.valueOf(retryAfter))
+                    .body(DanpheHttpResponse.error(
+                            "Too many failed sign-in attempts. Please try again in a few minutes."));
+        }
+
+        try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String jwt = jwtUtils.generateJwtToken(authentication);
 
+            loginAttempts.recordSuccess(username, ip);
             return ResponseEntity.ok(DanpheHttpResponse.ok(jwt));
         } catch (Exception e) {
+            loginAttempts.recordFailure(username, ip);
+            // Deliberately identical whether the username is unknown or the password is wrong —
+            // a distinguishable response turns this form into an account-enumeration oracle.
             return ResponseEntity.ok(DanpheHttpResponse.error("Invalid Username or Password"));
         }
     }
 
-    @PostMapping("/seed")
-    public ResponseEntity<?> seedUser() {
-        com.danphe.emr.model.User existing = userRepository.findByUserName("trikaar_admin").orElse(null);
-        if (existing != null) {
-            existing.setPassword(passwordEncoder.encode("pass123"));
-            userRepository.save(existing);
-            return ResponseEntity.ok("Trikaar Admin password reset to pass123");
+    /** Behind a reverse proxy the socket address is the proxy; the real client is in the header. */
+    private static String clientIp(jakarta.servlet.http.HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
         }
-
-        // 1. Create Employee for Admin
-        com.danphe.emr.model.Employee adminEmp = new com.danphe.emr.model.Employee();
-        adminEmp.setFirstName("Trikaar");
-        adminEmp.setLastName("Administrator");
-        adminEmp.setRole("Admin");
-        adminEmp.setDepartment("IT");
-        adminEmp.setStatus("Active");
-        adminEmp.setIsActive(true);
-        adminEmp = employeeRepository.save(adminEmp);
-
-        // 2. Create User
-        User user = new User();
-        user.setUserName("trikaar_admin");
-        user.setPassword(passwordEncoder.encode("trikaar_admin123")); // Updated to be more secure and compliant
-        user.setEmployeeId(adminEmp.getEmployeeId());
-        user.setIsActive(true);
-        user.setHospitalId(null); // Seeded admin is global
-        user.setEmail("admin@trikaar.com");
-        userRepository.save(user);
-
-        return ResponseEntity.ok("Trikaar Admin user and employee seeded successfully");
+        return request.getRemoteAddr();
     }
+
+    // The /seed endpoint that used to live here was removed.
+    //
+    // /api/Account/** is permitAll, so it was an unauthenticated POST that reset the global
+    // "trikaar_admin" password to a hardcoded value — one request from anyone on the internet to
+    // full platform access across every hospital. Bootstrapping the first admin belongs in a
+    // migration or an ops command, never in a public HTTP endpoint.
+
 }

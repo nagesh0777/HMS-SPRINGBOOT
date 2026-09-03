@@ -127,7 +127,7 @@ const ResetPasswordDialog = ({ doctor, onClose, onReset }) => {
                 <div className="mt-4">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">New Password</label>
                     <input type="text" value={pwd} onChange={e => setPwd(e.target.value)}
-                        placeholder="Leave blank for default (pass123)"
+                        placeholder="Leave blank to generate a one-time password"
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
                 </div>
                 <div className="flex gap-3 mt-5">
@@ -135,7 +135,7 @@ const ResetPasswordDialog = ({ doctor, onClose, onReset }) => {
                         className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">
                         Cancel
                     </button>
-                    <button onClick={() => onReset(pwd || 'pass123')}
+                    <button onClick={() => onReset(pwd)}
                         className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors">
                         Reset Password
                     </button>
@@ -396,7 +396,7 @@ const DoctorManagementPage = () => {
     const handleRepair = () => {
         setConfirm({
             title: 'Repair Doctor Accounts',
-            message: 'This will create login accounts for all doctors without one. Username format: dr.firstname, password: pass123. Continue?',
+            message: 'This creates login accounts for all doctors without one. Each gets a one-time password shown after it runs — share them directly. Continue?',
             confirmLabel: 'Repair All',
             confirmColor: 'bg-amber-600 hover:bg-amber-700',
             onConfirm: async () => {
@@ -484,7 +484,7 @@ const DoctorManagementPage = () => {
                     <AlertTriangle size={20} className="text-amber-600 flex-shrink-0" />
                     <div>
                         <p className="text-sm font-bold text-amber-800">{noLoginCount} doctor(s) without login accounts</p>
-                        <p className="text-xs text-amber-600 mt-0.5">Click <strong>Repair</strong> to auto-create login credentials (username: dr.firstname, password: pass123)</p>
+                        <p className="text-xs text-amber-600 mt-0.5">Click <strong>Repair</strong> to create login accounts. Each gets a one-time password shown after it runs.</p>
                     </div>
                 </div>
             )}
@@ -682,11 +682,11 @@ const DoctorManagementPage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                                            Password <span className="text-gray-400 font-normal">{!editingId ? '(default: pass123)' : ''}</span>
+                                            Password <span className="text-gray-400 font-normal">{!editingId ? '(leave blank to generate one)' : ''}</span>
                                         </label>
                                         <input type="text" value={form.password}
                                             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                                            placeholder={editingId ? 'Leave blank to keep current' : 'Leave blank for default (pass123)'}
+                                            placeholder={editingId ? 'Leave blank to keep current' : 'Leave blank to generate a one-time password'}
                                             className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     </div>
                                 </div>

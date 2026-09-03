@@ -16,7 +16,7 @@ pipeline {
   }
 
   environment {
-    DEPLOY_HOST         = "${env.DEPLOY_HOST ?: '72.61.242.209'}"
+    DEPLOY_HOST         = "${env.DEPLOY_HOST}"
     DEPLOY_USER         = "${env.DEPLOY_USER ?: 'root'}"
     DEPLOY_PATH         = "${env.DEPLOY_PATH ?: '/opt/hms-springboot'}"
     SSH_CREDENTIALS_ID  = "${env.SSH_CREDENTIALS_ID ?: 'trikaar-vps-ssh'}"

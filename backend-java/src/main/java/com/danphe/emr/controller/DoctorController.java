@@ -83,6 +83,9 @@ public class DoctorController {
 
         List<Doctor> doctors = doctorRepository.findByHospitalId(hospitalId);
         int repaired = 0;
+        // Returned to the admin who ran the repair so they can pass each credential on. This is
+        // the only place these values exist in plaintext, and only for the life of the response.
+        java.util.Map<String, String> repairedCredentials = new java.util.LinkedHashMap<>();
 
         for (Doctor doc : doctors) {
             if (doc.getEmployeeId() != null)
@@ -119,24 +122,33 @@ public class DoctorController {
             doctorRepository.save(doc);
 
             // Create User for login
+            String tempPassword = com.danphe.emr.security.TemporaryPassword.generate();
             com.danphe.emr.model.User user = new com.danphe.emr.model.User();
             user.setHospitalId(hospitalId);
             user.setUserName(username);
-            user.setPassword(passwordEncoder.encode("pass123"));
+            user.setPassword(passwordEncoder.encode(tempPassword));
+            user.setNeedsPasswordUpdate(true);
             user.setEmployeeId(savedEmp.getEmployeeId());
             user.setIsActive(true);
             user.setEmail(doc.getEmail());
             userRepository.save(user);
+            repairedCredentials.put(username, tempPassword);
 
+            // The password is deliberately absent from the log entry — a credential written into
+            // a log table is a credential stored in plaintext forever.
             logRepository.save(new EmployeeLog(
                     hospitalId, savedEmp.getEmployeeId(), doc.getFullName(),
                     "CREATED", "System",
-                    "Doctor account repaired. Login: " + username + " / pass123"));
+                    "Doctor account repaired. Login: " + username));
 
             repaired++;
         }
 
-        return ResponseEntity.ok(DanpheHttpResponse.ok("Repaired " + repaired + " doctor accounts"));
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("repaired", repaired);
+        result.put("credentials", repairedCredentials);
+        result.put("note", "Share each temporary password directly. They must be changed at first sign-in.");
+        return ResponseEntity.ok(DanpheHttpResponse.ok(result));
     }
 
     @PostMapping("")
@@ -198,9 +210,13 @@ public class DoctorController {
         com.danphe.emr.model.User user = new com.danphe.emr.model.User();
         user.setHospitalId(hospitalId);
         user.setUserName(username);
-        user.setPassword(passwordEncoder.encode((doctor.getPassword() != null && !doctor.getPassword().trim().isEmpty())
-                ? doctor.getPassword().trim()
-                : "pass123"));
+        boolean generatedPassword = doctor.getPassword() == null || doctor.getPassword().trim().isEmpty();
+        String initialPassword = generatedPassword
+                ? com.danphe.emr.security.TemporaryPassword.generate()
+                : doctor.getPassword().trim();
+        user.setPassword(passwordEncoder.encode(initialPassword));
+        // A generated password must be changed at first sign-in; one the admin chose need not be.
+        user.setNeedsPasswordUpdate(generatedPassword);
         user.setEmployeeId(savedEmp.getEmployeeId());
         user.setIsActive(true);
         user.setEmail(savedDoc.getEmail());
@@ -352,9 +368,11 @@ public class DoctorController {
         if (hospitalId == null)
             return ResponseEntity.status(401).body("Hospital ID not found");
 
-        String newPassword = body.getOrDefault("password", "pass123");
-        if (newPassword.length() < 6) {
-            return ResponseEntity.ok(DanpheHttpResponse.error("Password must be at least 6 characters"));
+        // No default. A reset that silently falls back to a well-known password is worse than
+        // one that fails, because nobody notices it happened.
+        String newPassword = body.get("password");
+        if (newPassword == null || newPassword.length() < 8) {
+            return ResponseEntity.ok(DanpheHttpResponse.error("Password must be at least 8 characters"));
         }
 
         return doctorRepository.findById(id).map(doc -> {
@@ -375,7 +393,10 @@ public class DoctorController {
                     "PASSWORD_RESET", "Admin",
                     "Password reset by admin"));
 
-            return ResponseEntity.ok(DanpheHttpResponse.ok("Password reset to: " + newPassword));
+            // The password is deliberately not echoed back. The caller supplied it, so they
+            // already have it — repeating it here would write it into browser history, proxy
+            // logs and any response logging in front of this service.
+            return ResponseEntity.ok(DanpheHttpResponse.ok("Password reset. Share it with them directly."));
         }).orElse(ResponseEntity.ok(DanpheHttpResponse.error("Doctor not found")));
     }
 

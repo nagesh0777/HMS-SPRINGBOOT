@@ -20,6 +20,10 @@ import java.util.stream.Collectors;
 public class DoctorPortalController {
 
     @Autowired
+    private com.danphe.emr.service.AuditService auditService;
+
+
+    @Autowired
     private AppointmentRepository appointmentRepository;
 
     @Autowired
@@ -301,6 +305,10 @@ public class DoctorPortalController {
                 Arrays.stream(r.getRiskFlags().split(",")).map(String::trim).forEach(riskFlags::add);
             }
         }
+        // A doctor pulling a full patient profile — history, prescriptions, labs — is the
+        // broadest read in the system and the one an audit most needs to show.
+        auditService.recordView("PatientProfile", patientId, null);
+
         profile.put("allergies", allergies);
         profile.put("riskFlags", riskFlags);
 

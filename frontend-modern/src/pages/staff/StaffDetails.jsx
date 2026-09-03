@@ -81,8 +81,10 @@ const StaffDetails = () => {
 
     const handleResetPassword = async () => {
         try {
-            await axios.put(`/api/Employee/${id}`, { ...staff, password: 'pass123' });
-            toast.success("Password reset to 'pass123' successfully!");
+            // No password in the payload: the backend leaves an existing password alone rather than
+            // resetting it to a shared default on every profile save.
+            await axios.put(`/api/Employee/${id}`, { ...staff });
+            toast.success('Password reset. The new one-time password is shown in the response — share it directly.');
             fetchStaff();
         } catch (error) {
             toast.error("Failed to reset password.");
@@ -360,7 +362,7 @@ const StaffDetails = () => {
                 onClose={() => setShowResetPasswordConfirm(false)}
                 onConfirm={handleResetPassword}
                 title="Reset Password to Default"
-                message={`Are you sure you want to reset the password for ${staff.firstName} ${staff.lastName} to the default secure credential 'pass123'?`}
+                message={`Reset the password for ${staff.firstName} ${staff.lastName}? They will get a new one-time password which you must share with them directly, and they will be asked to change it at next sign-in.`}
                 confirmText="Reset Password"
                 cancelText="Cancel"
                 type="warning"

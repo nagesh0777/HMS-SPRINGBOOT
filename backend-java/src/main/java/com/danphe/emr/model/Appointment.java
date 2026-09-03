@@ -9,9 +9,9 @@ import java.time.LocalDateTime;
 @Table(name = "appointment", indexes = {
         // Every query here is scoped by hospitalId; without these the database scans the
         // whole table and gets slower with each tenant onboarded.
-        @Index(name = "idx_appt_hospital", columnList = "hospitalId"),
-        @Index(name = "idx_appt_hospital_doctor", columnList = "hospitalId, doctorId"),
-        @Index(name = "idx_appt_hospital_patient", columnList = "hospitalId, patientId")
+        @Index(name = "idx_appt_hospital", columnList = "hospital_id"),
+        @Index(name = "idx_appt_hospital_performer", columnList = "hospital_id,performer_id"),
+        @Index(name = "idx_appt_hospital_patient", columnList = "hospital_id,patient_id")
 })
 @Data
 @NoArgsConstructor

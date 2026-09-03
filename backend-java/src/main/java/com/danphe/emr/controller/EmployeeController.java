@@ -88,10 +88,12 @@ public class EmployeeController {
                 user.setHospitalId(hospitalId);
                 user.setUserName(saved.getUserName().trim());
 
-                String pwd = (employee.getPassword() != null && !employee.getPassword().trim().isEmpty())
-                        ? employee.getPassword().trim()
-                        : "pass123";
+                boolean generated = employee.getPassword() == null || employee.getPassword().trim().isEmpty();
+                String pwd = generated
+                        ? com.danphe.emr.security.TemporaryPassword.generate()
+                        : employee.getPassword().trim();
                 user.setPassword(passwordEncoder.encode(pwd));
+                user.setNeedsPasswordUpdate(generated);
 
                 user.setEmployeeId(saved.getEmployeeId());
                 user.setIsActive(true);

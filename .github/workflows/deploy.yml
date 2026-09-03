@@ -7,9 +7,11 @@ on:
   workflow_dispatch:   # Allow manual trigger from GitHub UI
 
 env:
-  VPS_HOST: 72.61.242.209
-  VPS_USER: root
-  DEPLOY_PATH: /opt/hms-springboot
+  # Host and user come from repository secrets rather than sitting in a public workflow file
+  # next to the SSH step that uses them.
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/hms-springboot' }}
 
 jobs:
   deploy:

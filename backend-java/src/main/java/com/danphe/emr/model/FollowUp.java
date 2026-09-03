@@ -10,9 +10,9 @@ import java.time.LocalDate;
 @Table(name = "follow_up", indexes = {
         // Every query here is scoped by hospitalId; without these the database scans the
         // whole table and gets slower with each tenant onboarded.
-        @Index(name = "idx_fu_hospital", columnList = "hospitalId"),
-        @Index(name = "idx_fu_hospital_doctor", columnList = "hospitalId, doctorId"),
-        @Index(name = "idx_fu_hospital_status", columnList = "hospitalId, status")
+        @Index(name = "idx_fu_hospital", columnList = "hospital_id"),
+        @Index(name = "idx_fu_hospital_doctor", columnList = "hospital_id,doctor_id"),
+        @Index(name = "idx_fu_hospital_status", columnList = "hospital_id,status")
 })
 @Data
 @NoArgsConstructor

@@ -97,24 +97,40 @@ public class DanpheEmrApplication {
 				System.out.println("Admin Employee seeded.");
 			}
 
-			// 4. Ensure Admin User exists
+			// 4. Ensure the admin user exists.
+			//
+			// This previously reset the password to a hardcoded value on EVERY boot, so changing
+			// it never stuck — a restart put it back. "admin" is also one of the usernames
+			// SecurityUtil.isSuperAdmin() grants platform-wide access to, so that was a known
+			// credential for the highest-privilege account, restored on every deploy.
+			//
+			// Now: the password is only ever set when the account is first created, comes from
+			// the environment, and an existing account is left alone.
+			String seedPassword = System.getenv("ADMIN_SEED_PASSWORD");
 			userRepository.findByUserName("admin").ifPresentOrElse(
 					admin -> {
-						admin.setPassword(passwordEncoder.encode("pass123"));
-						admin.setEmployeeId(1);
-						admin.setHospitalId(1);
-						userRepository.save(admin);
-						System.out.println("Admin user updated.");
+						// Deliberately does not touch the password of an account that already exists.
+						boolean changed = false;
+						if (admin.getEmployeeId() == null) { admin.setEmployeeId(1); changed = true; }
+						if (admin.getHospitalId() == null) { admin.setHospitalId(1); changed = true; }
+						if (changed) userRepository.save(admin);
 					},
 					() -> {
+						if (seedPassword == null || seedPassword.length() < 8) {
+							System.out.println(
+									"No admin user, and ADMIN_SEED_PASSWORD is unset or shorter than 8 characters — "
+											+ "skipping admin creation. Set it and restart to create the account.");
+							return;
+						}
 						User admin = new User();
 						admin.setUserName("admin");
-						admin.setPassword(passwordEncoder.encode("pass123"));
+						admin.setPassword(passwordEncoder.encode(seedPassword));
+						admin.setNeedsPasswordUpdate(true);
 						admin.setEmployeeId(1);
 						admin.setHospitalId(1);
 						admin.setIsActive(true);
 						userRepository.save(admin);
-						System.out.println("New Admin user seeded: admin/pass1");
+						System.out.println("Admin user created from ADMIN_SEED_PASSWORD. Change it at first sign-in.");
 					});
 		};
 	}

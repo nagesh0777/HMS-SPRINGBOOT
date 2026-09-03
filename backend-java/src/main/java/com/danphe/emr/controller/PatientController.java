@@ -19,6 +19,9 @@ public class PatientController {
     @Autowired
     PatientRepository patientRepository;
 
+    @Autowired
+    com.danphe.emr.service.AuditService auditService;
+
     @GetMapping("")
     public ResponseEntity<?> getPatients(
             @RequestParam(required = false, defaultValue = "") String search) {
@@ -37,7 +40,12 @@ public class PatientController {
             return ResponseEntity.status(401).body("Hospital ID not found");
 
         return patientRepository.findByHospitalIdAndPatientId(hospitalId, id)
-                .map(p -> ResponseEntity.ok(DanpheHttpResponse.ok(p)))
+                .map(p -> {
+                    // Opening a patient chart is the access that most needs a trail.
+                    auditService.recordView("Patient", p.getPatientId(),
+                            p.getFirstName() + " " + p.getLastName());
+                    return ResponseEntity.ok(DanpheHttpResponse.ok(p));
+                })
                 .orElse(ResponseEntity.ok(DanpheHttpResponse.error("Patient not found")));
     }
 

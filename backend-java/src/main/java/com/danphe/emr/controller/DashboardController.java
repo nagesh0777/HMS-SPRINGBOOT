@@ -403,6 +403,37 @@ public class DashboardController {
         data.put("wardOccupancy", wardList);
 
         // 12. Active Admissions Details List
+        //
+        // This previously issued three queries per admission — patient, bed and doctor — on the
+        // screen every user lands on. Twenty active admissions meant sixty round trips before the
+        // dashboard rendered. The three lookup tables are fetched once each and indexed in memory
+        // instead.
+        java.util.Set<Integer> admPatientIds = admissions.stream()
+                .map(a -> a.getPatientId()).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Integer> admBedIds = admissions.stream()
+                .map(a -> a.getBedId()).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Integer> admDoctorIds = admissions.stream()
+                .map(a -> a.getAdmittingDoctorId()).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        Map<Integer, com.danphe.emr.model.Patient> patientsById = admPatientIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : patientRepository.findAllById(admPatientIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                com.danphe.emr.model.Patient::getPatientId, x -> x, (a, b) -> a));
+        Map<Integer, com.danphe.emr.model.Bed> bedsById = admBedIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : bedRepository.findAllById(admBedIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                com.danphe.emr.model.Bed::getBedId, x -> x, (a, b) -> a));
+        Map<Integer, com.danphe.emr.model.Doctor> doctorsById = admDoctorIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : doctorRepository.findAllById(admDoctorIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                com.danphe.emr.model.Doctor::getDoctorId, x -> x, (a, b) -> a));
+
         java.util.List<Map<String, Object>> activeAdmList = new java.util.ArrayList<>();
         for (var adm : admissions) {
             Map<String, Object> admMap = new HashMap<>();
@@ -410,19 +441,20 @@ public class DashboardController {
             admMap.put("admissionDate", adm.getAdmissionDate());
             admMap.put("admissionStatus", adm.getAdmissionStatus());
             admMap.put("bedId", adm.getBedId());
-            
-            patientRepository.findById(adm.getPatientId()).ifPresent(p -> {
+
+            var p = patientsById.get(adm.getPatientId());
+            if (p != null) {
                 admMap.put("patientName", p.getFirstName() + " " + p.getLastName());
                 admMap.put("patientCode", p.getPatientCode());
-            });
-            bedRepository.findById(adm.getBedId()).ifPresent(b -> {
+            }
+            var b = bedsById.get(adm.getBedId());
+            if (b != null) {
                 admMap.put("bedNumber", b.getBedNumber());
                 admMap.put("ward", b.getWard());
-            });
-            if (adm.getAdmittingDoctorId() != null) {
-                doctorRepository.findById(adm.getAdmittingDoctorId()).ifPresent(doc -> {
-                    admMap.put("doctorName", doc.getFullName());
-                });
+            }
+            var doc = doctorsById.get(adm.getAdmittingDoctorId());
+            if (doc != null) {
+                admMap.put("doctorName", doc.getFullName());
             }
             activeAdmList.add(admMap);
         }
