@@ -3,11 +3,30 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
-    User, AlertTriangle, Shield, Calendar, FileText, Pill,
-    Clock, ArrowLeft, Heart, Activity, MapPin, Phone, Mail,
-    ChevronDown, ChevronUp, Search, Stethoscope
+    User, AlertTriangle, Shield, FileText, Pill, Clock, ArrowLeft,
+    Heart, Activity, MapPin, Phone, Mail, ChevronDown, ChevronUp,
+    Search, Stethoscope, Loader2,
 } from 'lucide-react';
 import ExportButton from '../../components/ExportButton';
+import { EmptyState } from '@/components/app/empty-state';
+import { StatusPill } from '@/components/app/status-pill';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+
+const bmiTone = (bmiNum) => {
+    if (bmiNum < 18.5) return 'warning';
+    if (bmiNum >= 30) return 'destructive';
+    if (bmiNum >= 25) return 'warning';
+    return 'success';
+};
+
+const RECORD_ICON = { lab_result: Activity, diagnosis: Stethoscope, procedure: Stethoscope, default: FileText };
+const RECORD_TONE = { lab_result: 'text-warning bg-warning-subtle', diagnosis: 'text-destructive bg-destructive-subtle', procedure: 'text-info bg-info-subtle', default: 'text-info bg-info-subtle' };
 
 const DoctorPatientProfile = () => {
     const { id } = useParams();
@@ -17,20 +36,15 @@ const DoctorPatientProfile = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
-    const [activeTab, setActiveTab] = useState('history');
     const [expandedRecord, setExpandedRecord] = useState(null);
 
-    useEffect(() => {
-        if (id) fetchProfile(id);
-    }, [id]);
+    useEffect(() => { if (id) fetchProfile(id); }, [id]);
 
     const fetchProfile = async (patientId) => {
         setLoading(true);
         try {
             const res = await axios.get(`/api/DoctorPortal/Patient/${patientId}`);
-            if (res.data.Results) {
-                setProfile(res.data.Results);
-            }
+            if (res.data.Results) setProfile(res.data.Results);
         } catch (e) {
             console.error('Failed to fetch patient', e);
         } finally {
@@ -43,9 +57,7 @@ const DoctorPatientProfile = () => {
         setSearching(true);
         try {
             const res = await axios.get(`/api/DoctorPortal/SearchPatient?query=${encodeURIComponent(searchQuery)}`);
-            if (res.data.Results) {
-                setSearchResults(res.data.Results);
-            }
+            if (res.data.Results) setSearchResults(res.data.Results);
         } catch (e) {
             console.error('Search failed', e);
         } finally {
@@ -54,315 +66,227 @@ const DoctorPatientProfile = () => {
     };
 
     if (!id) {
-        // Search page
         return (
-            <div className="space-y-6">
+            <div className="mx-auto max-w-2xl space-y-6">
                 <div>
-                    <h1 className="text-2xl font-black text-gray-900">Patient Lookup</h1>
-                    <p className="text-sm text-gray-500 mt-1">Search for a patient to view their clinical profile</p>
+                    <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Patient lookup</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Search for a patient to view their clinical profile.</p>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search by name, phone, or patient code..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                            className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Search by name, phone or patient code…" className="pl-9"
                         />
                     </div>
-                    <button
-                        onClick={handleSearch}
-                        disabled={searching}
-                        className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    >
-                        {searching ? 'Searching...' : 'Search'}
-                    </button>
+                    <Button onClick={handleSearch} disabled={searching}>
+                        {searching ? <Loader2 className="animate-spin" /> : <Search />}
+                        {searching ? 'Searching…' : 'Search'}
+                    </Button>
                 </div>
 
                 {searchResults.length > 0 && (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         {searchResults.map(p => (
                             <motion.button
-                                key={p.patientId}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                                key={p.patientId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                                 onClick={() => navigate(`/dashboard/doctor/patient/${p.patientId}`)}
-                                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white ring-1 ring-gray-100 hover:shadow-md transition-all text-left"
                             >
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
-                                    {(p.firstName || '?')[0]}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="font-bold text-gray-900">{p.firstName} {p.lastName}</p>
-                                    <p className="text-xs text-gray-500">{p.patientCode || `#${p.patientId}`} • {p.gender} • {p.age} • {p.phoneNumber}</p>
-                                </div>
-                                <span className="text-gray-300"><ChevronDown size={16} className="rotate-[-90deg]" /></span>
+                                <Card className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-accent/40">
+                                    <Avatar className="h-11 w-11"><AvatarFallback>{initials(`${p.firstName} ${p.lastName}`)}</AvatarFallback></Avatar>
+                                    <div className="flex-1">
+                                        <p className="font-semibold">{p.firstName} {p.lastName}</p>
+                                        <p className="tabular text-xs text-muted-foreground">{p.patientCode || `#${p.patientId}`} · {p.gender} · {p.age} · {p.phoneNumber}</p>
+                                    </div>
+                                </Card>
                             </motion.button>
                         ))}
                     </div>
                 )}
 
                 {searchResults.length === 0 && searchQuery && !searching && (
-                    <div className="text-center py-12 text-gray-400">
-                        <User size={48} className="mx-auto mb-3 opacity-40" />
-                        <p className="font-semibold">No patients found</p>
-                        <p className="text-sm">Try a different search term</p>
-                    </div>
+                    <Card><EmptyState icon={User} title="No patients found" description="Try a different search term." /></Card>
                 )}
             </div>
         );
     }
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
+        return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
     }
 
     if (!profile) {
-        return <div className="text-center py-12 text-gray-500">Patient not found</div>;
+        return <Card><EmptyState icon={User} title="Patient not found" /></Card>;
     }
 
     const { patient, allergies = [], riskFlags = [], medicalHistory = [], prescriptions = [], followUps = [], activeAdmission } = profile;
-
-    const tabs = [
-        { key: 'history', label: 'Medical History', icon: <FileText size={16} /> },
-        { key: 'prescriptions', label: 'Prescriptions', icon: <Pill size={16} /> },
-        { key: 'followups', label: 'Follow-Ups', icon: <Clock size={16} /> },
-    ];
+    const bmi = patient.height && patient.weight ? (patient.weight / ((patient.height / 100) ** 2)).toFixed(1) : null;
 
     return (
-        <div className="space-y-6">
-            {/* Back Button */}
-            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
-                <ArrowLeft size={16} /> Back
-            </button>
+        <div className="space-y-5">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-2 text-muted-foreground">
+                <ArrowLeft /> Back
+            </Button>
 
-            {/* Patient Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-100"
-            >
-                <div className="flex flex-col md:flex-row md:items-start gap-6">
-                    {/* Avatar */}
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl font-black shadow-lg">
-                        {(patient.firstName || '?')[0]}{(patient.lastName || '?')[0]}
-                    </div>
+            <Card className="p-5 sm:p-6">
+                <div className="flex flex-col gap-5 md:flex-row md:items-start">
+                    <Avatar className="h-16 w-16 shrink-0 text-lg sm:h-20 sm:w-20 sm:text-2xl">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                            {(patient.firstName || '?')[0]}{(patient.lastName || '?')[0]}
+                        </AvatarFallback>
+                    </Avatar>
 
-                    {/* Info */}
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <h1 className="text-2xl font-black text-gray-900">{patient.firstName} {patient.middleName || ''} {patient.lastName}</h1>
-                                <p className="text-sm text-gray-500 mt-1">{patient.patientCode || `Patient #${patient.patientId}`}</p>
+                                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                                    {patient.firstName} {patient.middleName || ''} {patient.lastName}
+                                </h1>
+                                <p className="tabular mt-0.5 text-sm text-muted-foreground">{patient.patientCode || `Patient #${patient.patientId}`}</p>
                             </div>
                             {/* The whole record in one file — what a patient asks for when they
                                 transfer care, and what a doctor prints for a referral. */}
-                            <ExportButton
-                                url={`/api/Export/Patient/${patient.patientId}/History`}
-                                label="Download full history"
-                            />
+                            <ExportButton url={`/api/Export/Patient/${patient.patientId}/History`} label="Download full history" />
                         </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-600">
-                            <span className="flex items-center gap-1"><User size={14} /> {patient.gender} • {patient.age}</span>
-                            {patient.bloodGroup && <span className="flex items-center gap-1"><Heart size={14} className="text-red-500" /> Blood Group: {patient.bloodGroup}</span>}
-                            {patient.height && <span className="flex items-center gap-1"><Activity size={14} className="text-blue-500" /> Height: {patient.height} cm</span>}
-                            {patient.weight && <span className="flex items-center gap-1"><Activity size={14} className="text-emerald-500" /> Weight: {patient.weight} kg</span>}
-                            {patient.height && patient.weight && (
-                                (() => {
-                                    const bmi = (patient.weight / ((patient.height / 100) * (patient.height / 100))).toFixed(1);
-                                    let catColor = "bg-green-50 text-green-700 ring-green-100";
-                                    let bmiNum = parseFloat(bmi);
-                                    if (bmiNum < 18.5) catColor = "bg-amber-50 text-amber-700 ring-amber-100";
-                                    else if (bmiNum >= 25 && bmiNum < 30) catColor = "bg-orange-50 text-orange-700 ring-orange-100";
-                                    else if (bmiNum >= 30) catColor = "bg-red-50 text-red-700 ring-red-100";
-                                    return (
-                                        <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black ring-1 ${catColor}`}>
-                                            BMI: {bmi}
-                                        </span>
-                                    );
-                                })()
-                            )}
-                            {patient.phoneNumber && <span className="flex items-center gap-1"><Phone size={14} /> {patient.phoneNumber}</span>}
-                            {patient.email && <span className="flex items-center gap-1"><Mail size={14} /> {patient.email}</span>}
-                            {patient.address && <span className="flex items-center gap-1"><MapPin size={14} /> {patient.address}</span>}
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> {patient.gender} · {patient.age}</span>
+                            {patient.bloodGroup && <span className="flex items-center gap-1.5"><Heart className="h-3.5 w-3.5 text-destructive" /> {patient.bloodGroup}</span>}
+                            {patient.height && <span className="tabular flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> {patient.height} cm</span>}
+                            {patient.weight && <span className="tabular flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> {patient.weight} kg</span>}
+                            {bmi && <Badge variant={bmiTone(parseFloat(bmi))}>BMI {bmi}</Badge>}
+                            {patient.phoneNumber && <span className="tabular flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {patient.phoneNumber}</span>}
+                            {patient.email && <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {patient.email}</span>}
+                            {patient.address && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {patient.address}</span>}
                         </div>
                     </div>
 
-                    {/* Active Admission Badge */}
                     {activeAdmission && (
-                        <div className="px-4 py-2 rounded-xl bg-green-50 border border-green-200">
-                            <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Currently Admitted</p>
-                            <p className="text-sm text-green-600 mt-0.5">Bed #{activeAdmission.bedId} • Since {new Date(activeAdmission.admissionDate).toLocaleDateString()}</p>
+                        <div className="shrink-0 rounded-lg border border-success/30 bg-success-subtle px-4 py-2.5">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-success">Currently admitted</p>
+                            <p className="mt-0.5 text-sm text-success/90">
+                                Bed #{activeAdmission.bedId} · since {new Date(activeAdmission.admissionDate).toLocaleDateString()}
+                            </p>
                         </div>
                     )}
                 </div>
-            </motion.div>
+            </Card>
 
-            {/* Alerts Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Allergies */}
-                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
-                    className={`rounded-2xl p-5 ring-1 ${allergies.length > 0 ? 'bg-red-50 ring-red-200' : 'bg-gray-50 ring-gray-100'}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle size={18} className={allergies.length > 0 ? 'text-red-500' : 'text-gray-400'} />
-                        <h3 className={`text-sm font-bold uppercase tracking-wider ${allergies.length > 0 ? 'text-red-700' : 'text-gray-500'}`}>Allergies</h3>
+            {/* Allergies and risk flags are genuine clinical alerts, so — unlike the rest of
+                this monochrome page — they earn colour: a missed allergy is a harm event. */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Card className={cn('p-5', allergies.length > 0 && 'border-destructive/30 bg-destructive-subtle/40')}>
+                    <div className="mb-2 flex items-center gap-2">
+                        <AlertTriangle className={cn('h-[18px] w-[18px]', allergies.length > 0 ? 'text-destructive' : 'text-muted-foreground')} />
+                        <h3 className={cn('text-sm font-semibold uppercase tracking-wider', allergies.length > 0 ? 'text-destructive' : 'text-muted-foreground')}>Allergies</h3>
                     </div>
                     {allergies.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                            {[...allergies].map((a, i) => (
-                                <span key={i} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">{a}</span>
-                            ))}
+                        <div className="flex flex-wrap gap-1.5">
+                            {allergies.map((a, i) => <Badge key={i} variant="destructive">{a}</Badge>)}
                         </div>
-                    ) : (
-                        <p className="text-sm text-gray-400">No known allergies recorded</p>
-                    )}
-                </motion.div>
+                    ) : <p className="text-sm text-muted-foreground">No known allergies recorded</p>}
+                </Card>
 
-                {/* Risk Flags */}
-                <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
-                    className={`rounded-2xl p-5 ring-1 ${riskFlags.length > 0 ? 'bg-amber-50 ring-amber-200' : 'bg-gray-50 ring-gray-100'}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                        <Shield size={18} className={riskFlags.length > 0 ? 'text-amber-600' : 'text-gray-400'} />
-                        <h3 className={`text-sm font-bold uppercase tracking-wider ${riskFlags.length > 0 ? 'text-amber-700' : 'text-gray-500'}`}>Risk Flags</h3>
+                <Card className={cn('p-5', riskFlags.length > 0 && 'border-warning/30 bg-warning-subtle/40')}>
+                    <div className="mb-2 flex items-center gap-2">
+                        <Shield className={cn('h-[18px] w-[18px]', riskFlags.length > 0 ? 'text-warning' : 'text-muted-foreground')} />
+                        <h3 className={cn('text-sm font-semibold uppercase tracking-wider', riskFlags.length > 0 ? 'text-warning' : 'text-muted-foreground')}>Risk flags</h3>
                     </div>
                     {riskFlags.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                            {[...riskFlags].map((f, i) => (
-                                <span key={i} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{f}</span>
-                            ))}
+                        <div className="flex flex-wrap gap-1.5">
+                            {riskFlags.map((f, i) => <Badge key={i} variant="warning">{f}</Badge>)}
                         </div>
-                    ) : (
-                        <p className="text-sm text-gray-400">No risk flags</p>
-                    )}
-                </motion.div>
+                    ) : <p className="text-sm text-muted-foreground">No risk flags</p>}
+                </Card>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === tab.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        {tab.icon} {tab.label}
-                    </button>
-                ))}
-            </div>
+            <Tabs defaultValue="history">
+                <TabsList>
+                    <TabsTrigger value="history" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Medical history</TabsTrigger>
+                    <TabsTrigger value="prescriptions" className="gap-1.5"><Pill className="h-3.5 w-3.5" /> Prescriptions</TabsTrigger>
+                    <TabsTrigger value="followups" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> Follow-ups</TabsTrigger>
+                </TabsList>
 
-            {/* Tab Content */}
-            {activeTab === 'history' && (
-                <div className="space-y-3">
+                <TabsContent value="history" className="space-y-2.5">
                     {medicalHistory.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                            <FileText size={40} className="mx-auto mb-2 opacity-40" />
-                            <p className="font-semibold">No medical records yet</p>
-                        </div>
-                    ) : (
-                        medicalHistory.map((record, i) => (
-                            <motion.div
+                        <Card><EmptyState icon={FileText} title="No medical records yet" /></Card>
+                    ) : medicalHistory.map((record, i) => {
+                        const Icon = RECORD_ICON[record.recordType] || RECORD_ICON.default;
+                        const tone = RECORD_TONE[record.recordType] || RECORD_TONE.default;
+                        const expanded = expandedRecord === record.recordId;
+                        return (
+                            <Card
                                 key={record.recordId || i}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.05 }}
-                                className="rounded-2xl bg-white p-5 ring-1 ring-gray-100 hover:shadow-sm transition-all cursor-pointer"
-                                onClick={() => setExpandedRecord(expandedRecord === record.recordId ? null : record.recordId)}
+                                onClick={() => setExpandedRecord(expanded ? null : record.recordId)}
+                                className="cursor-pointer p-4 transition-colors hover:bg-accent/30"
                             >
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${record.recordType === 'lab_result' ? 'bg-amber-100 text-amber-600'
-                                            : record.recordType === 'diagnosis' ? 'bg-red-100 text-red-600'
-                                                : record.recordType === 'procedure' ? 'bg-purple-100 text-purple-600'
-                                                    : 'bg-blue-100 text-blue-600'}`}>
-                                            {record.recordType === 'lab_result' ? <Activity size={18} /> : <Stethoscope size={18} />}
-                                        </div>
+                                        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', tone)}>
+                                            <Icon className="h-[18px] w-[18px]" />
+                                        </span>
                                         <div>
-                                            <p className="font-bold text-gray-900">{record.title || record.recordType}</p>
-                                            <p className="text-xs text-gray-500">{new Date(record.createdOn).toLocaleDateString()} • {record.recordType?.replace('_', ' ')}</p>
+                                            <p className="font-medium">{record.title || record.recordType}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {new Date(record.createdOn).toLocaleDateString()} · {record.recordType?.replace('_', ' ')}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {record.labStatus && (
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${record.labStatus === 'pending' ? 'bg-amber-100 text-amber-700' : record.labStatus === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                {record.labStatus}
-                                            </span>
-                                        )}
-                                        {expandedRecord === record.recordId ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                                        {record.labStatus && <StatusPill status={record.labStatus} />}
+                                        {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                                     </div>
                                 </div>
-                                {expandedRecord === record.recordId && (
-                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 pt-4 border-t border-gray-100 space-y-2 text-sm text-gray-600">
-                                        {record.description && <p><strong>Notes:</strong> {record.description}</p>}
-                                        {record.findings && <p><strong>Findings:</strong> {record.findings}</p>}
-                                        {record.labTestName && <p><strong>Test:</strong> {record.labTestName}</p>}
-                                        {record.labResult && <p><strong>Result:</strong> {record.labResult}</p>}
-                                    </motion.div>
+                                {expanded && (
+                                    <div className="mt-3 space-y-1.5 border-t pt-3 text-sm text-muted-foreground">
+                                        {record.description && <p><strong className="text-foreground">Notes:</strong> {record.description}</p>}
+                                        {record.findings && <p><strong className="text-foreground">Findings:</strong> {record.findings}</p>}
+                                        {record.labTestName && <p><strong className="text-foreground">Test:</strong> {record.labTestName}</p>}
+                                        {record.labResult && <p><strong className="text-foreground">Result:</strong> {record.labResult}</p>}
+                                    </div>
                                 )}
-                            </motion.div>
-                        ))
-                    )}
-                </div>
-            )}
+                            </Card>
+                        );
+                    })}
+                </TabsContent>
 
-            {activeTab === 'prescriptions' && (
-                <div className="space-y-3">
+                <TabsContent value="prescriptions" className="space-y-2.5">
                     {prescriptions.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                            <Pill size={40} className="mx-auto mb-2 opacity-40" />
-                            <p className="font-semibold">No prescriptions recorded</p>
-                        </div>
-                    ) : (
-                        prescriptions.map((rx, i) => (
-                            <div key={rx.prescriptionId || i} className="rounded-2xl bg-white p-5 ring-1 ring-gray-100">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-bold text-gray-900">{rx.diagnosis || 'Prescription'}</p>
-                                        <p className="text-xs text-gray-500">{new Date(rx.createdOn).toLocaleDateString()} • Status: {rx.status}</p>
-                                    </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${rx.status === 'finalized' ? 'bg-green-100 text-green-700' : rx.status === 'sent_to_pharmacy' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                                        {rx.status}
-                                    </span>
+                        <Card><EmptyState icon={Pill} title="No prescriptions recorded" /></Card>
+                    ) : prescriptions.map((rx, i) => (
+                        <Card key={rx.prescriptionId || i} className="p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="font-medium">{rx.diagnosis || 'Prescription'}</p>
+                                    <p className="text-xs text-muted-foreground">{new Date(rx.createdOn).toLocaleDateString()}</p>
                                 </div>
-                                {rx.clinicalNotes && <p className="mt-2 text-sm text-gray-600">{rx.clinicalNotes}</p>}
+                                <StatusPill status={rx.status} />
                             </div>
-                        ))
-                    )}
-                </div>
-            )}
+                            {rx.clinicalNotes && <p className="mt-2 text-sm text-muted-foreground">{rx.clinicalNotes}</p>}
+                        </Card>
+                    ))}
+                </TabsContent>
 
-            {activeTab === 'followups' && (
-                <div className="space-y-3">
+                <TabsContent value="followups" className="space-y-2.5">
                     {followUps.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                            <Clock size={40} className="mx-auto mb-2 opacity-40" />
-                            <p className="font-semibold">No follow-ups scheduled</p>
-                        </div>
-                    ) : (
-                        followUps.map((f, i) => (
-                            <div key={f.followUpId || i} className="rounded-2xl bg-white p-5 ring-1 ring-gray-100">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-bold text-gray-900">{f.reason || 'Follow-up Visit'}</p>
-                                        <p className="text-xs text-gray-500">{f.followUpDate} • Priority: {f.priority}</p>
-                                    </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${f.status === 'completed' ? 'bg-green-100 text-green-700' : f.status === 'missed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                        {f.status}
-                                    </span>
+                        <Card><EmptyState icon={Clock} title="No follow-ups scheduled" /></Card>
+                    ) : followUps.map((f, i) => (
+                        <Card key={f.followUpId || i} className="p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="font-medium">{f.reason || 'Follow-up visit'}</p>
+                                    <p className="tabular text-xs text-muted-foreground">{f.followUpDate} · {f.priority} priority</p>
                                 </div>
-                                {f.careInstructions && <p className="mt-2 text-sm text-gray-600">{f.careInstructions}</p>}
+                                <StatusPill status={f.status} />
                             </div>
-                        ))
-                    )}
-                </div>
-            )}
+                            {f.careInstructions && <p className="mt-2 text-sm text-muted-foreground">{f.careInstructions}</p>}
+                        </Card>
+                    ))}
+                </TabsContent>
+            </Tabs>
         </div>
     );
 };

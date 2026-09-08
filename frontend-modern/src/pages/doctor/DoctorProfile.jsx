@@ -2,10 +2,26 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
-    User, Mail, Phone, Clock, Shield, Save, Lock,
+    Mail, Phone, Clock, Shield, Save, Lock,
     Stethoscope, Edit3, Check, Eye, EyeOff, Key, RefreshCw,
-    QrCode, UploadCloud, Trash2
+    QrCode, UploadCloud, Trash2, AlertCircle, Loader2,
 } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback, initials } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+const FIELD = ({ label, icon: Icon, editing, children, value }) => (
+    <div>
+        <Label className="mb-1.5 flex items-center gap-1">
+            {Icon && <Icon className="h-3 w-3" />} {label}
+        </Label>
+        {editing ? children : <p className="rounded-md bg-muted/40 px-3 py-2.5 text-sm">{value || '—'}</p>}
+    </div>
+);
 
 const DoctorProfile = () => {
     const [profile, setProfile] = useState(null);
@@ -17,10 +33,9 @@ const DoctorProfile = () => {
     const [form, setForm] = useState({
         specialization: '', phoneNumber: '', email: '',
         startTime: '09:00', endTime: '17:00',
-        qualifications: '', registrationNumber: ''
+        qualifications: '', registrationNumber: '',
     });
 
-    // Password change
     const [showPwdForm, setShowPwdForm] = useState(false);
     const [pwdForm, setPwdForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
     const [showOld, setShowOld] = useState(false);
@@ -41,7 +56,7 @@ const DoctorProfile = () => {
                     startTime: res.data.Results.startTime || '09:00',
                     endTime: res.data.Results.endTime || '17:00',
                     qualifications: res.data.Results.qualifications || '',
-                    registrationNumber: res.data.Results.registrationNumber || ''
+                    registrationNumber: res.data.Results.registrationNumber || '',
                 });
             }
         } catch (e) {
@@ -74,7 +89,6 @@ const DoctorProfile = () => {
     const handleChangePassword = async (e) => {
         e.preventDefault();
         setMessage(null);
-
         if (pwdForm.newPassword !== pwdForm.confirmPassword) {
             setMessage({ type: 'error', text: 'New passwords do not match' });
             return;
@@ -83,11 +97,10 @@ const DoctorProfile = () => {
             setMessage({ type: 'error', text: 'New password must be at least 6 characters' });
             return;
         }
-
         try {
             const res = await axios.put('/api/DoctorPortal/ChangePassword', {
                 oldPassword: pwdForm.oldPassword,
-                newPassword: pwdForm.newPassword
+                newPassword: pwdForm.newPassword,
             });
             if (res.data.Status === 'OK') {
                 setMessage({ type: 'success', text: 'Password changed successfully!' });
@@ -101,69 +114,42 @@ const DoctorProfile = () => {
         }
     };
 
-    const handleProfilePhotoUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
+    const uploadFile = async (file, type, successText, errorText) => {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('type', 'doctor');
+        formData.append('type', type);
         formData.append('id', profile?.doctorId);
-
         setSaving(true);
         setMessage(null);
         try {
-            const res = await axios.post('/api/Files/UploadPhoto', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const res = await axios.post('/api/Files/UploadPhoto', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (res.data.Status === 'OK') {
-                setMessage({ type: 'success', text: 'Profile photo updated successfully!' });
+                setMessage({ type: 'success', text: successText });
                 fetchProfile();
             } else {
                 setMessage({ type: 'error', text: res.data.ErrorMessage || 'Upload failed' });
             }
         } catch (err) {
-            setMessage({ type: 'error', text: 'Failed to upload profile photo' });
+            setMessage({ type: 'error', text: errorText });
         } finally {
             setSaving(false);
         }
     };
 
-    const handleQrUpload = async (e) => {
+    const handleProfilePhotoUpload = (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', 'doctor_qr');
-        formData.append('id', profile?.doctorId);
-
-        setSaving(true);
-        setMessage(null);
-        try {
-            const res = await axios.post('/api/Files/UploadPhoto', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            if (res.data.Status === 'OK') {
-                setMessage({ type: 'success', text: 'Consultation QR code uploaded successfully!' });
-                fetchProfile();
-            } else {
-                setMessage({ type: 'error', text: res.data.ErrorMessage || 'Upload failed' });
-            }
-        } catch (err) {
-            setMessage({ type: 'error', text: 'Failed to upload QR code' });
-        } finally {
-            setSaving(false);
-        }
+        if (file) uploadFile(file, 'doctor', 'Profile photo updated successfully!', 'Failed to upload profile photo');
+    };
+    const handleQrUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) uploadFile(file, 'doctor_qr', 'Consultation QR code uploaded successfully!', 'Failed to upload QR code');
     };
 
     const handleRemoveQr = async () => {
         setSaving(true);
         setMessage(null);
         try {
-            const res = await axios.put('/api/DoctorPortal/MyProfile', {
-                consultationQrPath: ""
-            });
+            const res = await axios.put('/api/DoctorPortal/MyProfile', { consultationQrPath: '' });
             if (res.data.Status === 'OK') {
                 setMessage({ type: 'success', text: 'Consultation QR code removed successfully!' });
                 fetchProfile();
@@ -178,304 +164,208 @@ const DoctorProfile = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
+        return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
     }
 
     const p = profile || {};
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            {/* Header */}
+        <div className="mx-auto max-w-3xl space-y-5">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-black text-gray-900">My Profile</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage your profile, availability, and password</p>
+                    <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">My profile</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Manage your profile, availability and password.</p>
                 </div>
-                <button onClick={fetchProfile}
-                    className="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
-                    <RefreshCw size={18} />
-                </button>
+                <Button variant="ghost" size="icon" onClick={fetchProfile} className="text-muted-foreground">
+                    <RefreshCw className="h-[18px] w-[18px]" />
+                </Button>
             </div>
 
-            {/* Message Banner */}
             {message && (
                 <motion.div
-                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                    className={`rounded-xl p-4 text-sm font-medium flex items-center gap-2 ${message.type === 'success'
-                        ? 'bg-green-50 text-green-700 border border-green-200'
-                        : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {message.type === 'success' ? <Check size={16} /> : <Shield size={16} />}
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                    role="alert" aria-live="polite"
+                    className={cn(
+                        'flex items-center gap-2 rounded-lg border p-3.5 text-sm font-medium',
+                        message.type === 'success' ? 'border-success/30 bg-success-subtle text-success' : 'border-destructive/30 bg-destructive-subtle text-destructive',
+                    )}
+                >
+                    {message.type === 'success' ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
                     {message.text}
                 </motion.div>
             )}
 
-            {/* Profile Card */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                className="rounded-3xl bg-white shadow-lg ring-1 ring-gray-100 overflow-hidden">
-                {/* Banner */}
-                <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-8">
+            <Card className="overflow-hidden p-0">
+                <div className="border-b bg-muted/30 p-6">
                     <div className="flex items-center gap-5">
-                        <div className="relative group w-20 h-20 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center overflow-hidden">
-                            {p.photoPath ? (
-                                <img src={p.photoPath} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <span className="text-4xl font-black text-white">{(p.fullName || 'D')[0]}</span>
-                            )}
-                            <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                                <UploadCloud size={20} className="text-white animate-pulse" />
+                        <div className="group relative">
+                            <Avatar className="h-20 w-20 border">
+                                {p.photoPath && <AvatarImage src={p.photoPath} alt="" />}
+                                <AvatarFallback className="bg-primary text-2xl text-primary-foreground">{initials(p.fullName)}</AvatarFallback>
+                            </Avatar>
+                            <label className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                                <UploadCloud className="h-5 w-5 text-white" />
                                 <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} className="hidden" />
                             </label>
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black text-white">{p.fullName || 'Doctor'}</h2>
-                            <div className="flex items-center gap-3 mt-1 text-blue-200 text-sm">
-                                <span className="flex items-center gap-1"><Shield size={14} /> {p.department || 'OPD'}</span>
-                                {p.specialization && <span>• {p.specialization}</span>}
+                            <h2 className="text-xl font-semibold">{p.fullName || 'Doctor'}</h2>
+                            <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> {p.department || 'OPD'}</span>
+                                {p.specialization && <span>· {p.specialization}</span>}
                             </div>
-                            <div className="flex items-center gap-2 mt-2">
-                                <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur text-white text-xs font-bold rounded-full flex items-center gap-1">
-                                    <Key size={10} /> {p.userName}
-                                </span>
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${p.isActive ? 'bg-green-400/30 text-green-100' : 'bg-red-400/30 text-red-200'}`}>
-                                    {p.isActive ? 'Active' : 'Inactive'}
-                                </span>
+                            <div className="mt-2 flex items-center gap-2">
+                                <Badge variant="secondary" className="gap-1"><Key className="h-2.5 w-2.5" /> {p.userName}</Badge>
+                                <Badge variant={p.isActive ? 'success' : 'destructive'}>{p.isActive ? 'Active' : 'Inactive'}</Badge>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Details */}
-                <div className="p-6 space-y-5">
-                    <form onSubmit={handleSave}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Qualifications (e.g. MD, MBBS)
-                                </label>
-                                {editing ? (
-                                    <input type="text" value={form.qualifications}
-                                        onChange={e => setForm(f => ({ ...f, qualifications: e.target.value }))}
-                                        placeholder="e.g. MD, DM"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                ) : (
-                                    <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.qualifications || '—'}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Medical Registration No
-                                </label>
-                                {editing ? (
-                                    <input type="text" value={form.registrationNumber}
-                                        onChange={e => setForm(f => ({ ...f, registrationNumber: e.target.value }))}
-                                        placeholder="e.g. KMC-12345"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                ) : (
-                                    <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.registrationNumber || '—'}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    <Stethoscope size={12} className="inline mr-1" /> Specialization
-                                </label>
-                                {editing ? (
-                                    <input type="text" value={form.specialization}
-                                        onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))}
-                                        placeholder="e.g. Cardiologist"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                ) : (
-                                    <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.specialization || '—'}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    <Phone size={12} className="inline mr-1" /> Phone Number
-                                </label>
-                                {editing ? (
-                                    <input type="tel" value={form.phoneNumber}
-                                        onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
-                                        placeholder="98XXXXXXXX"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                ) : (
-                                    <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.phoneNumber || '—'}</p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    <Mail size={12} className="inline mr-1" /> Email
-                                </label>
-                                {editing ? (
-                                    <input type="email" value={form.email}
-                                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                                        placeholder="doctor@hospital.com"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                ) : (
-                                    <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.email || '—'}</p>
-                                )}
-                            </div>
+                <div className="p-6">
+                    <form onSubmit={handleSave} className="space-y-5">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <FIELD label="Qualifications" editing={editing} value={p.qualifications}>
+                                <Input value={form.qualifications} onChange={e => setForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. MD, DM" />
+                            </FIELD>
+                            <FIELD label="Medical registration no." editing={editing} value={p.registrationNumber}>
+                                <Input value={form.registrationNumber} onChange={e => setForm(f => ({ ...f, registrationNumber: e.target.value }))} placeholder="e.g. KMC-12345" />
+                            </FIELD>
+                            <FIELD label="Specialization" icon={Stethoscope} editing={editing} value={p.specialization}>
+                                <Input value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. Cardiologist" />
+                            </FIELD>
+                            <FIELD label="Phone number" icon={Phone} editing={editing} value={p.phoneNumber}>
+                                <Input type="tel" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="98XXXXXXXX" />
+                            </FIELD>
+                            <FIELD label="Email" icon={Mail} editing={editing} value={p.email}>
+                                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="doctor@hospital.com" />
+                            </FIELD>
                             <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                        <Clock size={12} className="inline mr-1" /> Shift Start
-                                    </label>
-                                    {editing ? (
-                                        <input type="time" value={form.startTime}
-                                            onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    ) : (
-                                        <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.startTime || '09:00'}</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                        <Clock size={12} className="inline mr-1" /> Shift End
-                                    </label>
-                                    {editing ? (
-                                        <input type="time" value={form.endTime}
-                                            onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    ) : (
-                                        <p className="px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700">{p.endTime || '17:00'}</p>
-                                    )}
-                                </div>
+                                <FIELD label="Shift start" icon={Clock} editing={editing} value={p.startTime || '09:00'}>
+                                    <Input type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+                                </FIELD>
+                                <FIELD label="Shift end" icon={Clock} editing={editing} value={p.endTime || '17:00'}>
+                                    <Input type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+                                </FIELD>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 mt-5">
+                        <div className="flex items-center gap-2">
                             {editing ? (
                                 <>
-                                    <button type="submit" disabled={saving}
-                                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">
-                                        <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
-                                    </button>
-                                    <button type="button" onClick={() => { setEditing(false); fetchProfile(); }}
-                                        className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">
-                                        Cancel
-                                    </button>
+                                    <Button type="submit" disabled={saving}>
+                                        {saving ? <Loader2 className="animate-spin" /> : <Save />} {saving ? 'Saving…' : 'Save changes'}
+                                    </Button>
+                                    <Button type="button" variant="outline" onClick={() => { setEditing(false); fetchProfile(); }}>Cancel</Button>
                                 </>
                             ) : (
-                                <button type="button" onClick={() => setEditing(true)}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
-                                    <Edit3 size={16} /> Edit Profile
-                                </button>
+                                <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+                                    <Edit3 /> Edit profile
+                                </Button>
                             )}
                         </div>
                     </form>
                 </div>
-            </motion.div>
+            </Card>
 
-            {/* Change Password Section */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                className="rounded-3xl bg-white shadow-lg ring-1 ring-gray-100 p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <Lock size={18} className="text-amber-500" /> Security
+            <Card className="p-6">
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-base font-semibold">
+                        <Lock className="h-[18px] w-[18px] text-muted-foreground" /> Security
                     </h3>
-                    <button onClick={() => setShowPwdForm(!showPwdForm)}
-                        className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">
-                        {showPwdForm ? 'Cancel' : 'Change Password'}
-                    </button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowPwdForm(!showPwdForm)}>
+                        {showPwdForm ? 'Cancel' : 'Change password'}
+                    </Button>
                 </div>
 
                 {showPwdForm ? (
                     <form onSubmit={handleChangePassword} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Current Password</label>
+                            <Label className="mb-1.5 block">Current password</Label>
                             <div className="relative">
-                                <input type={showOld ? 'text' : 'password'} required value={pwdForm.oldPassword}
+                                <Input
+                                    type={showOld ? 'text' : 'password'} required value={pwdForm.oldPassword}
                                     onChange={e => setPwdForm(f => ({ ...f, oldPassword: e.target.value }))}
-                                    placeholder="Enter current password"
-                                    className="w-full px-4 py-2.5 pr-10 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                <button type="button" onClick={() => setShowOld(!showOld)}
-                                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
-                                    {showOld ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    placeholder="Enter current password" className="pr-10"
+                                />
+                                <button type="button" onClick={() => setShowOld(!showOld)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                    {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">New Password</label>
+                                <Label className="mb-1.5 block">New password</Label>
                                 <div className="relative">
-                                    <input type={showNew ? 'text' : 'password'} required value={pwdForm.newPassword}
+                                    <Input
+                                        type={showNew ? 'text' : 'password'} required value={pwdForm.newPassword}
                                         onChange={e => setPwdForm(f => ({ ...f, newPassword: e.target.value }))}
-                                        placeholder="Min 6 characters"
-                                        className="w-full px-4 py-2.5 pr-10 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <button type="button" onClick={() => setShowNew(!showNew)}
-                                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
-                                        {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        placeholder="Min 6 characters" className="pr-10"
+                                    />
+                                    <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                        {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Confirm Password</label>
-                                <input type="password" required value={pwdForm.confirmPassword}
+                                <Label className="mb-1.5 block">Confirm password</Label>
+                                <Input
+                                    type="password" required value={pwdForm.confirmPassword}
                                     onChange={e => setPwdForm(f => ({ ...f, confirmPassword: e.target.value }))}
                                     placeholder="Repeat new password"
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                />
                             </div>
                         </div>
-                        <button type="submit"
-                            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors">
-                            <Lock size={16} /> Update Password
-                        </button>
+                        <Button type="submit"><Lock /> Update password</Button>
                     </form>
                 ) : (
-                    <p className="text-sm text-gray-500">
-                        Your login username is <strong className="text-gray-900">{p.userName}</strong>.
-                        Click "Change Password" to update your login credentials.
+                    <p className="text-sm text-muted-foreground">
+                        Your login username is <strong className="text-foreground">{p.userName}</strong>. Click "Change password" to update your login credentials.
                     </p>
                 )}
-            </motion.div>
+            </Card>
 
-            {/* Consultation QR Code Section */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-                className="rounded-3xl bg-white shadow-lg ring-1 ring-gray-100 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <QrCode className="text-blue-600" size={20} />
-                    <h3 className="text-lg font-bold text-gray-900">Consultation QR Code</h3>
-                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 font-semibold rounded-full">Optional</span>
+            <Card className="p-6">
+                <div className="mb-4 flex items-center gap-2">
+                    <QrCode className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-base font-semibold">Consultation QR code</h3>
+                    <Badge variant="secondary">Optional</Badge>
                 </div>
-                
-                <div className="flex flex-col md:flex-row items-center gap-6">
+
+                <div className="flex flex-col items-center gap-6 md:flex-row">
                     {p.consultationQrPath ? (
-                        <div className="relative group w-36 h-36 border border-gray-200 rounded-2xl p-2 bg-gray-50 flex items-center justify-center overflow-hidden">
-                            <img src={p.consultationQrPath} alt="Consultation QR Code" className="w-full h-full object-contain" />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                                <label className="p-2 bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer text-white transition-colors">
-                                    <UploadCloud size={18} />
+                        <div className="group relative flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/30 p-2">
+                            <img src={p.consultationQrPath} alt="Consultation QR code" className="h-full w-full object-contain" />
+                            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                                <label className="cursor-pointer rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20">
+                                    <UploadCloud className="h-[18px] w-[18px]" />
                                     <input type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
                                 </label>
-                                <button onClick={handleRemoveQr} className="p-2 bg-red-600/80 hover:bg-red-600 rounded-xl text-white transition-colors">
-                                    <Trash2 size={18} />
+                                <button onClick={handleRemoveQr} className="rounded-lg bg-destructive/80 p-2 text-white transition-colors hover:bg-destructive">
+                                    <Trash2 className="h-[18px] w-[18px]" />
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <label className="flex flex-col items-center justify-center w-36 h-36 border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl cursor-pointer bg-gray-50/50 hover:bg-blue-50/20 transition-all group">
-                            <UploadCloud className="text-gray-400 group-hover:text-blue-500 mb-2 transition-colors" size={24} />
-                            <span className="text-xs font-bold text-gray-500 group-hover:text-blue-600 transition-colors">Upload QR</span>
-                            <span className="text-[10px] text-gray-400 mt-1">PNG or JPG</span>
+                        <label className="group flex h-36 w-36 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/20 transition-colors hover:border-foreground/30 hover:bg-accent/30">
+                            <UploadCloud className="mb-2 h-6 w-6 text-muted-foreground transition-colors group-hover:text-foreground" />
+                            <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground">Upload QR</span>
+                            <span className="mt-1 text-[10px] text-muted-foreground">PNG or JPG</span>
                             <input type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
                         </label>
                     )}
                     <div className="flex-1 space-y-2 text-center md:text-left">
-                        <p className="text-sm font-semibold text-gray-700">Add your consultation payment or online clinic QR code.</p>
-                        <p className="text-xs text-gray-500 leading-relaxed">
-                            Uploading your QR code makes it convenient for patients to scan and pay or visit your consultation link. 
-                            If uploaded, this QR code will be dynamically rendered in the footer of all your printed prescriptions.
+                        <p className="text-sm font-medium">Add your consultation payment or online clinic QR code.</p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                            Uploading a QR code makes it convenient for patients to scan and pay or visit your consultation link.
+                            If uploaded, it renders in the footer of all your printed prescriptions.
                         </p>
                         {p.consultationQrPath && (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full text-xs font-bold mt-2">
-                                <Check size={12} /> Active on Printed PDFs
-                            </div>
+                            <Badge variant="success" className="mt-1 gap-1"><Check className="h-3 w-3" /> Active on printed PDFs</Badge>
                         )}
                     </div>
                 </div>
-            </motion.div>
+            </Card>
         </div>
     );
 };
