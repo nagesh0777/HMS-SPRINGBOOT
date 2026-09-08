@@ -1,33 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Clock, CheckCircle, AlertCircle, Search,
-    User as UserIcon, Calendar as CalendarIcon,
-    Layout, LogIn, LogOut, FileText, ChevronRight, Users,
-    Trash2, ArrowRight
+    LogIn, LogOut, FileText, Users, Trash2,
 } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
+import { EmptyState } from '@/components/app/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback, initials } from '@/components/ui/avatar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
-const Attendance = () => {
+/**
+ * Standalone by default (own header); pass `embedded` to drop the header when
+ * hosted inside EmployeeManagement's Workforce Hub, so the two don't stack.
+ */
+const Attendance = ({ embedded = false }) => {
     const toast = useToast();
     const [scanResult, setScanResult] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // Confirmation Modal States
     const [deleteRecordId, setDeleteRecordId] = useState(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     const [employees, setEmployees] = useState([]);
-    const [filteredEmployees, setFilteredEmployees] = useState([]);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     const [activeStaff, setActiveStaff] = useState([]);
     const [completedRecords, setCompletedRecords] = useState([]);
 
-    // Manual Entry Fields
     const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
     const [manualTime, setManualTime] = useState(new Date().toTimeString().slice(0, 5));
     const [manualRemarks, setManualRemarks] = useState('');
@@ -36,25 +44,22 @@ const Attendance = () => {
     const userRole = localStorage.getItem('role') || 'Staff';
     const isProcessing = useRef(false);
 
-    useEffect(() => {
-        refreshAllData();
-    }, []);
+    useEffect(() => { refreshAllData(); }, []);
 
     const refreshAllData = async () => {
         try {
             const [attRes, empRes] = await Promise.all([
                 axios.get('/api/Attendance/All'),
-                axios.get('/api/Employee/Employees')
+                axios.get('/api/Employee/Employees'),
             ]);
-
-            if (attRes.data && attRes.data.Status === 'OK' && empRes.data && empRes.data.Status === 'OK') {
+            if (attRes.data?.Status === 'OK' && empRes.data?.Status === 'OK') {
                 const logs = Array.isArray(attRes.data.Results) ? attRes.data.Results : [];
                 const emps = Array.isArray(empRes.data.Results) ? empRes.data.Results : [];
                 setEmployees(emps);
                 processAttendanceLogic(logs, emps);
             }
         } catch (e) {
-            console.error("Data refresh failed", e);
+            console.error('Data refresh failed', e);
         }
     };
 
@@ -70,18 +75,14 @@ const Attendance = () => {
         sortedLogs.forEach(entry => {
             if (!entry || !entry.employeeId) return;
             const empId = entry.employeeId;
-            const type = entry.type;
-            const timestamp = entry.timestamp;
-
-            if (type === 'ClockIn') {
+            if (entry.type === 'ClockIn') {
                 active[empId] = entry;
-            } else if (type === 'ClockOut') {
+            } else if (entry.type === 'ClockOut') {
                 if (active[empId]) {
                     const start = new Date(active[empId].timestamp);
-                    const end = new Date(timestamp);
+                    const end = new Date(entry.timestamp);
                     const diffMs = end.getTime() - start.getTime();
-                    const diffHrs = (diffMs > 0) ? (diffMs / (1000 * 60 * 60)).toFixed(2) : "0.00";
-
+                    const diffHrs = diffMs > 0 ? (diffMs / (1000 * 60 * 60)).toFixed(2) : '0.00';
                     if (empMap[empId]) {
                         finished.push({
                             ...empMap[empId],
@@ -91,7 +92,7 @@ const Attendance = () => {
                             duration: diffHrs,
                             rawDate: start,
                             idIn: active[empId].attendanceId,
-                            idOut: entry.attendanceId
+                            idOut: entry.attendanceId,
                         });
                     }
                     delete active[empId];
@@ -101,11 +102,7 @@ const Attendance = () => {
 
         const activeList = Object.values(active)
             .filter(log => empMap[log.employeeId])
-            .map(log => ({
-                ...empMap[log.employeeId],
-                clockInTime: log.timestamp,
-                attendanceId: log.attendanceId
-            }));
+            .map(log => ({ ...empMap[log.employeeId], clockInTime: log.timestamp, attendanceId: log.attendanceId }));
 
         setActiveStaff(activeList);
         setCompletedRecords(finished.sort((a, b) => b.rawDate - a.rawDate));
@@ -120,7 +117,7 @@ const Attendance = () => {
         return `${y}-${m}-${d}T${h}:${min}`;
     };
 
-    const submitAttendance = async (empId, type = null, customTimestamp = null, remarks = "") => {
+    const submitAttendance = async (empId, type = null, customTimestamp = null, remarks = '') => {
         if (isProcessing.current && !customTimestamp) return;
         try {
             if (!customTimestamp) isProcessing.current = true;
@@ -131,39 +128,29 @@ const Attendance = () => {
                 employeeId: empId,
                 type: type || null,
                 timestamp: customTimestamp || formatDateForBackend(new Date()),
-                remarks: remarks || manualRemarks
+                remarks: remarks || manualRemarks,
             };
 
             const res = await axios.post('/api/Attendance/ScanRecord', payload);
-            if (res.data && res.data.Status === 'OK') {
+            if (res.data?.Status === 'OK') {
                 setScanResult(res.data.Results);
                 refreshAllData();
                 if (customTimestamp) {
-                    setManualRemarks('');
-                    setIsManualEntry(false);
+                    setManualRemarks(''); setIsManualEntry(false);
                 } else {
-                    setSelectedEmployee(null);
-                    setSearchQuery('');
+                    setSelectedEmployee(null); setSearchQuery('');
                 }
-
-                setTimeout(() => {
-                    setScanResult(null);
-                    isProcessing.current = false;
-                }, 3000);
+                setTimeout(() => { setScanResult(null); isProcessing.current = false; }, 3000);
             } else {
-                setError(res.data?.ErrorMessage || "Logging failed");
+                setError(res.data?.ErrorMessage || 'Logging failed');
                 isProcessing.current = false;
             }
         } catch (err) {
-            setError("Server connection failed");
+            setError('Server connection failed');
             isProcessing.current = false;
         } finally {
             setLoading(false);
         }
-    };
-
-    const deleteRecord = (id) => {
-        setDeleteRecordId(id);
     };
 
     const handleConfirmDeleteRecord = async () => {
@@ -171,349 +158,239 @@ const Attendance = () => {
         try {
             setLoading(true);
             const res = await axios.delete(`/api/Attendance/${deleteRecordId}`);
-            if (res.data && res.data.Status === 'OK') refreshAllData();
+            if (res.data?.Status === 'OK') refreshAllData();
             setDeleteRecordId(null);
-        } catch (e) { setError("Delete failed"); }
+        } catch (e) { setError('Delete failed'); }
         finally { setLoading(false); }
-    };
-
-    const resetSystemData = () => {
-        setShowResetConfirm(true);
     };
 
     const handleConfirmReset = async () => {
         try {
             setLoading(true);
             const res = await axios.delete('/api/Attendance/ClearAll');
-            if (res.data && res.data.Status === 'OK') {
+            if (res.data?.Status === 'OK') {
                 refreshAllData();
-                toast.success("Attendance System Reset Successfully.");
+                toast.success('Attendance system reset successfully.');
             }
             setShowResetConfirm(false);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        if (!searchQuery?.trim()) {
-            setFilteredEmployees([]);
-            return;
-        }
-
+    const visibleEmployees = employees.filter(emp => emp.role !== 'Doctor').filter(emp => {
+        if (!searchQuery?.trim()) return true;
         const q = searchQuery.toLowerCase();
-        const filtered = employees.filter(emp => {
-            if (!emp) return false;
-            const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
-            const idMatch = emp.employeeId?.toString().includes(q);
-            return fullName.includes(q) || idMatch;
-        });
-        setFilteredEmployees(filtered.slice(0, 5));
-    }, [searchQuery, employees]);
+        const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
+        return fullName.includes(q) || emp.employeeId?.toString().includes(q);
+    });
 
     return (
-        <div className="max-w-7xl mx-auto space-y-4 md:space-y-8 pb-20 px-2 md:px-4">
-            <header className="bg-white p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary-50 rounded-full -translate-y-1/2 translate-x-1/2 opacity-50 blur-3xl"></div>
-                <div className="flex items-center gap-6 relative z-10">
-                    <div className="p-5 bg-primary-600 text-white rounded-[1.5rem] shadow-2xl shadow-primary-200">
-                        <Clock size={40} />
-                    </div>
-                    <div>
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">Staff Presence</h1>
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Manual Attendance Management</p>
-                    </div>
+        <div className="space-y-5">
+            {!embedded && (
+                <div>
+                    <h1 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
+                        <Clock className="h-6 w-6 text-muted-foreground" /> Staff presence
+                    </h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Manual attendance management.</p>
                 </div>
-            </header>
+            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-12 xl:col-span-4 space-y-8">
-                    <div className="bg-white p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] shadow-2xl border border-gray-100 space-y-6 md:space-y-8">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                <div className="space-y-5 lg:col-span-12 xl:col-span-4">
+                    <Card className="space-y-4 p-5">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xl md:text-2xl font-black text-gray-900">Staff Search</h2>
+                            <h2 className="text-sm font-semibold">Staff search</h2>
                             {userRole === 'Admin' && (
-                                <button onClick={resetSystemData} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Reset All Data">
-                                    <Trash2 size={24} />
-                                </button>
+                                <Button variant="ghost" size="icon-sm" onClick={() => setShowResetConfirm(true)} title="Reset all data" className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             )}
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="relative group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={24} />
-                                <input
-                                    type="text"
-                                    placeholder="Search Staff by Name or ID..."
-                                    className="w-full pl-14 pr-6 py-5 rounded-[1.5rem] border-2 border-gray-100 focus:border-primary-500 outline-none font-bold text-lg shadow-sm"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </div>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search staff by name or ID…" className="pl-9" />
+                        </div>
 
-                            {/* Beautiful Scrollable Directory List */}
-                            <div className="max-h-[350px] overflow-y-auto rounded-[2rem] border border-gray-100 bg-gray-50/50 p-2 space-y-2">
-                                {employees.filter(emp => emp.role !== 'Doctor').filter(emp => {
-                                    if (!searchQuery?.trim()) return true;
-                                    const q = searchQuery.toLowerCase();
-                                    const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
-                                    return fullName.includes(q) || emp.employeeId?.toString().includes(q);
-                                }).map(emp => {
-                                    const clockedInRecord = activeStaff.find(a => a.employeeId === emp.employeeId);
-                                    const isClockedIn = !!clockedInRecord;
-                                    const isSelected = selectedEmployee?.employeeId === emp.employeeId;
-
-                                    return (
-                                        <div
-                                            key={emp.employeeId}
-                                            onClick={() => { setSelectedEmployee(emp); }}
-                                            className={`flex items-center justify-between p-3.5 rounded-[1.25rem] transition-all cursor-pointer border ${
-                                                isSelected 
-                                                    ? 'bg-white border-primary-500 shadow-md ring-1 ring-primary-500/10' 
-                                                    : 'bg-white hover:bg-gray-100/50 border-transparent shadow-sm'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
-                                                    <img 
-                                                        src={emp.photoPath || `https://ui-avatars.com/api/?name=${emp.firstName}+${emp.lastName}&background=f3f4f6&color=374151&bold=true`} 
-                                                        alt={emp.firstName} 
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="font-black text-gray-900 text-sm truncate">{emp.firstName} {emp.lastName}</p>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">#{emp.employeeId}</span>
-                                                        <span className="text-gray-300">•</span>
-                                                        <span className="text-[9px] font-bold text-primary-600 uppercase tracking-wider">{emp.role}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                    isClockedIn ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
-                                                }`}>
-                                                    {isClockedIn ? 'IN' : 'OUT'}
-                                                </span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        submitAttendance(emp.employeeId, isClockedIn ? 'ClockOut' : 'ClockIn');
-                                                    }}
-                                                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm transition-all active:scale-95 ${
-                                                        isClockedIn 
-                                                            ? 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white' 
-                                                            : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
-                                                    }`}
-                                                >
-                                                    {isClockedIn ? <LogOut size={10} /> : <LogIn size={10} />}
-                                                    {isClockedIn ? 'Out' : 'In'}
-                                                </button>
+                        <div className="max-h-[350px] space-y-1.5 overflow-y-auto rounded-lg border bg-muted/20 p-2 scrollbar-thin">
+                            {visibleEmployees.map(emp => {
+                                const isClockedIn = activeStaff.some(a => a.employeeId === emp.employeeId);
+                                const isSelected = selectedEmployee?.employeeId === emp.employeeId;
+                                return (
+                                    <div key={emp.employeeId} onClick={() => setSelectedEmployee(emp)}
+                                         className={cn('flex cursor-pointer items-center justify-between rounded-lg border bg-card p-3 transition-colors', isSelected ? 'border-foreground/30 shadow-sm' : 'border-transparent hover:bg-accent/40')}>
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <Avatar className="h-9 w-9 shrink-0">
+                                                {emp.photoPath && <AvatarImage src={emp.photoPath} alt="" />}
+                                                <AvatarFallback className="text-[10px]">{initials(`${emp.firstName} ${emp.lastName}`)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium">{emp.firstName} {emp.lastName}</p>
+                                                <p className="text-xs text-muted-foreground">#{emp.employeeId} · {emp.role}</p>
                                             </div>
                                         </div>
-                                    );
-                                })}
-
-                                {employees.filter(emp => emp.role !== 'Doctor').filter(emp => {
-                                    if (!searchQuery?.trim()) return true;
-                                    const q = searchQuery.toLowerCase();
-                                    const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase();
-                                    return fullName.includes(q) || emp.employeeId?.toString().includes(q);
-                                }).length === 0 && (
-                                    <div className="py-8 text-center text-gray-400 text-xs font-bold animate-pulse">No staff members found</div>
-                                )}
-                            </div>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <Badge variant={isClockedIn ? 'success' : 'secondary'}>{isClockedIn ? 'In' : 'Out'}</Badge>
+                                            <Button
+                                                size="sm" variant={isClockedIn ? 'outline' : 'default'}
+                                                className={isClockedIn ? 'text-destructive hover:bg-destructive-subtle' : ''}
+                                                onClick={(e) => { e.stopPropagation(); submitAttendance(emp.employeeId, isClockedIn ? 'ClockOut' : 'ClockIn'); }}
+                                            >
+                                                {isClockedIn ? <LogOut /> : <LogIn />} {isClockedIn ? 'Out' : 'In'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {visibleEmployees.length === 0 && (
+                                <p className="py-8 text-center text-xs text-muted-foreground">No staff members found</p>
+                            )}
                         </div>
 
                         {selectedEmployee && (
-                            <div className="p-8 bg-gradient-to-br from-primary-50 to-white rounded-[3rem] border-2 border-primary-50 shadow-2xl space-y-8 animate-in zoom-in duration-500">
+                            <Card className="space-y-5 border-dashed p-5">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-2xl bg-white shadow-lg overflow-hidden flex items-center justify-center p-0.5 border">
-                                            <img 
-                                                src={selectedEmployee.photoPath || `https://ui-avatars.com/api/?name=${selectedEmployee.firstName}+${selectedEmployee.lastName}&background=f3f4f6&color=374151&bold=true`} 
-                                                alt="avatar" 
-                                                className="rounded-xl w-full h-full object-cover" 
-                                            />
-                                        </div>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-11 w-11">
+                                            {selectedEmployee.photoPath && <AvatarImage src={selectedEmployee.photoPath} alt="" />}
+                                            <AvatarFallback>{initials(`${selectedEmployee.firstName} ${selectedEmployee.lastName}`)}</AvatarFallback>
+                                        </Avatar>
                                         <div>
-                                            <h3 className="text-xl font-black text-gray-900">{selectedEmployee.firstName} {selectedEmployee.lastName}</h3>
-                                            <p className="text-[10px] font-bold text-primary-600 uppercase tracking-[0.2em]">#{selectedEmployee.employeeId} • {selectedEmployee.role}</p>
+                                            <h3 className="text-sm font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</h3>
+                                            <p className="text-xs text-muted-foreground">#{selectedEmployee.employeeId} · {selectedEmployee.role}</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setIsManualEntry(!isManualEntry)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${isManualEntry ? 'bg-primary-600 text-white' : 'bg-primary-50 text-primary-600'}`}
-                                    >
-                                        {isManualEntry ? 'CLOSE MANUAL' : 'MANUAL ENTRY'}
-                                    </button>
+                                    <Button variant={isManualEntry ? 'default' : 'outline'} size="sm" onClick={() => setIsManualEntry(!isManualEntry)}>
+                                        {isManualEntry ? 'Close manual' : 'Manual entry'}
+                                    </Button>
                                 </div>
 
                                 {isManualEntry ? (
-                                    <div className="space-y-6 bg-white p-6 rounded-[2rem] border border-primary-50 shadow-sm">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Date</label>
-                                                <input
-                                                    type="date"
-                                                    className="w-full p-4 rounded-2xl border-2 border-gray-50 focus:border-primary-500 outline-none font-bold"
-                                                    value={manualDate}
-                                                    onChange={(e) => setManualDate(e.target.value)}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Time</label>
-                                                <input
-                                                    type="time"
-                                                    className="w-full p-4 rounded-2xl border-2 border-gray-50 focus:border-primary-500 outline-none font-bold"
-                                                    value={manualTime}
-                                                    onChange={(e) => setManualTime(e.target.value)}
-                                                />
-                                            </div>
+                                    <div className="space-y-4 rounded-lg border bg-card p-4">
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <div><Label className="mb-1.5 block">Date</Label><Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} /></div>
+                                            <div><Label className="mb-1.5 block">Time</Label><Input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} /></div>
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Remarks / Reason</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Reason for manual entry..."
-                                                className="w-full p-4 rounded-2xl border-2 border-gray-50 focus:border-primary-500 outline-none font-bold"
-                                                value={manualRemarks}
-                                                onChange={(e) => setManualRemarks(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-4">
-                                            <button
-                                                onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockIn', `${manualDate}T${manualTime}`)}
-                                                className="flex-1 h-14 md:h-16 bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg active:scale-95"
-                                            >
-                                                CLOCK-IN
-                                            </button>
-                                            <button
-                                                onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockOut', `${manualDate}T${manualTime}`)}
-                                                className="flex-1 h-14 md:h-16 bg-orange-600 text-white rounded-xl md:rounded-2xl font-black text-xs hover:bg-orange-700 transition-all shadow-lg active:scale-95"
-                                            >
-                                                CLOCK-OUT
-                                            </button>
+                                        <div><Label className="mb-1.5 block">Remarks / reason</Label><Input value={manualRemarks} onChange={(e) => setManualRemarks(e.target.value)} placeholder="Reason for manual entry…" /></div>
+                                        <div className="flex flex-col gap-3 sm:flex-row">
+                                            <Button className="flex-1" onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockIn', `${manualDate}T${manualTime}`)}>Clock in</Button>
+                                            <Button variant="secondary" className="flex-1" onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockOut', `${manualDate}T${manualTime}`)}>Clock out</Button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 gap-4">
-                                        {activeStaff.some(a => a.employeeId === selectedEmployee.employeeId) ? (
-                                            <button onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockOut')} className="h-16 md:h-20 bg-orange-600 text-white rounded-xl md:rounded-[1.5rem] font-black flex items-center justify-center gap-4 shadow-xl hover:bg-orange-700 transition-all active:scale-95 text-sm md:text-base animate-in fade-in duration-300">
-                                                <LogOut size={24} /> CLOCK OUT NOW
-                                            </button>
-                                        ) : (
-                                            <button onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockIn')} className="h-16 md:h-20 bg-blue-600 text-white rounded-xl md:rounded-[1.5rem] font-black flex items-center justify-center gap-4 shadow-xl hover:bg-blue-700 transition-all active:scale-95 text-sm md:text-base animate-in fade-in duration-300">
-                                                <LogIn size={24} /> CLOCK IN NOW
-                                            </button>
-                                        )}
-                                    </div>
+                                    activeStaff.some(a => a.employeeId === selectedEmployee.employeeId) ? (
+                                        <Button size="lg" variant="secondary" className="w-full" onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockOut')}>
+                                            <LogOut /> Clock out now
+                                        </Button>
+                                    ) : (
+                                        <Button size="lg" className="w-full" onClick={() => submitAttendance(selectedEmployee.employeeId, 'ClockIn')}>
+                                            <LogIn /> Clock in now
+                                        </Button>
+                                    )
                                 )}
-                            </div>
+                            </Card>
                         )}
-                    </div>
+                    </Card>
                 </div>
 
-                <div className="lg:col-span-12 xl:col-span-8 space-y-8">
+                <div className="space-y-5 lg:col-span-12 xl:col-span-8">
                     {scanResult && (
-                        <div className="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-2xl flex items-center gap-8 animate-in bounce-in">
-                            <CheckCircle size={48} />
-                            <div><h3 className="text-2xl font-black uppercase text-white">{scanResult.type} SUCCESS</h3><p className="font-bold opacity-90">ID: #{scanResult.employeeId} at {new Date(scanResult.timestamp).toLocaleTimeString()}</p></div>
-                        </div>
+                        <Card className="flex items-center gap-4 border-success/30 bg-success-subtle p-5">
+                            <CheckCircle className="h-8 w-8 shrink-0 text-success" />
+                            <div>
+                                <h3 className="text-sm font-semibold uppercase text-success">{scanResult.type} success</h3>
+                                <p className="text-xs text-success/80">ID #{scanResult.employeeId} at {new Date(scanResult.timestamp).toLocaleTimeString()}</p>
+                            </div>
+                        </Card>
                     )}
                     {error && (
-                        <div className="bg-red-500 p-8 rounded-[2.5rem] text-white shadow-2xl flex items-center gap-8 animate-in shake-in">
-                            <AlertCircle size={48} />
-                            <div><h3 className="text-2xl font-black uppercase text-white">SYSTEM ERROR</h3><p className="font-bold opacity-90">{error}</p></div>
-                        </div>
+                        <Card className="flex items-center gap-4 border-destructive/30 bg-destructive-subtle p-5">
+                            <AlertCircle className="h-8 w-8 shrink-0 text-destructive" />
+                            <div>
+                                <h3 className="text-sm font-semibold uppercase text-destructive">System error</h3>
+                                <p className="text-xs text-destructive/80">{error}</p>
+                            </div>
+                        </Card>
                     )}
 
-                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col">
-                        <div className="p-8 border-b border-gray-50 bg-emerald-50/30 flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-emerald-600">
-                                <Users size={28} />
-                                <h3 className="text-2xl font-black text-gray-900">On-Duty Staff</h3>
-                            </div>
-                            <span className="bg-emerald-500 text-white px-4 py-1 rounded-full text-[10px] font-black">
-                                {activeStaff.length} ACTIVE
-                            </span>
+                    <Card className="overflow-hidden">
+                        <div className="flex items-center justify-between border-b bg-success-subtle/40 px-5 py-4">
+                            <span className="flex items-center gap-2.5 text-sm font-semibold"><Users className="h-[18px] w-[18px] text-success" /> On-duty staff</span>
+                            <Badge variant="success">{activeStaff.length} active</Badge>
                         </div>
-                        <div className="overflow-auto max-h-[400px]">
+                        <div className="max-h-[400px] overflow-auto">
                             {activeStaff.length > 0 ? (
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50"><th className="px-8 py-5">Staff</th><th className="px-8 py-5">Shift Start</th><th className="px-8 py-5 text-right">Action</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
+                                <Table>
+                                    <TableHeader><TableRow><TableHead className="pl-6">Staff</TableHead><TableHead>Shift start</TableHead><TableHead className="pr-6 text-right">Action</TableHead></TableRow></TableHeader>
+                                    <TableBody>
                                         {activeStaff.map(emp => (
-                                            <tr key={emp.employeeId} className="hover:bg-emerald-50/20">
-                                                <td className="px-8 py-6 font-black text-gray-900">{emp.firstName} {emp.lastName}</td>
-                                                <td className="px-8 py-6 font-bold text-emerald-600">{new Date(emp.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                                                <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
-                                                    <button onClick={() => submitAttendance(emp.employeeId, 'ClockOut')} className="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-rose-600 hover:text-white transition-all">STOP SHIFT</button>
-                                                    <button onClick={() => deleteRecord(emp.attendanceId)} className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (<div className="py-20 text-center"><p className="text-gray-300 font-black uppercase text-xs">No active staff</p></div>)}
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col">
-                        <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-primary-600"><FileText size={28} /><h3 className="text-2xl font-black text-gray-900">Shift History</h3></div>
-                        </div>
-                        <div className="overflow-auto max-h-[400px]">
-                            {completedRecords.length > 0 ? (
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50"><th className="px-8 py-5">Staff</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">In/Out</th><th className="px-8 py-5 text-right">Hours</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {completedRecords.map((rec, i) => (
-                                            <tr key={i} className="hover:bg-primary-50/20">
-                                                <td className="px-8 py-6 font-black text-gray-900">{rec.firstName} {rec.lastName}</td>
-                                                <td className="px-8 py-6 text-xs text-gray-400 font-bold">{rec.date}</td>
-                                                <td className="px-8 py-6 text-xs font-bold">{rec.in} - {rec.out}</td>
-                                                <td className="px-8 py-6 text-right flex items-center justify-end gap-4">
-                                                    <span className="bg-gray-900 text-white px-3 py-1 rounded-lg text-xs font-black">{rec.duration}h</span>
-                                                    <div className="flex gap-1">
-                                                        <button onClick={() => deleteRecord(rec.idIn)} className="p-1 text-gray-300 hover:text-red-400" title="Delete IN"><Trash2 size={12} /></button>
-                                                        <button onClick={() => deleteRecord(rec.idOut)} className="p-1 text-gray-300 hover:text-red-400" title="Delete OUT"><Trash2 size={12} /></button>
+                                            <TableRow key={emp.employeeId}>
+                                                <TableCell className="pl-6 font-medium">{emp.firstName} {emp.lastName}</TableCell>
+                                                <TableCell className="tabular text-success">{new Date(emp.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                                                <TableCell className="pr-6 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive-subtle" onClick={() => submitAttendance(emp.employeeId, 'ClockOut')}>Stop shift</Button>
+                                                        <Button size="icon-sm" variant="ghost" onClick={() => setDeleteRecordId(emp.attendanceId)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                                                     </div>
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         ))}
-                                    </tbody>
-                                </table>
-                            ) : (<div className="py-20 text-center"><p className="text-gray-300 font-black uppercase text-xs">No records today</p></div>)}
+                                    </TableBody>
+                                </Table>
+                            ) : <EmptyState icon={Users} title="No active staff" />}
                         </div>
-                    </div>
+                    </Card>
+
+                    <Card className="overflow-hidden">
+                        <div className="flex items-center gap-2.5 border-b bg-muted/20 px-5 py-4">
+                            <FileText className="h-[18px] w-[18px] text-muted-foreground" /> <h3 className="text-sm font-semibold">Shift history</h3>
+                        </div>
+                        <div className="max-h-[400px] overflow-auto">
+                            {completedRecords.length > 0 ? (
+                                <Table>
+                                    <TableHeader><TableRow><TableHead className="pl-6">Staff</TableHead><TableHead>Date</TableHead><TableHead>In / out</TableHead><TableHead className="pr-6 text-right">Hours</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {completedRecords.map((rec, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell className="pl-6 font-medium">{rec.firstName} {rec.lastName}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">{rec.date}</TableCell>
+                                                <TableCell className="tabular text-xs">{rec.in} - {rec.out}</TableCell>
+                                                <TableCell className="pr-6 text-right">
+                                                    <div className="flex items-center justify-end gap-3">
+                                                        <Badge variant="secondary" className="tabular">{rec.duration}h</Badge>
+                                                        <div className="flex gap-0.5">
+                                                            <Button size="icon-sm" variant="ghost" onClick={() => setDeleteRecordId(rec.idIn)} title="Delete IN" className="h-6 w-6 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                                            <Button size="icon-sm" variant="ghost" onClick={() => setDeleteRecordId(rec.idOut)} title="Delete OUT" className="h-6 w-6 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : <EmptyState icon={FileText} title="No records today" />}
+                        </div>
+                    </Card>
                 </div>
             </div>
 
-            {/* Delete Record Confirmation Modal */}
             <ConfirmationModal
                 isOpen={!!deleteRecordId}
                 onClose={() => setDeleteRecordId(null)}
                 onConfirm={handleConfirmDeleteRecord}
-                title="Delete Attendance Record"
-                message="Are you sure you want to delete this specific staff shift attendance log? This will permanently affect work hour reports."
-                confirmText="Delete Log"
+                title="Delete attendance record"
+                message="This permanently deletes this staff shift log and will affect work-hour reports."
+                confirmText="Delete log"
                 cancelText="Cancel"
                 type="danger"
             />
-
-            {/* Clear All Records Confirmation Modal */}
             <ConfirmationModal
                 isOpen={showResetConfirm}
                 onClose={() => setShowResetConfirm(false)}
                 onConfirm={handleConfirmReset}
-                title="Reset All Attendance Data"
-                message="CRITICAL WARNING:\n\nThis administrative action will permanently purge all shift logs, clock-in records, and work hour logs for the entire hospital staff database. This action is irreversible. Continue?"
-                confirmText="Permanently Reset"
+                title="Reset all attendance data"
+                message="This permanently purges all shift logs, clock-in records and work-hour logs for the entire hospital staff database. This action is irreversible."
+                confirmText="Permanently reset"
                 cancelText="Cancel"
                 type="danger"
             />
