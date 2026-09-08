@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Search, Plus, User, Phone, MapPin } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ExportButton from '../../components/ExportButton';
 
 const PatientList = () => {
     const [patients, setPatients] = useState([]);
@@ -39,13 +40,24 @@ const PatientList = () => {
                     <h1 className="text-2xl font-black text-gray-900 tracking-tight font-display">Patient Management</h1>
                     <p className="text-xs text-gray-500 font-semibold mt-0.5">Search, filter, and register patients in the master clinical records database.</p>
                 </div>
-                <button
-                    onClick={() => navigate('/dashboard/patients/new')}
-                    className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-black transition-all active:scale-95 text-xs font-black uppercase tracking-wider shadow-sm self-start sm:self-auto"
-                >
-                    <Plus size={16} />
-                    Register Patient
-                </button>
+                <div className="flex gap-2 self-start sm:self-auto">
+                    {/* The walk-in case: register and go straight into booking, rather than
+                        registering, landing on a list, and searching for the same person again. */}
+                    <button
+                        onClick={() => navigate('/dashboard/patients/new?then=appointment')}
+                        className="flex items-center gap-2 border border-gray-300 bg-white text-gray-700 px-5 py-3 rounded-xl hover:bg-gray-50 transition-all active:scale-95 text-xs font-black uppercase tracking-wider shadow-sm"
+                    >
+                        <Plus size={16} />
+                        Register &amp; Book
+                    </button>
+                    <button
+                        onClick={() => navigate('/dashboard/patients/new')}
+                        className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-black transition-all active:scale-95 text-xs font-black uppercase tracking-wider shadow-sm"
+                    >
+                        <Plus size={16} />
+                        Register Patient
+                    </button>
+                </div>
             </div>
 
             {/* Search Bar */}
@@ -63,6 +75,18 @@ const PatientList = () => {
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
                     </div>
                 )}
+            </div>
+
+            <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground">
+                    {searchTerm ? `Filtered by "${searchTerm}"` : 'All patients'}
+                </p>
+                {/* Exports exactly what is on screen — passing the search term through means the
+                    download matches the filter rather than silently dumping everything. */}
+                <ExportButton
+                    url={`/api/Export/Patients?search=${encodeURIComponent(searchTerm || '')}`}
+                    label="Download CSV"
+                />
             </div>
 
             {/* Patient Table */}

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, User } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 
 const PatientRegistration = () => {
     const toast = useToast();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { id } = useParams(); // If present, we are in edit mode
     const isEditMode = !!id;
 
@@ -144,18 +145,32 @@ const PatientRegistration = () => {
                 }
 
                 if (selectedPhotoFile && res.data.Results?.patientId) {
-                    const newId = res.data.Results.patientId;
                     const uploadData = new FormData();
                     uploadData.append('file', selectedPhotoFile);
                     uploadData.append('type', 'patient');
-                    uploadData.append('id', newId);
+                    uploadData.append('id', res.data.Results.patientId);
                     await axios.post('/api/Files/UploadPhoto', uploadData, {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
                 }
 
+                const newId = res.data.Results?.patientId;
                 toast.success("Patient registered successfully.");
-                navigate('/dashboard/patients');
+
+                // Reception registers a walk-in *because* the patient needs to be seen now.
+                // Landing on the full patient list meant searching straight back for the person
+                // just created; `?then=` lets the caller chain into the next step instead, and
+                // otherwise we open the new chart rather than the list.
+                const then = searchParams.get('then');
+                if (newId && then === 'appointment') {
+                    navigate(`/dashboard/appointments/new?patientId=${newId}`);
+                } else if (newId && then === 'admit') {
+                    navigate(`/dashboard/adt/admit?patientId=${newId}`);
+                } else if (newId) {
+                    navigate(`/dashboard/patients/${newId}`);
+                } else {
+                    navigate('/dashboard/patients');
+                }
             }
         } catch (error) {
             console.error("Failed to save patient", error);

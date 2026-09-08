@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import PatientSearch from '../../components/PatientSearch';
 import { useToast } from '../../components/Toast';
 
 const NewAppointment = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const toast = useToast();
+    // Arriving from a patient's chart or straight after registering them: the patient is already
+    // known, so don't make reception search for the person they are standing in front of.
     const [formData, setFormData] = useState({
-        patientId: '',
+        patientId: searchParams.get('patientId') || '',
         performerId: '', // Doctor ID
         appointmentDate: '',
     });
@@ -45,9 +48,10 @@ const NewAppointment = () => {
             });
 
             if (response.data.Status === "OK") {
-                toast.success('Appointment booked successfully!');
-                toast.success('[WhatsApp & SMS Automation] Appointment confirmation dispatched successfully!');
-                toast.info('[Calendar Integration] Google Calendar invite successfully synced.');
+                // Only claim what actually happened: the appointment row was written. No SMS,
+                // WhatsApp or calendar integration exists, and saying otherwise meant reception
+                // stopped phoning patients to confirm.
+                toast.success('Appointment booked. Remember to confirm with the patient.');
                 navigate('/dashboard/appointments');
             } else {
                 toast.error(response.data.ErrorMessage || 'Booking failed');

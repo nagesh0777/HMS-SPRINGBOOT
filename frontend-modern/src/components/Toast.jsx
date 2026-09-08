@@ -73,7 +73,23 @@ export function ToastProvider({ children }) {
     return id;
   }, []);
 
-  const value = useMemo(() => ({ showToast, dismiss }), [showToast, dismiss]);
+  // Sixteen screens call `toast.success(...)` / `.error(...)` / `.info(...)` / `.warning(...)`
+  // on the value this hook returns. Only `showToast` existed, so every one of those calls threw
+  // `TypeError: toast.success is not a function` — and because they sit in the success and catch
+  // branches, the throw happened *after* the API call had already succeeded: the record saved,
+  // then the screen died before it could navigate or reset. That is why saving looked broken
+  // while the data was in fact written. These four are thin wrappers over showToast.
+  const value = useMemo(
+    () => ({
+      showToast,
+      dismiss,
+      success: (message, duration) => showToast(message, 'success', duration),
+      error: (message, duration) => showToast(message, 'error', duration),
+      info: (message, duration) => showToast(message, 'info', duration),
+      warning: (message, duration) => showToast(message, 'warning', duration),
+    }),
+    [showToast, dismiss],
+  );
 
   return (
     <ToastContext.Provider value={value}>

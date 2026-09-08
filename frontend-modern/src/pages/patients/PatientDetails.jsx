@@ -211,9 +211,15 @@ const PatientDetails = () => {
                     >
                         Edit Profile
                     </button>
+                    <button
+                        onClick={() => navigate(`/dashboard/appointments/new?patientId=${id}`)}
+                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+                    >
+                        Book Appointment
+                    </button>
                     {!isActiveAdmission && (
                         <button
-                            onClick={() => navigate('/dashboard/adt/admit')}
+                            onClick={() => navigate(`/dashboard/adt/admit?patientId=${id}`)}
                             className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 active:scale-95 transition-all"
                         >
                             Admit Patient
@@ -451,7 +457,7 @@ const PatientDetails = () => {
                                     </div>
                                     <p className="text-sm text-gray-550">Patient is currently not admitted to any ward bed.</p>
                                     <button
-                                        onClick={() => navigate('/dashboard/adt/admit')}
+                                        onClick={() => navigate(`/dashboard/adt/admit?patientId=${id}`)}
                                         className="mt-4 text-sm font-bold text-blue-600 hover:text-blue-700"
                                     >
                                         Process New Admission

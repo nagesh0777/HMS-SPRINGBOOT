@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BedDouble } from 'lucide-react';
 import PatientSearch from '../../components/PatientSearch';
 import { useToast } from '../../components/Toast';
 
 const NewAdmission = () => {
     const toast = useToast();
+    const [searchParams] = useSearchParams();
     // ... (rest of state is same)
     const [formData, setFormData] = useState({
-        patientId: '',
+        patientId: searchParams.get('patientId') || '',
         admittingDoctorId: '',
         bedId: '',
         admissionNotes: ''

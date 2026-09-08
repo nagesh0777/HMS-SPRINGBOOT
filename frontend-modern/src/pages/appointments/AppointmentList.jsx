@@ -3,6 +3,7 @@ import { Calendar, Clock, User, Plus, X, CalendarClock, Ban, AlertTriangle } fro
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
+import ExportButton from '../../components/ExportButton';
 
 const AppointmentList = () => {
     const [appointments, setAppointments] = useState([]);
@@ -117,6 +118,12 @@ const AppointmentList = () => {
                     <p className="text-sm text-gray-500 mt-1">Manage and track clinician schedules and patient visits</p>
                 </div>
                 <div className="flex gap-3">
+                    {/* Month-to-date by default: the range the front desk actually reconciles. */}
+                    <ExportButton
+                        url={`/api/Export/Appointments?from=${new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`}
+                        label="Export"
+                        variant="ghost"
+                    />
                     <button
                         onClick={() => navigate('/dashboard/appointments/new')}
                         className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-primary-700"

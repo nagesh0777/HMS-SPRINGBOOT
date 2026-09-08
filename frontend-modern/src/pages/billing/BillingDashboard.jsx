@@ -168,8 +168,6 @@ const BillingDashboard = () => {
             });
             if (res.data.ErrorMessage) { toast.error(res.data.ErrorMessage); return; }
             toast.success('Bill generated successfully!');
-            toast.success(`[WhatsApp & SMS Automation] Receipt ${res.data.Results?.billNumber || 'BILL-HSP-00001'} dispatched successfully to patient!`);
-            toast.info(`[Email Automation] PDF Invoice sent and accounting records updated.`);
             goBackToList(); fetchBills(); fetchSummary();
         } catch (e) { toast.error('Failed to create bill'); }
     };

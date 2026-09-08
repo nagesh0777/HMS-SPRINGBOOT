@@ -7,6 +7,7 @@ import {
     Clock, ArrowLeft, Heart, Activity, MapPin, Phone, Mail,
     ChevronDown, ChevronUp, Search, Stethoscope
 } from 'lucide-react';
+import ExportButton from '../../components/ExportButton';
 
 const DoctorPatientProfile = () => {
     const { id } = useParams();
@@ -157,8 +158,18 @@ const DoctorPatientProfile = () => {
 
                     {/* Info */}
                     <div className="flex-1">
-                        <h1 className="text-2xl font-black text-gray-900">{patient.firstName} {patient.middleName || ''} {patient.lastName}</h1>
-                        <p className="text-sm text-gray-500 mt-1">{patient.patientCode || `Patient #${patient.patientId}`}</p>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h1 className="text-2xl font-black text-gray-900">{patient.firstName} {patient.middleName || ''} {patient.lastName}</h1>
+                                <p className="text-sm text-gray-500 mt-1">{patient.patientCode || `Patient #${patient.patientId}`}</p>
+                            </div>
+                            {/* The whole record in one file — what a patient asks for when they
+                                transfer care, and what a doctor prints for a referral. */}
+                            <ExportButton
+                                url={`/api/Export/Patient/${patient.patientId}/History`}
+                                label="Download full history"
+                            />
+                        </div>
                         <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-600">
                             <span className="flex items-center gap-1"><User size={14} /> {patient.gender} • {patient.age}</span>
                             {patient.bloodGroup && <span className="flex items-center gap-1"><Heart size={14} className="text-red-500" /> Blood Group: {patient.bloodGroup}</span>}

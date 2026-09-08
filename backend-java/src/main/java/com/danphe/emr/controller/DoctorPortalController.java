@@ -444,12 +444,14 @@ public class DoctorPortalController {
             return ResponseEntity.ok(DanpheHttpResponse.error("Patient does not have a registered mobile number."));
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("status", "SUCCESS");
-        result.put("patientPhone", phone);
-        result.put("message", "Prescription PDF successfully dispatched via WhatsApp & SMS to " + phone);
-        
-        return ResponseEntity.ok(DanpheHttpResponse.ok(result));
+        // No SMS/WhatsApp provider is wired up. This used to return SUCCESS with the message
+        // "successfully dispatched", which told the doctor the patient had received their
+        // medication instructions when nothing had been sent — the patient goes home with no
+        // dosage information and nobody knows. Until a provider is configured, say so plainly
+        // so the prescription gets printed or handed over instead.
+        return ResponseEntity.ok(DanpheHttpResponse.error(
+                "Messaging is not configured for this hospital, so nothing was sent. "
+                        + "Print the prescription or share it with the patient directly."));
     }
 
     // =========================================================================
