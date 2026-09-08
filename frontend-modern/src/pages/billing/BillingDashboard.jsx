@@ -2,14 +2,27 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
 import {
-    Receipt, Plus, Search, Download, Eye, X, CheckCircle,
-    Clock, TrendingUp, AlertCircle, Package, User, FileText,
+    Receipt, Plus, Search, Download, CheckCircle,
+    Clock, TrendingUp, AlertCircle, Package, FileText,
     Stethoscope, Bed, Pill, ChevronRight, Zap, Layers,
-    ArrowLeft, Printer
+    ArrowLeft, Printer, Loader2, Minus, X,
 } from 'lucide-react';
+import { PageHeader } from '@/components/app/page-header';
+import { StatCard } from '@/components/app/stat-card';
+import { EmptyState } from '@/components/app/empty-state';
+import { StatusPill } from '@/components/app/status-pill';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Insurance', 'Cheque'];
 const CATEGORY_ICONS = { OPD: '🏥', IPD: '🛏️', Lab: '🧪', Imaging: '📡', Procedure: '⚕️', Other: '📋' };
+const DISCOUNT_PRESETS = [0, 5, 10, 15, 20, 50];
 
 const BillingDashboard = () => {
     const toast = useToast();
@@ -89,10 +102,7 @@ const BillingDashboard = () => {
             if (res.data.Results) setPatientHistory(res.data.Results);
         } catch (e) { }
         setLoadingHistory(false);
-        // Autofocus the catalog search input on next tick
-        setTimeout(() => {
-            document.getElementById('catalog-search-input')?.focus();
-        }, 150);
+        setTimeout(() => { document.getElementById('catalog-search-input')?.focus(); }, 150);
     };
 
     // ========== BILL ITEMS ==========
@@ -164,7 +174,7 @@ const BillingDashboard = () => {
                 billItems: JSON.stringify(billItems), subtotal,
                 discountPercent: discPct, discountAmount: discAmt,
                 taxPercent, taxAmount: taxAmt, grandTotal,
-                paymentStatus, paymentMode
+                paymentStatus, paymentMode,
             });
             if (res.data.ErrorMessage) { toast.error(res.data.ErrorMessage); return; }
             toast.success('Bill generated successfully!');
@@ -186,13 +196,15 @@ const BillingDashboard = () => {
         } catch (e) { toast.error('Failed'); }
     };
 
-    // ========== PDF ==========
+    /*
+     * ── Invoice print / PDF ──
+     * Left outside the design system deliberately, same reasoning as the prescription
+     * printout: this produces a physical tax invoice a patient keeps for insurance
+     * claims, not app UI. Untouched from the pre-makeover version.
+     */
     const loadHtml2Pdf = () => {
         return new Promise((resolve, reject) => {
-            if (window.html2pdf) {
-                resolve(window.html2pdf);
-                return;
-            }
+            if (window.html2pdf) { resolve(window.html2pdf); return; }
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
             script.onload = () => resolve(window.html2pdf);
@@ -223,16 +235,13 @@ const BillingDashboard = () => {
         const logoUrl = settings.logoPath ? window.location.origin + '/api/Files' + settings.logoPath.replace('/uploads', '') : '';
         const sigUrl = settings.signatureImagePath ? window.location.origin + '/api/Files' + settings.signatureImagePath.replace('/uploads', '') : '';
 
-        return {
-            settings, pat, pn, bd, fmt, itemRows, statusClr, logoUrl, sigUrl
-        };
+        return { settings, pat, pn, bd, fmt, itemRows, statusClr, logoUrl, sigUrl };
     };
 
     const getInvoiceHtml = (bill, data) => {
         return '<!DOCTYPE html><html><head><title>Invoice ' + (bill.billNumber || '') + '</title>' +
             '<style>@page{margin:15mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;color:#1a1a1a;padding:30px 40px;max-width:820px;margin:0 auto;font-size:12px;line-height:1.5}table{width:100%;border-collapse:collapse}th{background:#2d3748;color:#fff;padding:7px 10px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px}td{padding:7px 10px;border-bottom:1px solid #edf2f7;font-size:11px;color:#2d3748}@media print{body{padding:15px}.np{display:none!important}}</style>' +
             '</head><body>' +
-            // HEADER
             '<div style="display:flex;align-items:center;gap:24px;padding-bottom:14px;border-bottom:2px solid #1a365d;margin-bottom:6px">' +
             (data.logoUrl ? '<img src="' + data.logoUrl + '" style="width:68px;height:68px;object-fit:contain" onerror="this.style.display=\'none\'" />' : '') +
             '<div style="flex:1"><h1 style="font-size:20px;font-weight:800;color:#1a365d;margin-bottom:2px">' + (data.settings.hospitalName || 'Hospital') + '</h1>' +
@@ -240,9 +249,7 @@ const BillingDashboard = () => {
             '<p style="font-size:10px;color:#555">Tel: ' + (data.settings.phoneNumber || '-') + ' | Email: ' + (data.settings.email || '-') + '</p>' +
             (data.settings.gstNumber ? '<p style="font-size:9px;color:#777;margin-top:2px">GSTIN: ' + data.settings.gstNumber + '</p>' : '') +
             '</div></div>' +
-            // TITLE BAR
             '<div style="background:#1a365d;color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px">TAX INVOICE</div>' +
-            // PATIENT + INVOICE INFO
             '<div style="display:flex;gap:20px;margin-bottom:16px">' +
             '<div style="flex:1;border:1px solid #e2e8f0;padding:12px 14px">' +
             '<h4 style="font-size:9px;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;border-bottom:1px solid #e2e8f0;padding-bottom:4px">Patient Information</h4>' +
@@ -258,22 +265,18 @@ const BillingDashboard = () => {
             '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#718096">Type</span><span style="font-weight:600">' + (bill.billType || 'Comprehensive') + '</span></div>' +
             '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:#718096">Status</span><span style="font-weight:700;color:' + data.statusClr + '">' + (bill.paymentStatus || 'Unpaid') + '</span></div>' +
             '</div></div>' +
-            // TABLE
             '<table><thead><tr><th style="width:35px">S.No</th><th>Description of Charges</th><th>Department</th><th style="width:50px;text-align:right">Qty</th><th style="width:90px;text-align:right">Unit Rate (INR)</th><th style="width:100px;text-align:right">Amount (INR)</th></tr></thead><tbody>' +
             data.itemRows + '</tbody></table>' +
-            // FINANCIAL SUMMARY
             '<div style="display:flex;justify-content:flex-end;margin-top:18px"><div style="width:320px">' +
             '<div style="display:flex;justify-content:space-between;padding:5px 14px;font-size:12px;border-bottom:1px dotted #e2e8f0"><span style="color:#4a5568">Subtotal</span><span style="font-weight:600;font-family:monospace">' + data.fmt(bill.subtotal) + '</span></div>' +
             (Number(bill.discountAmount) > 0 ? '<div style="display:flex;justify-content:space-between;padding:5px 14px;font-size:12px;border-bottom:1px dotted #e2e8f0"><span style="color:#4a5568">Less: Discount (' + Number(bill.discountPercent).toFixed(1) + '%)</span><span style="font-weight:600;font-family:monospace;color:#c53030">- ' + data.fmt(bill.discountAmount) + '</span></div>' : '') +
             (Number(bill.taxAmount) > 0 ? '<div style="display:flex;justify-content:space-between;padding:5px 14px;font-size:12px;border-bottom:1px dotted #e2e8f0"><span style="color:#4a5568">Add: GST/Tax (' + Number(bill.taxPercent).toFixed(1) + '%)</span><span style="font-weight:600;font-family:monospace;color:#2f855a">+ ' + data.fmt(bill.taxAmount) + '</span></div>' : '') +
             '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#1a365d;color:#fff;font-size:15px;font-weight:800;border-radius:4px;margin-top:6px"><span>Net Amount Payable</span><span style="font-family:monospace">INR ' + data.fmt(bill.grandTotal) + '</span></div>' +
             '</div></div>' +
-            // PAYMENT BAR
             '<div style="display:flex;gap:18px;margin-top:14px;padding:10px 14px;background:#f7fafc;border:1px solid #e2e8f0">' +
             '<div style="font-size:10px"><div style="color:#718096;text-transform:uppercase;font-weight:700">Payment Status</div><div style="font-weight:700;margin-top:2px;color:' + data.statusClr + '">' + (bill.paymentStatus || 'Unpaid') + '</div></div>' +
             (bill.paymentMode ? '<div style="font-size:10px"><div style="color:#718096;text-transform:uppercase;font-weight:700">Mode</div><div style="font-weight:700;margin-top:2px">' + bill.paymentMode + '</div></div>' : '') +
             '<div style="font-size:10px"><div style="color:#718096;text-transform:uppercase;font-weight:700">Generated</div><div style="font-weight:700;margin-top:2px">' + data.bd.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + '</div></div></div>' +
-            // FOOTER
             '<div style="margin-top:36px;border-top:1px solid #e2e8f0;padding-top:18px">' +
             '<div style="display:flex;justify-content:space-between;margin-bottom:18px">' +
             '<div style="text-align:center"><div style="width:180px;border-top:1px solid #2d3748;padding-top:4px;font-size:10px;color:#4a5568">Received By (Patient / Attendant)</div></div>' +
@@ -289,35 +292,20 @@ const BillingDashboard = () => {
         try {
             const data = await fetchInvoicePrintData(bill);
             const html = getInvoiceHtml(bill, data);
-
             const iframe = document.createElement('iframe');
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = '0';
+            iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0';
+            iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
             document.body.appendChild(iframe);
-
             const doc = iframe.contentWindow.document;
-            doc.write(html);
-            doc.close();
-
+            doc.write(html); doc.close();
             iframe.contentWindow.focus();
             setTimeout(() => {
-                try {
-                    iframe.contentWindow.print();
-                } catch (printErr) {
-                    console.error("Iframe print triggered error:", printErr);
-                }
-                setTimeout(() => {
-                    document.body.removeChild(iframe);
-                }, 1000);
+                try { iframe.contentWindow.print(); } catch (printErr) { console.error('Iframe print triggered error:', printErr); }
+                setTimeout(() => { document.body.removeChild(iframe); }, 1000);
             }, 500);
-
         } catch (e) {
-            console.error("Print failed:", e);
-            toast.error("Failed to print invoice.");
+            console.error('Print failed:', e);
+            toast.error('Failed to print invoice.');
         }
     };
 
@@ -326,44 +314,30 @@ const BillingDashboard = () => {
         try {
             const data = await fetchInvoicePrintData(bill);
             const html = getInvoiceHtml(bill, data);
-
             const html2pdf = await loadHtml2Pdf();
-            
             const iframe = document.createElement('iframe');
-            iframe.style.position = 'fixed';
-            iframe.style.left = '0';
-            iframe.style.top = '0';
-            iframe.style.width = '800px'; 
-            iframe.style.height = '1130px';
-            iframe.style.border = '0';
-            iframe.style.zIndex = '-9999';
-            iframe.style.opacity = '0';
-            iframe.style.pointerEvents = 'none';
+            iframe.style.position = 'fixed'; iframe.style.left = '0'; iframe.style.top = '0';
+            iframe.style.width = '800px'; iframe.style.height = '1130px'; iframe.style.border = '0';
+            iframe.style.zIndex = '-9999'; iframe.style.opacity = '0'; iframe.style.pointerEvents = 'none';
             document.body.appendChild(iframe);
-
             const doc = iframe.contentWindow.document;
-            doc.write(html);
-            doc.close();
-
-            // Wait 500ms for signatures and images to load
+            doc.write(html); doc.close();
             await new Promise(resolve => setTimeout(resolve, 500));
-
             const opt = {
-                margin:       10,
-                filename:     `Invoice_${bill.billNumber || 'Invoice'}_${bill.billId}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                margin: 10, filename: `Invoice_${bill.billNumber || 'Invoice'}_${bill.billId}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             };
-
             await html2pdf().from(iframe.contentWindow.document.body).set(opt).save();
             document.body.removeChild(iframe);
-            toast.success("PDF Downloaded successfully!");
+            toast.success('PDF downloaded successfully!');
         } catch (e) {
-            console.error("PDF generation failed:", e);
-            toast.error("Failed to download PDF.");
+            console.error('PDF generation failed:', e);
+            toast.error('Failed to download PDF.');
         }
     };
+    /* ── End invoice print / PDF ── */
 
     // ========== FILTERS ==========
     const filteredBills = bills.filter(b => {
@@ -378,67 +352,41 @@ const BillingDashboard = () => {
         return true;
     });
 
-    const getStatusStyle = (s) => {
-        if (s === 'Paid') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-        if (s === 'Partial') return 'bg-amber-50 text-amber-700 border border-amber-200';
-        return 'bg-red-50 text-red-700 border border-red-200';
-    };
-
     // ========== GLOBAL SHORTCUTS ==========
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Ignore hotkeys when actively typing inside custom text inputs or amount boxes
-            if (document.activeElement?.tagName === 'INPUT' && 
-                document.activeElement?.type === 'text' && 
-                document.activeElement?.id !== 'patient-search-input' && 
+            if (document.activeElement?.tagName === 'INPUT' &&
+                document.activeElement?.type === 'text' &&
+                document.activeElement?.id !== 'patient-search-input' &&
                 document.activeElement?.id !== 'catalog-search-input') {
                 return;
             }
-
-            // F1: Go to "New Bill" / Focus Patient Search
             if (e.key === 'F1') {
                 e.preventDefault();
-                if (view !== 'create') {
-                    setView('create');
-                }
-                setTimeout(() => {
-                    document.getElementById('patient-search-input')?.focus();
-                }, 100);
+                if (view !== 'create') setView('create');
+                setTimeout(() => { document.getElementById('patient-search-input')?.focus(); }, 100);
             }
-            // F2: Focus Catalog Search
             if (e.key === 'F2') {
                 e.preventDefault();
-                if (view === 'create') {
-                    document.getElementById('catalog-search-input')?.focus();
-                }
+                if (view === 'create') document.getElementById('catalog-search-input')?.focus();
             }
-            // F4: Auto-Fill Clinical History
             if (e.key === 'F4') {
                 e.preventDefault();
-                if (view === 'create' && selectedPatient) {
-                    autoAddFromHistory();
-                }
+                if (view === 'create' && selectedPatient) autoAddFromHistory();
             }
-            // F8: Generate Invoice
             if (e.key === 'F8') {
                 e.preventDefault();
-                if (view === 'create' && billItems.length > 0) {
-                    submitBill();
-                }
+                if (view === 'create' && billItems.length > 0) submitBill();
             }
-            // Escape: Exit View
             if (e.key === 'Escape') {
-                if (view === 'create') {
-                    goBackToList();
-                } else if (view === 'detail') {
-                    setView('list');
-                    setSelectedBill(null);
-                }
+                if (view === 'create') goBackToList();
+                else if (view === 'detail') { setView('list'); setSelectedBill(null); }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [view, selectedPatient, billItems, autoAddFromHistory, submitBill, goBackToList]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view, selectedPatient, billItems]);
 
     // ===============================================
     // VIEW: BILL DETAIL
@@ -446,142 +394,103 @@ const BillingDashboard = () => {
     if (view === 'detail' && selectedBill) {
         const items = (() => { try { return JSON.parse(selectedBill.billItems || '[]'); } catch { return []; } })();
         return (
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 pb-4">
-                    <button 
-                        onClick={() => { setView('list'); setSelectedBill(null); }} 
-                        className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors"
-                    >
-                        <ArrowLeft size={16} />
-                        Back to Bills List
-                    </button>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button 
-                            onClick={() => handlePrintInvoice(selectedBill)} 
-                            className="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-xs hover:bg-zinc-50 hover:text-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 gap-2"
-                        >
-                            <Printer size={15} />
-                            Print Invoice
-                        </button>
-                        <button 
-                            onClick={() => handleDownloadInvoicePdf(selectedBill)} 
-                            className="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-xs hover:bg-indigo-100 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 gap-2"
-                        >
-                            <Download size={15} />
-                            Download PDF
-                        </button>
+            <div className="mx-auto max-w-4xl space-y-5">
+                <div className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <Button variant="ghost" size="sm" onClick={() => { setView('list'); setSelectedBill(null); }} className="-ml-2 text-muted-foreground">
+                        <ArrowLeft /> Back to bills
+                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handlePrintInvoice(selectedBill)}><Printer /> Print</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadInvoicePdf(selectedBill)}><Download /> PDF</Button>
                         {selectedBill.paymentStatus !== 'Paid' && (
-                            <button 
-                                onClick={() => { updatePayment(selectedBill.billId, 'Paid', 'Cash'); setSelectedBill({ ...selectedBill, paymentStatus: 'Paid' }); }}
-                                className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow-xs hover:bg-zinc-900/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 gap-2"
-                            >
-                                <CheckCircle size={15} />
-                                Mark as Fully Paid
-                            </button>
+                            <Button size="sm" onClick={() => { updatePayment(selectedBill.billId, 'Paid', 'Cash'); setSelectedBill({ ...selectedBill, paymentStatus: 'Paid' }); }}>
+                                <CheckCircle /> Mark as paid
+                            </Button>
                         )}
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-xs p-6 md:p-8 space-y-6">
-                    <div className="flex flex-col md:flex-row justify-between gap-4">
-                        <div className="space-y-1">
-                            <h2 className="text-xl font-bold tracking-tight text-zinc-900">{selectedBill.billNumber || `#${selectedBill.billId}`}</h2>
-                            <p className="text-xs text-zinc-500 font-normal">
-                                {selectedBill.billType || 'Comprehensive'} Bill &bull; {selectedBill.createdAt ? new Date(selectedBill.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-                            </p>
+                <Card className="space-y-6 p-6 sm:p-8">
+                    <div>
+                        <h2 className="text-xl font-semibold tracking-tight">{selectedBill.billNumber || `#${selectedBill.billId}`}</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {selectedBill.billType || 'Comprehensive'} bill · {selectedBill.createdAt ? new Date(selectedBill.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Patient</p>
+                            <p className="mt-1 text-sm font-semibold">{selectedBill.patientName || '-'}</p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Payment status</p>
+                            <div className="mt-1.5"><StatusPill status={selectedBill.paymentStatus || 'Unpaid'} /></div>
+                        </div>
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Total amount</p>
+                            <p className="tabular mt-1 text-lg font-semibold">₹{Number(selectedBill.grandTotal || 0).toFixed(2)}</p>
                         </div>
                     </div>
 
-                    {/* Patient & Financial Info Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-zinc-50/50 border border-zinc-200/50 rounded-lg p-4">
-                            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Patient Name</p>
-                            <p className="font-semibold text-zinc-900 text-sm mt-1">{selectedBill.patientName || '-'}</p>
-                        </div>
-                        <div className="bg-zinc-50/50 border border-zinc-200/50 rounded-lg p-4">
-                            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Payment Status</p>
-                            <div className="mt-1.5">
-                                <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold tracking-wide capitalize ${getStatusStyle(selectedBill.paymentStatus)}`}>
-                                    {selectedBill.paymentStatus || 'Unpaid'}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="bg-zinc-50/50 border border-zinc-200/50 rounded-lg p-4">
-                            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Total Amount</p>
-                            <p className="text-lg font-bold text-zinc-900 font-mono mt-1">₹{Number(selectedBill.grandTotal || 0).toFixed(2)}</p>
-                        </div>
-                    </div>
-
-                    {/* Service Charges List */}
                     <div className="space-y-2">
-                        <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Itemized Hospital Charges</h4>
-                        <div className="bg-white border border-zinc-200 rounded-lg divide-y divide-zinc-100 overflow-hidden">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Itemized charges</h4>
+                        <div className="divide-y overflow-hidden rounded-lg border">
                             {items.length === 0 ? (
-                                <div className="text-center py-6 text-zinc-400 text-sm">No items attached to this invoice.</div>
-                            ) : (
-                                items.map((it, i) => (
-                                    <div key={i} className="flex justify-between items-center px-4 py-3 hover:bg-zinc-50/50 transition-colors text-sm">
-                                        <div className="space-y-0.5">
-                                            <span className="font-semibold text-zinc-800">{it.itemName}</span>
-                                            <div className="text-xs text-zinc-400 font-normal">
-                                                Qty: {it.quantity} &bull; Dept: {it.category} {it.rateType && `(${it.rateType?.replace('_', ' ')})`}
-                                            </div>
-                                        </div>
-                                        <span className="font-bold text-zinc-900 font-mono">₹{Number(it.total || 0).toFixed(2)}</span>
+                                <p className="py-6 text-center text-sm text-muted-foreground">No items attached to this invoice.</p>
+                            ) : items.map((it, i) => (
+                                <div key={i} className="flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-accent/30">
+                                    <div>
+                                        <span className="font-medium">{it.itemName}</span>
+                                        <p className="text-xs text-muted-foreground">Qty {it.quantity} · {it.category}{it.rateType && ` (${it.rateType.replace('_', ' ')})`}</p>
                                     </div>
-                                ))
-                            )}
+                                    <span className="tabular font-semibold">₹{Number(it.total || 0).toFixed(2)}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Financial Summary */}
-                    <div className="border-t border-zinc-100 pt-4 flex justify-end">
-                        <div className="bg-zinc-50/50 border border-zinc-200/50 rounded-lg p-5 space-y-2.5 w-full max-w-sm">
-                            <div className="flex justify-between text-xs text-zinc-500">
+                    <div className="flex justify-end border-t pt-4">
+                        <div className="w-full max-w-sm space-y-2 rounded-lg border bg-muted/30 p-5">
+                            <div className="flex justify-between text-xs text-muted-foreground">
                                 <span>Subtotal</span>
-                                <span className="font-semibold text-zinc-900 font-mono">₹{Number(selectedBill.subtotal || 0).toFixed(2)}</span>
+                                <span className="tabular font-semibold text-foreground">₹{Number(selectedBill.subtotal || 0).toFixed(2)}</span>
                             </div>
                             {Number(selectedBill.discountAmount) > 0 && (
-                                <div className="flex justify-between text-xs text-red-600 font-medium">
+                                <div className="flex justify-between text-xs font-medium text-destructive">
                                     <span>Discount ({Number(selectedBill.discountPercent).toFixed(1)}%)</span>
-                                    <span className="font-semibold font-mono">-₹{Number(selectedBill.discountAmount).toFixed(2)}</span>
+                                    <span className="tabular font-semibold">-₹{Number(selectedBill.discountAmount).toFixed(2)}</span>
                                 </div>
                             )}
                             {Number(selectedBill.taxAmount) > 0 && (
-                                <div className="flex justify-between text-xs text-emerald-600 font-medium">
+                                <div className="flex justify-between text-xs font-medium text-success">
                                     <span>Tax / GST ({Number(selectedBill.taxPercent).toFixed(1)}%)</span>
-                                    <span className="font-semibold font-mono">+₹{Number(selectedBill.taxAmount).toFixed(2)}</span>
+                                    <span className="tabular font-semibold">+₹{Number(selectedBill.taxAmount).toFixed(2)}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between text-sm font-bold text-zinc-900 border-t border-zinc-200/80 pt-2 font-mono">
-                                <span>Total Payable</span>
+                            <div className="tabular flex justify-between border-t pt-2 text-sm font-semibold">
+                                <span>Total payable</span>
                                 <span>₹{Number(selectedBill.grandTotal || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     </div>
-                </div>
+                </Card>
             </div>
         );
     }
 
     // ===============================================
-    // VIEW: CREATE BILL (FULL PAGE)
+    // VIEW: CREATE BILL
     // ===============================================
     if (view === 'create') {
         return (
-            <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
-                {/* Top Action Bar */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-zinc-200">
+            <div className="mx-auto max-w-6xl space-y-5">
+                <div className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={goBackToList} 
-                            className="p-2 rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900 shadow-xs hover:bg-zinc-50 transition-colors"
-                        >
-                            <ArrowLeft size={16} />
-                        </button>
-                        <div className="space-y-0.5">
-                            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Generate New Invoice</h1>
-                            <p className="text-xs text-zinc-500 font-normal">
+                        <Button variant="outline" size="icon" onClick={goBackToList}><ArrowLeft className="h-4 w-4" /></Button>
+                        <div>
+                            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Generate invoice</h1>
+                            <p className="text-xs text-muted-foreground">
                                 {selectedPatient ? `Preparing bill for ${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Search and select a patient to compile items.'}
                             </p>
                         </div>
@@ -589,474 +498,321 @@ const BillingDashboard = () => {
                     {billItems.length > 0 && (
                         <div className="flex items-center gap-4">
                             <div className="text-right">
-                                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Estimated Total</p>
-                                <p className="text-xl font-bold text-zinc-900 font-mono">₹{grandTotal.toFixed(2)}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Estimated total</p>
+                                <p className="tabular text-xl font-semibold">₹{grandTotal.toFixed(2)}</p>
                             </div>
-                            <button 
-                                onClick={submitBill} 
-                                className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-zinc-50 shadow hover:bg-zinc-900/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 gap-2"
-                            >
-                                <CheckCircle size={15} />
-                                Generate Bill [F8]
-                            </button>
+                            <Button onClick={submitBill}><CheckCircle /> Generate bill <kbd className="ml-1 opacity-60">F8</kbd></Button>
                         </div>
                     )}
                 </div>
 
-                {/* Quick Help Hotkeys Banner */}
-                <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 text-[11px] font-medium text-zinc-500 shadow-xs">
-                    <div className="flex items-center gap-1.5">
-                        <span className="inline-flex h-2 w-2 rounded-full bg-zinc-400 animate-pulse" />
-                        <span>⚡ <strong>Billing Power User Shortcuts:</strong></span>
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-3 text-[11px] text-muted-foreground">
+                    <span className="font-medium">Power-user shortcuts:</span>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">F1</kbd> Patient search</span>
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">F2</kbd> Service input</span>
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">Enter</kbd> Add matched service</span>
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">F4</kbd> Auto-fill history</span>
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">F8</kbd> Generate bill</span>
+                        <span><kbd className="rounded border bg-muted px-1.5 py-0.5 font-semibold text-foreground">Esc</kbd> Exit</span>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">F1</kbd> Start Patient Search</span>
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">F2</kbd> Focus Service Input</span>
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">Enter</kbd> Add Matched Service</span>
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">F4</kbd> Auto-Fill clinical history</span>
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">F8</kbd> Generate Bill</span>
-                        <span><kbd className="px-1.5 py-0.5 rounded border border-zinc-200 bg-white text-zinc-800 font-bold">Esc</kbd> Exit View</span>
-                    </div>
-                </div>
+                </Card>
 
-                {/* Patient Search Drawer */}
                 {!selectedPatient ? (
-                    <div className="bg-white rounded-xl border border-zinc-200 shadow-xs p-6 space-y-4">
-                        <h3 className="text-sm font-semibold text-zinc-900">Select Patient Profile</h3>
+                    <Card className="space-y-4 p-6">
+                        <h3 className="text-sm font-semibold">Select patient</h3>
                         <div className="relative max-w-2xl">
-                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                            <input 
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
                                 id="patient-search-input"
-                                value={patientSearch} 
+                                value={patientSearch}
                                 onChange={e => { setPatientSearch(e.target.value); searchPatients(e.target.value); }}
-                                placeholder="Search by patient name, contact number, or code..."
-                                className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-zinc-200 text-sm font-medium outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white text-zinc-900 placeholder-zinc-400 transition-all shadow-xs"
-                                autoFocus 
+                                placeholder="Search by patient name, contact number or code…"
+                                className="pl-9" autoFocus
                             />
                             {patients.length > 0 && (
-                                <div className="absolute z-20 mt-1 w-full bg-white rounded-lg shadow-lg border border-zinc-200 max-h-72 overflow-y-auto divide-y divide-zinc-100 animate-in fade-in duration-100">
+                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 divide-y overflow-y-auto rounded-lg border bg-popover shadow-md scrollbar-thin">
                                     {patients.map(p => (
-                                        <button 
-                                            key={p.patientId} 
-                                            onClick={() => selectPatient(p)}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 transition-colors"
-                                        >
-                                            <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700 font-bold text-sm">
+                                        <button key={p.patientId} onClick={() => selectPatient(p)}
+                                                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-sm font-semibold">
                                                 {(p.firstName || '?')[0]}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-zinc-950 truncate">{p.firstName} {p.lastName}</p>
-                                                <p className="text-xs text-zinc-500 font-normal">
-                                                    {p.patientCode || `#${p.patientId}`} &bull; {p.gender} &bull; {p.phoneNumber}
-                                                </p>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-medium">{p.firstName} {p.lastName}</p>
+                                                <p className="tabular text-xs text-muted-foreground">{p.patientCode || `#${p.patientId}`} · {p.gender} · {p.phoneNumber}</p>
                                             </div>
-                                            <ChevronRight size={14} className="text-zinc-300" />
+                                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                         </button>
                                     ))}
                                 </div>
                             )}
                         </div>
                         {patients.length === 0 && patientSearch.length === 0 && (
-                            <p className="text-center text-xs text-zinc-400 py-6 border border-dashed border-zinc-200 rounded-lg bg-zinc-50/50">
-                                Start typing in the input box above to lookup registered patients. (Press [F1] anytime to focus here)
+                            <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
+                                Start typing to look up registered patients. Press <kbd className="rounded border bg-muted px-1 font-semibold text-foreground">F1</kbd> anytime to focus here.
                             </p>
                         )}
-                    </div>
+                    </Card>
                 ) : (
-                    /* Patient selected — full checkout dashboard */
-                    <div className="space-y-6">
-                        {/* Selected Patient Overview Header */}
-                        <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-5">
+                        <Card className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-50 font-bold text-sm">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
                                     {(selectedPatient.firstName || '?')[0]}
                                 </div>
-                                <div className="space-y-0.5">
-                                    <p className="font-semibold text-zinc-900 text-base">{selectedPatient.firstName} {selectedPatient.lastName}</p>
-                                    <p className="text-xs text-zinc-500 font-normal">
-                                        ID: {selectedPatient.patientCode || `#${selectedPatient.patientId}`} &bull; Gender: {selectedPatient.gender} &bull; Phone: {selectedPatient.phoneNumber} &bull; Age: {selectedPatient.age || 'N/A'}
+                                <div>
+                                    <p className="font-semibold">{selectedPatient.firstName} {selectedPatient.lastName}</p>
+                                    <p className="tabular text-xs text-muted-foreground">
+                                        {selectedPatient.patientCode || `#${selectedPatient.patientId}`} · {selectedPatient.gender} · {selectedPatient.phoneNumber} · Age {selectedPatient.age || 'N/A'}
                                     </p>
                                 </div>
                             </div>
-                            <button 
-                                onClick={() => { setSelectedPatient(null); setPatientHistory(null); setBillItems([]); }}
-                                className="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
-                            >
-                                Change Patient Profile
-                            </button>
-                        </div>
+                            <Button variant="outline" size="sm" onClick={() => { setSelectedPatient(null); setPatientHistory(null); setBillItems([]); }}>
+                                Change patient
+                            </Button>
+                        </Card>
 
-                        {/* Clinic Activity Stats */}
                         {loadingHistory ? (
-                            <div className="flex justify-center py-4"><div className="animate-spin h-5 w-5 border-2 border-zinc-950 border-t-transparent rounded-full" /></div>
+                            <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                         ) : patientHistory && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-zinc-50/50 p-4 border border-zinc-200 rounded-xl shadow-xs">
-                                <div className="bg-white border border-zinc-200/50 rounded-lg p-3 text-center">
-                                    <Stethoscope size={15} className="mx-auto text-zinc-500 mb-1" />
-                                    <p className="text-lg font-bold text-zinc-950 font-mono">{patientHistory.opdVisitCount || 0}</p>
-                                    <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">OPD Consultations</p>
-                                </div>
-                                <div className="bg-white border border-zinc-200/50 rounded-lg p-3 text-center">
-                                    <Bed size={15} className="mx-auto text-zinc-500 mb-1" />
-                                    <p className="text-lg font-bold text-zinc-950 font-mono">{patientHistory.ipdAdmissionCount || 0}</p>
-                                    <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">IPD Admissions</p>
-                                </div>
-                                <div className="bg-white border border-zinc-200/50 rounded-lg p-3 text-center">
-                                    <Clock size={15} className="mx-auto text-zinc-500 mb-1" />
-                                    <p className="text-lg font-bold text-zinc-950 font-mono">{patientHistory.totalIpdDays || 0}</p>
-                                    <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">IPD Stay Days</p>
-                                </div>
-                                <div className="bg-white border border-zinc-200/50 rounded-lg p-3 text-center">
-                                    <Pill size={15} className="mx-auto text-zinc-500 mb-1" />
-                                    <p className="text-lg font-bold text-zinc-950 font-mono">{patientHistory.prescriptions?.length || 0}</p>
-                                    <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Active Scripts</p>
-                                </div>
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                {[
+                                    { icon: Stethoscope, value: patientHistory.opdVisitCount || 0, label: 'OPD consultations' },
+                                    { icon: Bed, value: patientHistory.ipdAdmissionCount || 0, label: 'IPD admissions' },
+                                    { icon: Clock, value: patientHistory.totalIpdDays || 0, label: 'IPD stay days' },
+                                    { icon: Pill, value: patientHistory.prescriptions?.length || 0, label: 'Active scripts' },
+                                ].map((s, i) => (
+                                    <Card key={i} className="p-3 text-center">
+                                        <s.icon className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                                        <p className="tabular text-lg font-semibold">{s.value}</p>
+                                        <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                                    </Card>
+                                ))}
                             </div>
                         )}
 
-                        {/* Interactive Checkout Toolbar */}
-                        <div className="flex gap-2">
-                            <button 
-                                onClick={autoAddFromHistory} 
-                                className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-zinc-50 shadow hover:bg-zinc-900/90 transition-all gap-1.5"
-                                title="Shortcut: Press [F4]"
-                            >
-                                <Zap size={14} className="text-amber-400 fill-amber-400" />
-                                Auto-Fill from Clinical History [F4]
-                            </button>
-                            <button 
-                                onClick={addCustomItem} 
-                                className="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 hover:text-zinc-900 transition-all gap-1.5"
-                            >
-                                <Plus size={14} />
-                                Add Custom Service Charge
-                            </button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button onClick={autoAddFromHistory} className="gap-1.5" title="Shortcut: F4">
+                                <Zap className="fill-current" /> Auto-fill from history <kbd className="opacity-60">F4</kbd>
+                            </Button>
+                            <Button variant="outline" onClick={addCustomItem}><Plus /> Add custom charge</Button>
                         </div>
 
-                        {/* Left Catalog Sidepanel & Right Checkout Cart */}
-                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                            {/* Service Rate Catalog Selector */}
-                            <div className="lg:col-span-2 bg-white rounded-xl border border-zinc-200 p-5 space-y-4 shadow-xs">
-                                <div className="space-y-1">
-                                    <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                                        <Package size={14} />
-                                        Hospital Service Rates (F2)
-                                    </p>
-                                </div>
-                                <input 
+                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+                            {/* Service catalog */}
+                            <Card className="space-y-4 p-5 lg:col-span-2">
+                                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <Package className="h-3.5 w-3.5" /> Hospital service rates <kbd className="opacity-60 normal-case">F2</kbd>
+                                </p>
+                                <Input
                                     id="catalog-search-input"
-                                    value={catalogSearch} 
-                                    onChange={e => setCatalogSearch(e.target.value)} 
+                                    value={catalogSearch}
+                                    onChange={e => setCatalogSearch(e.target.value)}
                                     onKeyDown={e => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
                                             if (filteredCatalog.length > 0) {
                                                 addFromCatalog(filteredCatalog[0]);
-                                                setCatalogSearch(''); // Clear query to ready for next item
+                                                setCatalogSearch('');
                                                 toast.success(`Added ${filteredCatalog[0].serviceName}`);
                                             } else {
                                                 toast.error('No service matched.');
                                             }
                                         }
                                     }}
-                                    placeholder="Type keyword & press [Enter] to instantly add..."
-                                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-xs font-medium outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white text-zinc-900 placeholder-zinc-400 transition-all" 
+                                    placeholder="Type keyword & press Enter to add…"
                                 />
-                                <div className="flex gap-1 flex-wrap">
-                                    <button 
-                                        onClick={() => setSelectedCategory('')} 
-                                        className={`px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all ${
-                                            !selectedCategory 
-                                                ? 'bg-zinc-900 text-zinc-50 shadow-xs' 
-                                                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-                                        }`}
-                                    >
+                                <div className="flex flex-wrap gap-1">
+                                    <button onClick={() => setSelectedCategory('')}
+                                            className={cn('rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors', !selectedCategory ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent')}>
                                         All
                                     </button>
                                     {categories.map(c => (
-                                        <button 
-                                            key={c} 
-                                            onClick={() => setSelectedCategory(c === selectedCategory ? '' : c)}
-                                            className={`px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-all ${
-                                                selectedCategory === c 
-                                                    ? 'bg-zinc-900 text-zinc-50 shadow-xs' 
-                                                    : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-                                            }`}
-                                        >
+                                        <button key={c} onClick={() => setSelectedCategory(c === selectedCategory ? '' : c)}
+                                                className={cn('rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors', selectedCategory === c ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent')}>
                                             {CATEGORY_ICONS[c]} {c}
                                         </button>
                                     ))}
                                 </div>
-                                <div className="max-h-[50vh] overflow-y-auto space-y-1 divide-y divide-zinc-50">
+                                <div className="max-h-[50vh] space-y-1 overflow-y-auto scrollbar-thin">
                                     {filteredCatalog.map(s => (
-                                        <button 
-                                            key={s.serviceId} 
-                                            onClick={() => addFromCatalog(s)}
-                                            className="w-full flex items-center justify-between px-3 py-2.5 bg-zinc-50/50 hover:bg-zinc-100/50 rounded-lg transition-all text-left border border-zinc-100 group"
-                                        >
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs font-semibold text-zinc-800">{s.serviceName}</p>
-                                                <p className="text-[10px] text-zinc-400 font-normal uppercase">{s.category} &bull; {s.rateType}</p>
+                                        <button key={s.serviceId} onClick={() => addFromCatalog(s)}
+                                                className="group flex w-full items-center justify-between rounded-md border bg-muted/30 px-3 py-2.5 text-left transition-colors hover:bg-accent">
+                                            <div>
+                                                <p className="text-xs font-semibold">{s.serviceName}</p>
+                                                <p className="text-[10px] uppercase text-muted-foreground">{s.category} · {s.rateType}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold text-zinc-900 font-mono">₹{Number(s.rate).toFixed(2)}</span>
-                                                <Plus size={14} className="text-zinc-400 group-hover:text-zinc-900 transition-colors" />
+                                                <span className="tabular text-xs font-semibold">₹{Number(s.rate).toFixed(2)}</span>
+                                                <Plus className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
                                             </div>
                                         </button>
                                     ))}
                                 </div>
-                            </div>
+                            </Card>
 
-                            {/* Compilation Cart and Totals Panel */}
-                            <div className="lg:col-span-3 space-y-4">
-                                <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-xs space-y-4">
-                                    <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                                        <Layers size={14} />
-                                        Invoice Cart Items ({billItems.length})
+                            {/* Cart + totals */}
+                            <div className="space-y-4 lg:col-span-3">
+                                <Card className="space-y-4 p-5">
+                                    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        <Layers className="h-3.5 w-3.5" /> Invoice cart ({billItems.length})
                                     </p>
                                     {billItems.length === 0 ? (
-                                        <div className="text-center py-12 border border-dashed border-zinc-200 rounded-lg bg-zinc-50/50">
-                                            <FileText size={28} className="mx-auto text-zinc-300 mb-2" />
-                                            <p className="text-xs text-zinc-400 font-normal">No services selected yet. Add items from the catalog or auto-fill.</p>
-                                        </div>
+                                        <EmptyState icon={FileText} title="No services selected yet" description="Add items from the catalog or auto-fill from history." />
                                     ) : (
-                                        <div className="space-y-2.5 max-h-[45vh] overflow-y-auto">
+                                        <div className="max-h-[45vh] space-y-2.5 overflow-y-auto scrollbar-thin">
                                             {billItems.map((item, idx) => (
-                                                <div 
-                                                    key={idx} 
-                                                    className={`rounded-lg border p-3.5 bg-white relative transition-all ${
-                                                        item.autoAdded 
-                                                            ? 'border-blue-200 bg-blue-50/10' 
-                                                            : 'border-zinc-200'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-start justify-between gap-4 mb-3">
+                                                <div key={idx} className={cn('rounded-lg border p-3.5', item.autoAdded && 'border-info/30 bg-info-subtle/30')}>
+                                                    <div className="mb-3 flex items-start justify-between gap-4">
                                                         {item.isCustom ? (
-                                                            <input 
-                                                                value={item.itemName} 
+                                                            <input
+                                                                value={item.itemName}
                                                                 onChange={e => updateBillItem(idx, 'itemName', e.target.value)}
-                                                                placeholder="Type custom charge description..." 
-                                                                className="font-semibold text-xs bg-transparent outline-none flex-1 border-b border-dashed border-zinc-300 pb-0.5 focus:border-zinc-950 placeholder-zinc-300" 
-                                                                autoFocus 
+                                                                placeholder="Type custom charge description…"
+                                                                className="flex-1 border-b border-dashed bg-transparent pb-0.5 text-xs font-semibold outline-none placeholder:text-muted-foreground focus:border-foreground"
+                                                                autoFocus
                                                             />
                                                         ) : (
-                                                            <div className="space-y-0.5">
-                                                                <p className="text-xs font-semibold text-zinc-800">{item.itemName}</p>
-                                                                <p className="text-[10px] text-zinc-400 uppercase font-medium">
-                                                                    {item.category} &bull; {item.rateType} {item.autoAdded ? ' (Clinical Auto)' : ''}
+                                                            <div>
+                                                                <p className="text-xs font-semibold">{item.itemName}</p>
+                                                                <p className="text-[10px] font-medium uppercase text-muted-foreground">
+                                                                    {item.category} · {item.rateType}{item.autoAdded ? ' · auto' : ''}
                                                                 </p>
                                                             </div>
                                                         )}
-                                                        <button 
-                                                            onClick={() => removeBillItem(idx)} 
-                                                            className="p-1.5 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                                        >
-                                                            <X size={14} />
+                                                        <button onClick={() => removeBillItem(idx)} className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive-subtle hover:text-destructive">
+                                                            <X className="h-3.5 w-3.5" />
                                                         </button>
                                                     </div>
-                                                    <div className="flex items-center gap-4 flex-wrap">
-                                                        {/* Interactive Quantity Increments */}
+                                                    <div className="flex flex-wrap items-center gap-4">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">QTY</span>
-                                                            <div className="flex items-center border border-zinc-200 rounded-md overflow-hidden bg-white h-7 shadow-xs">
-                                                                <button 
-                                                                    type="button"
-                                                                    onClick={() => updateBillItem(idx, 'quantity', Math.max(1, item.quantity - 1))}
-                                                                    className="px-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 font-bold h-full border-r border-zinc-200 transition-colors text-xs select-none active:bg-zinc-200"
-                                                                >
-                                                                    -
+                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Qty</span>
+                                                            <div className="flex h-7 items-center overflow-hidden rounded-md border">
+                                                                <button type="button" onClick={() => updateBillItem(idx, 'quantity', Math.max(1, item.quantity - 1))}
+                                                                        className="flex h-full items-center border-r bg-muted px-2 text-muted-foreground hover:bg-accent">
+                                                                    <Minus className="h-3 w-3" />
                                                                 </button>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="1" 
-                                                                    value={item.quantity} 
-                                                                    onChange={e => updateBillItem(idx, 'quantity', e.target.value)}
-                                                                    className="w-10 px-1 text-xs font-bold text-center outline-none bg-transparent border-0 focus:ring-0 focus:border-0 h-full p-0 font-mono" 
-                                                                />
-                                                                <button 
-                                                                    type="button"
-                                                                    onClick={() => updateBillItem(idx, 'quantity', item.quantity + 1)}
-                                                                    className="px-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-500 font-bold h-full border-l border-zinc-200 transition-colors text-xs select-none active:bg-zinc-200"
-                                                                >
-                                                                    +
+                                                                <input type="number" min="1" value={item.quantity} onChange={e => updateBillItem(idx, 'quantity', e.target.value)}
+                                                                       className="tabular h-full w-10 border-0 bg-transparent p-0 text-center text-xs font-semibold outline-none" />
+                                                                <button type="button" onClick={() => updateBillItem(idx, 'quantity', item.quantity + 1)}
+                                                                        className="flex h-full items-center border-l bg-muted px-2 text-muted-foreground hover:bg-accent">
+                                                                    <Plus className="h-3 w-3" />
                                                                 </button>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">RATE (₹)</span>
-                                                            <input 
-                                                                type="number" 
-                                                                min="0" 
-                                                                step="0.01" 
-                                                                value={item.unitPrice} 
-                                                                onChange={e => updateBillItem(idx, 'unitPrice', e.target.value)}
-                                                                className="w-24 px-2 py-1 rounded-md border border-zinc-200 text-xs font-bold outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white" 
-                                                            />
+                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Rate ₹</span>
+                                                            <Input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateBillItem(idx, 'unitPrice', e.target.value)} className="h-7 w-24 text-xs" />
                                                         </div>
-                                                        <span className="ml-auto text-sm font-bold text-zinc-900 font-mono">
-                                                            ₹{(item.total || 0).toFixed(2)}
-                                                        </span>
+                                                        <span className="tabular ml-auto text-sm font-semibold">₹{(item.total || 0).toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
-                                </div>
+                                </Card>
 
-                                {/* Summary & Submission Panel */}
                                 {billItems.length > 0 && (
-                                    <div className="bg-white rounded-xl border border-zinc-200 p-5 space-y-4 shadow-xs">
+                                    <Card className="space-y-4 p-5">
                                         <div className="grid grid-cols-3 gap-3">
-                                            {/* Discount presets */}
                                             <div className="col-span-2 space-y-1.5">
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 block">Discount Presets</label>
-                                                <div className="flex gap-1 flex-wrap">
-                                                    {[
-                                                        { label: '0%', val: 0 },
-                                                        { label: '5%', val: 5 },
-                                                        { label: '10%', val: 10 },
-                                                        { label: '15%', val: 15 },
-                                                        { label: '20%', val: 20 },
-                                                        { label: '50%', val: 50 }
-                                                    ].map(preset => (
-                                                        <button
-                                                            key={preset.label}
-                                                            type="button"
-                                                            onClick={() => { setDiscountPercent(preset.val); setDiscountAmount(0); }}
-                                                            className={`px-2 py-1 rounded text-[10px] font-bold transition-all border ${
-                                                                discountPercent === preset.val && discountAmount === 0
-                                                                    ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
-                                                                    : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'
-                                                            }`}
-                                                        >
-                                                            {preset.label}
+                                                <Label className="block">Discount presets</Label>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {DISCOUNT_PRESETS.map(val => (
+                                                        <button key={val} type="button" onClick={() => { setDiscountPercent(val); setDiscountAmount(0); }}
+                                                                className={cn(
+                                                                    'rounded border px-2 py-1 text-[10px] font-semibold transition-colors',
+                                                                    discountPercent === val && discountAmount === 0 ? 'border-foreground bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-accent',
+                                                                )}>
+                                                            {val}%
                                                         </button>
                                                     ))}
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 block">Custom %</label>
-                                                <input 
-                                                    type="number" 
-                                                    min="0" 
-                                                    max="100" 
-                                                    step="0.1" 
-                                                    value={discountPercent}
-                                                    onChange={e => { setDiscountPercent(Math.max(0, Number(e.target.value) || 0)); setDiscountAmount(0); }}
-                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs font-bold outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white" 
-                                                />
+                                                <Label className="mb-1.5 block">Custom %</Label>
+                                                <Input type="number" min="0" max="100" step="0.1" value={discountPercent}
+                                                       onChange={e => { setDiscountPercent(Math.max(0, Number(e.target.value) || 0)); setDiscountAmount(0); }} className="h-8 text-xs" />
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 block">Discount Value (₹)</label>
-                                                <input 
-                                                    type="number" 
-                                                    min="0" 
-                                                    step="1" 
-                                                    value={discountAmount}
-                                                    onChange={e => { setDiscountAmount(Math.max(0, Number(e.target.value) || 0)); setDiscountPercent(0); }}
-                                                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs font-bold outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white" 
-                                                />
+                                                <Label className="mb-1.5 block">Discount value (₹)</Label>
+                                                <Input type="number" min="0" step="1" value={discountAmount}
+                                                       onChange={e => { setDiscountAmount(Math.max(0, Number(e.target.value) || 0)); setDiscountPercent(0); }} className="h-8 text-xs" />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 block">Tax Rate %</label>
-                                                <input 
-                                                    type="number" 
-                                                    min="0" 
-                                                    step="0.1" 
-                                                    value={taxPercent}
-                                                    onChange={e => setTaxPercent(Math.max(0, Number(e.target.value) || 0))}
-                                                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs font-bold outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 bg-white" 
-                                                />
+                                                <Label className="mb-1.5 block">Tax rate %</Label>
+                                                <Input type="number" min="0" step="0.1" value={taxPercent}
+                                                       onChange={e => setTaxPercent(Math.max(0, Number(e.target.value) || 0))} className="h-8 text-xs" />
                                             </div>
                                         </div>
 
-                                        <div className="bg-zinc-50 rounded-lg p-4 space-y-1.5">
-                                            <div className="flex justify-between text-xs text-zinc-500">
-                                                <span>Items Subtotal</span>
-                                                <span className="font-semibold text-zinc-900 font-mono">₹{subtotal.toFixed(2)}</span>
+                                        <div className="space-y-1.5 rounded-lg bg-muted/40 p-4">
+                                            <div className="flex justify-between text-xs text-muted-foreground">
+                                                <span>Items subtotal</span>
+                                                <span className="tabular font-semibold text-foreground">₹{subtotal.toFixed(2)}</span>
                                             </div>
                                             {discAmt > 0 && (
-                                                <div className="flex justify-between text-xs text-red-600 font-medium">
-                                                    <span>Applied Discount ({discPct.toFixed(1)}%)</span>
-                                                    <span className="font-semibold font-mono">-₹{discAmt.toFixed(2)}</span>
+                                                <div className="flex justify-between text-xs font-medium text-destructive">
+                                                    <span>Discount ({discPct.toFixed(1)}%)</span>
+                                                    <span className="tabular font-semibold">-₹{discAmt.toFixed(2)}</span>
                                                 </div>
                                             )}
                                             {taxAmt > 0 && (
-                                                <div className="flex justify-between text-xs text-emerald-600 font-medium">
-                                                    <span>Add Tax ({taxPercent.toFixed(1)}%)</span>
-                                                    <span className="font-semibold font-mono">+₹{taxAmt.toFixed(2)}</span>
+                                                <div className="flex justify-between text-xs font-medium text-success">
+                                                    <span>Tax ({taxPercent.toFixed(1)}%)</span>
+                                                    <span className="tabular font-semibold">+₹{taxAmt.toFixed(2)}</span>
                                                 </div>
                                             )}
-                                            <div className="flex justify-between text-base font-bold text-zinc-900 border-t border-zinc-200/80 pt-2 mt-1 font-mono">
-                                                <span>Grand Payable</span>
+                                            <div className="tabular flex justify-between border-t pt-2 text-base font-semibold">
+                                                <span>Grand payable</span>
                                                 <span>₹{grandTotal.toFixed(2)}</span>
                                             </div>
                                         </div>
 
-                                        {/* Status and Mode selector button presets */}
-                                        <div className="space-y-3 pt-1">
+                                        <div className="space-y-3">
                                             <div className="space-y-1.5">
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">Payment Status</label>
+                                                <Label className="block">Payment status</Label>
                                                 <div className="flex gap-1">
                                                     {['Unpaid', 'Paid', 'Partial'].map(status => (
-                                                        <button
-                                                            key={status}
-                                                            type="button;button"
-                                                            onClick={() => {
-                                                                setPaymentStatus(status);
-                                                                if (status === 'Paid' && !paymentMode) {
-                                                                    setPaymentMode('Cash'); // Auto-set Cash mode on marking Paid
-                                                                }
-                                                            }}
-                                                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all text-center ${
-                                                                paymentStatus === status
-                                                                    ? status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs' :
-                                                                      status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-xs' :
-                                                                      'bg-red-50 text-red-700 border-red-300 shadow-xs'
-                                                                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-                                                            }`}
-                                                        >
-                                                            {status === 'Paid' ? '✓ Paid' : status === 'Partial' ? '◒ Partial' : '✗ Unpaid'}
+                                                        <button key={status} type="button"
+                                                                onClick={() => { setPaymentStatus(status); if (status === 'Paid' && !paymentMode) setPaymentMode('Cash'); }}
+                                                                className={cn(
+                                                                    'flex-1 rounded-lg border py-1.5 text-center text-xs font-semibold transition-colors',
+                                                                    paymentStatus === status
+                                                                        ? status === 'Paid' ? 'border-success/40 bg-success-subtle text-success'
+                                                                        : status === 'Partial' ? 'border-warning/40 bg-warning-subtle text-warning'
+                                                                        : 'border-destructive/40 bg-destructive-subtle text-destructive'
+                                                                        : 'bg-muted text-muted-foreground hover:bg-accent',
+                                                                )}>
+                                                            {status}
                                                         </button>
                                                     ))}
                                                 </div>
                                             </div>
-
                                             <div className="space-y-1.5">
-                                                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">Payment Mode</label>
-                                                <div className="flex gap-1 flex-wrap">
+                                                <Label className="block">Payment mode</Label>
+                                                <div className="flex flex-wrap gap-1">
                                                     {PAYMENT_MODES.map(mode => (
-                                                        <button
-                                                            key={mode}
-                                                            type="button"
-                                                            onClick={() => setPaymentMode(mode)}
-                                                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all flex-1 text-center min-w-[70px] ${
-                                                                paymentMode === mode
-                                                                    ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
-                                                                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-                                                            }`}
-                                                        >
-                                                            {mode === 'Cash' ? '💵 Cash' :
-                                                             mode === 'UPI' ? '📱 UPI' :
-                                                             mode === 'Card' ? '💳 Card' :
-                                                             mode === 'Insurance' ? '🛡️ Ins' :
-                                                             '📋 Cheque'}
+                                                        <button key={mode} type="button" onClick={() => setPaymentMode(mode)}
+                                                                className={cn(
+                                                                    'min-w-[70px] flex-1 rounded-lg border px-2.5 py-1.5 text-center text-[11px] font-medium transition-colors',
+                                                                    paymentMode === mode ? 'border-foreground bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-accent',
+                                                                )}>
+                                                        {mode}
                                                         </button>
                                                     ))}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <button 
-                                            onClick={submitBill}
-                                            className="w-full py-3.5 bg-zinc-900 text-zinc-50 rounded-lg font-bold text-xs uppercase tracking-wider shadow-sm hover:bg-zinc-900/90 transition-all focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2"
-                                        >
-                                            ✅ Generate Bill &bull; ₹{grandTotal.toFixed(2)} [F8]
-                                        </button>
-                                    </div>
+                                        <Button onClick={submitBill} size="lg" className="w-full">
+                                            Generate bill · ₹{grandTotal.toFixed(2)} <kbd className="opacity-60">F8</kbd>
+                                        </Button>
+                                    </Card>
                                 )}
                             </div>
                         </div>
@@ -1067,232 +823,103 @@ const BillingDashboard = () => {
     }
 
     // ===============================================
-    // VIEW: BILL LIST (DEFAULT)
+    // VIEW: BILL LIST
     // ===============================================
+    const BillsTable = ({ rows, onSelect, showItemCount }) => (
+        <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="pl-6">Invoice</TableHead>
+                            <TableHead>Patient</TableHead>
+                            {showItemCount && <TableHead className="hidden md:table-cell">Items</TableHead>}
+                            <TableHead>Total</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="hidden lg:table-cell">Date</TableHead>
+                            <TableHead className="pr-6 text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rows.map(b => {
+                            const count = showItemCount ? (() => { try { return JSON.parse(b.billItems || '[]').length; } catch { return 0; } })() : null;
+                            return (
+                                <TableRow key={b.billId || b.finalBillId} onClick={() => onSelect(b)} className="cursor-pointer">
+                                    <TableCell className="pl-6 font-medium">{b.billNumber || `#${b.billId || b.finalBillId}`}</TableCell>
+                                    <TableCell>{b.patientName || '-'}</TableCell>
+                                    {showItemCount && <TableCell className="hidden text-muted-foreground md:table-cell">{count} items</TableCell>}
+                                    <TableCell className="tabular font-semibold">₹{Number(b.grandTotal || 0).toFixed(2)}</TableCell>
+                                    <TableCell onClick={e => e.stopPropagation()}><StatusPill status={b.paymentStatus || 'Unpaid'} /></TableCell>
+                                    <TableCell className="hidden text-muted-foreground lg:table-cell">
+                                        {b.createdAt ? new Date(b.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                    </TableCell>
+                                    <TableCell className="pr-6 text-right" onClick={e => e.stopPropagation()}>
+                                        <div className="flex justify-end gap-1">
+                                            <Button variant="ghost" size="icon-sm" onClick={() => handlePrintInvoice(b)} title="Print invoice"><Printer className="h-3.5 w-3.5" /></Button>
+                                            <Button variant="ghost" size="icon-sm" onClick={() => handleDownloadInvoicePdf(b)} title="Download PDF"><Download className="h-3.5 w-3.5" /></Button>
+                                            {showItemCount && b.paymentStatus !== 'Paid' && (
+                                                <Button variant="ghost" size="icon-sm" onClick={() => updatePayment(b.billId, 'Paid', 'Cash')} title="Mark as paid" className="text-success hover:bg-success-subtle">
+                                                    <CheckCircle className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        </Card>
+    );
+
     return (
-        <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
-            {/* Header Title Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-zinc-200">
-                <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 flex items-center gap-2">
-                        <Receipt className="h-6 w-6 text-zinc-700" />
-                        Billing Ledger
-                    </h1>
-                    <p className="text-sm text-zinc-500 font-normal">
-                        Track customer invoices, payment collections, pending balances, and record payments. (Press [F1] to quick generate)
-                    </p>
+        <div className="space-y-5">
+            <PageHeader
+                title="Billing ledger"
+                description="Invoices, collections and pending balances. Press F1 to quick-generate."
+                icon={Receipt}
+                actions={<Button onClick={() => setView('create')}><Zap /> Generate bill <kbd className="opacity-60">F1</kbd></Button>}
+            />
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <StatCard label="Total invoices" value={summary.totalBills || 0} icon={Receipt} />
+                <StatCard label="Revenue received" value={`₹${(summary.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={TrendingUp} tone="success" />
+                <StatCard label="Outstanding balance" value={`₹${(summary.totalPending || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Clock} tone={summary.totalPending > 0 ? 'warning' : 'neutral'} />
+                <StatCard label="Unpaid accounts" value={summary.unpaidBills || 0} icon={AlertCircle} tone={summary.unpaidBills > 0 ? 'critical' : 'neutral'} />
+            </div>
+
+            <div className="flex flex-col items-stretch justify-between gap-3 md:flex-row md:items-center">
+                <div className="relative max-w-md flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search invoices by patient or bill ID…" className="pl-9" />
                 </div>
-                <div>
-                    <button 
-                        onClick={() => setView('create')}
-                        className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-50 shadow hover:bg-zinc-900/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 gap-2"
-                    >
-                        <Zap className="h-4 w-4" />
-                        Generate New Bill [F1]
-                    </button>
+                <div className="flex items-center gap-0.5 rounded-lg border p-0.5">
+                    {[['bills', 'Customer bills'], ['final', 'Finalized bills']].map(([key, label]) => (
+                        <button key={key} onClick={() => setActiveTab(key)} aria-pressed={activeTab === key}
+                                className={cn('rounded-md px-4 py-2 text-xs font-medium transition-colors', activeTab === key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* Summary Statistics Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Total Invoices', val: summary.totalBills || 0, icon: <Receipt size={16} className="text-zinc-500" /> },
-                    { label: 'Revenue Received', val: `₹${(summary.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: <TrendingUp size={16} className="text-zinc-500" /> },
-                    { label: 'Outstanding Balance', val: `₹${(summary.totalPending || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: <Clock size={16} className="text-zinc-500" /> },
-                    { label: 'Unpaid Accounts', val: summary.unpaidBills || 0, icon: <AlertCircle size={16} className="text-zinc-500" /> }
-                ].map((c, i) => (
-                    <div key={i} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs flex flex-col justify-between hover:shadow-sm transition-all">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{c.label}</span>
-                            {c.icon}
-                        </div>
-                        <p className="text-lg md:text-xl font-bold tracking-tight text-zinc-900 mt-2 font-mono">{c.val}</p>
-                    </div>
-                ))}
-            </div>
-
-            {/* Filter and Tab Section */}
-            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-zinc-50/50 p-4 rounded-xl border border-zinc-200/80 shadow-xs">
-                {/* Search Input Box */}
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                    <input 
-                        value={searchQuery} 
-                        onChange={e => setSearchQuery(e.target.value)} 
-                        placeholder="Search invoices by patient, bill ID..."
-                        className="w-full pl-9 pr-4 py-2 bg-white rounded-lg border border-zinc-200 text-sm placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-950 focus:border-zinc-950 transition-all font-medium text-zinc-900" 
-                    />
-                </div>
-
-                {/* Switcher Tab Layout */}
-                <div className="flex flex-wrap items-center gap-1 bg-zinc-100 p-1 rounded-lg border border-zinc-200">
-                    <button 
-                        onClick={() => setActiveTab('bills')}
-                        className={`px-4 py-2 rounded-md text-xs font-semibold tracking-wide transition-all ${
-                            activeTab === 'bills' 
-                                ? 'bg-white text-zinc-900 shadow-xs border border-zinc-200/50' 
-                                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50/50'
-                        }`}
-                    >
-                        📄 Customer Bills
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('final')}
-                        className={`px-4 py-2 rounded-md text-xs font-semibold tracking-wide transition-all ${
-                            activeTab === 'final' 
-                                ? 'bg-white text-zinc-900 shadow-xs border border-zinc-200/50' 
-                                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50/50'
-                        }`}
-                    >
-                        📋 Finalized Bills
-                    </button>
-                </div>
-            </div>
-
-            {/* Invoices List Table */}
             {activeTab === 'bills' && (
-                <div className="rounded-xl border border-zinc-200 bg-white shadow-xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-zinc-50/70 border-b border-zinc-200">
-                                    {['Invoice ID', 'Patient', 'Service Items', 'Grand Total', 'Payment Status', 'Generation Date', 'Actions'].map(h => (
-                                        <th key={h} className="px-4 py-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-100">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={7} className="text-center py-12 text-zinc-400 text-sm">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="animate-spin h-5 w-5 border-2 border-zinc-500 border-t-transparent rounded-full" />
-                                                <span>Loading invoices ledger...</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : filteredBills.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="text-center py-12 text-zinc-400 text-sm">No invoices found. Generate a new bill to begin.</td>
-                                    </tr>
-                                ) : (
-                                    filteredBills.map(b => {
-                                        const count = (() => { try { return JSON.parse(b.billItems || '[]').length; } catch { return 0; } })();
-                                        return (
-                                            <tr 
-                                                key={b.billId} 
-                                                onClick={() => { setSelectedBill(b); setView('detail'); }}
-                                                className="hover:bg-zinc-50/50 transition-colors cursor-pointer text-sm"
-                                            >
-                                                <td className="px-4 py-3 font-semibold text-zinc-900">{b.billNumber || `#${b.billId}`}</td>
-                                                <td className="px-4 py-3 font-semibold text-zinc-800">{b.patientName || '-'}</td>
-                                                <td className="px-4 py-3 text-zinc-500 font-normal">{count} items configured</td>
-                                                <td className="px-4 py-3 font-bold text-zinc-900 font-mono">₹{Number(b.grandTotal || 0).toFixed(2)}</td>
-                                                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                                                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide capitalize ${getStatusStyle(b.paymentStatus)}`}>
-                                                        {b.paymentStatus || 'Unpaid'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-zinc-400 text-xs font-normal">
-                                                    {b.createdAt ? new Date(b.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                                </td>
-                                                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                                                    <div className="flex items-center gap-1">
-                                                        <button 
-                                                            onClick={() => handlePrintInvoice(b)} 
-                                                            className="p-1 h-7 w-7 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-500 hover:text-zinc-900 transition-all"
-                                                            title="Print Invoice"
-                                                        >
-                                                            <Printer size={13} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleDownloadInvoicePdf(b)} 
-                                                            className="p-1 h-7 w-7 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-indigo-500 hover:text-indigo-700 transition-all"
-                                                            title="Download PDF"
-                                                        >
-                                                            <Download size={13} />
-                                                        </button>
-                                                        {b.paymentStatus !== 'Paid' && (
-                                                            <button 
-                                                                onClick={() => updatePayment(b.billId, 'Paid', 'Cash')}
-                                                                className="p-1 h-7 w-7 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-emerald-600 hover:text-emerald-700 transition-all"
-                                                                title="Mark as Paid"
-                                                            >
-                                                                <CheckCircle size={13} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                loading ? (
+                    <Card className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</Card>
+                ) : filteredBills.length === 0 ? (
+                    <Card><EmptyState icon={Receipt} title="No invoices found" description="Generate a new bill to begin." /></Card>
+                ) : (
+                    <BillsTable rows={filteredBills} onSelect={(b) => { setSelectedBill(b); setView('detail'); }} showItemCount />
+                )
             )}
 
-            {/* Finalized Invoices Section */}
             {activeTab === 'final' && (
-                <div className="rounded-xl border border-zinc-200 bg-white shadow-xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-zinc-50/70 border-b border-zinc-200">
-                                    {['Invoice ID', 'Patient', 'Grand Total', 'Payment Status', 'Generation Date', 'Actions'].map(h => (
-                                        <th key={h} className="px-4 py-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-100">
-                                {finalBills.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="text-center py-12 text-zinc-400 text-sm">No finalized bills available.</td>
-                                    </tr>
-                                ) : (
-                                    finalBills.map(b => (
-                                        <tr 
-                                            key={b.finalBillId} 
-                                            onClick={() => { setSelectedBill(b); setView('detail'); }}
-                                            className="hover:bg-zinc-50/50 transition-colors cursor-pointer text-sm"
-                                        >
-                                            <td className="px-4 py-3 font-semibold text-zinc-900">{b.billNumber || `#${b.finalBillId}`}</td>
-                                            <td className="px-4 py-3 font-semibold text-zinc-800">{b.patientName || '-'}</td>
-                                            <td className="px-4 py-3 font-bold text-zinc-900 font-mono">₹{Number(b.grandTotal || 0).toFixed(2)}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide capitalize ${getStatusStyle(b.paymentStatus)}`}>
-                                                    {b.paymentStatus || 'Unpaid'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-zinc-400 text-xs font-normal">
-                                                {b.createdAt ? new Date(b.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                            </td>
-                                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-1">
-                                                    <button 
-                                                        onClick={() => handlePrintInvoice(b)} 
-                                                        className="p-1 h-7 w-7 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-500 hover:text-zinc-900 transition-all"
-                                                        title="Print Invoice"
-                                                    >
-                                                        <Printer size={13} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDownloadInvoicePdf(b)} 
-                                                        className="p-1 h-7 w-7 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-indigo-500 hover:text-indigo-700 transition-all"
-                                                        title="Download PDF"
-                                                    >
-                                                        <Download size={13} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                finalBills.length === 0 ? (
+                    <Card><EmptyState icon={FileText} title="No finalized bills available" /></Card>
+                ) : (
+                    <BillsTable rows={finalBills} onSelect={(b) => { setSelectedBill(b); setView('detail'); }} />
+                )
             )}
         </div>
     );
