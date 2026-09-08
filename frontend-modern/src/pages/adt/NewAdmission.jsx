@@ -1,29 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BedDouble } from 'lucide-react';
 import PatientSearch from '../../components/PatientSearch';
 import { useToast } from '../../components/Toast';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 
 const NewAdmission = () => {
     const toast = useToast();
     const [searchParams] = useSearchParams();
-    // ... (rest of state is same)
+    const navigate = useNavigate();
+
     const [formData, setFormData] = useState({
         patientId: searchParams.get('patientId') || '',
         admittingDoctorId: '',
         bedId: '',
-        admissionNotes: ''
+        admissionNotes: '',
     });
-
     const [beds, setBeds] = useState([]);
     const [doctors, setDoctors] = useState([]);
-    const navigate = useNavigate();
+    const [submitting, setSubmitting] = useState(false);
 
-    React.useEffect(() => {
-        fetchBeds();
-        fetchDoctors();
-    }, []);
+    useEffect(() => { fetchBeds(); fetchDoctors(); }, []);
 
     const fetchDoctors = async () => {
         try {
@@ -34,8 +38,6 @@ const NewAdmission = () => {
 
     const fetchBeds = async () => {
         try {
-            // Seed if empty - REMOVED for production
-            // await axios.post('/api/Adt/seed').catch(() => { });
             const response = await axios.get('/api/Adt/Beds?status=available');
             if (response.data.Results) setBeds(response.data.Results);
         } catch (error) { console.error(error); }
@@ -43,97 +45,85 @@ const NewAdmission = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.patientId) { toast.error('Select a patient first.'); return; }
+        setSubmitting(true);
         try {
             await axios.post('/api/Admission/Admission', {
                 patientId: parseInt(formData.patientId),
                 admittingDoctorId: parseInt(formData.admittingDoctorId),
                 bedId: parseInt(formData.bedId),
                 admissionDate: new Date(),
-                admissionStatus: "admitted",
-                admissionNotes: formData.admissionNotes
+                admissionStatus: 'admitted',
+                admissionNotes: formData.admissionNotes,
             });
+            toast.success('Patient admitted successfully.');
             navigate('/dashboard/adt');
         } catch (error) {
             console.error(error);
-            toast.error(error.response?.data?.ErrorMessage || "Failed to admit patient.");
+            toast.error(error.response?.data?.ErrorMessage || 'Failed to admit patient.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <button
-                onClick={() => navigate('/dashboard/adt')}
-                className="mb-6 flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900"
-            >
-                <ArrowLeft size={16} />
-                Back to ADT
-            </button>
+        <div className="mx-auto max-w-2xl">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/adt')} className="-ml-2 mb-4 text-muted-foreground">
+                <ArrowLeft /> Back to ADT
+            </Button>
 
-            <div className="rounded-2xl bg-white p-8 shadow-sm">
-                <h1 className="mb-8 text-2xl font-bold text-gray-900">Admit Patient</h1>
+            <Card>
+                <CardContent className="p-6 sm:p-8">
+                    <h1 className="mb-6 text-xl font-semibold tracking-tight">Admit patient</h1>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <PatientSearch
-                        onSelect={(id) => setFormData({ ...formData, patientId: id })}
-                        selectedPatientId={formData.patientId}
-                    />
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <PatientSearch onSelect={(id) => setFormData({ ...formData, patientId: id })} selectedPatientId={formData.patientId} />
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">Admitting Doctor</label>
-                        <select
-                            required
-                            value={formData.admittingDoctorId}
-                            onChange={(e) => setFormData({ ...formData, admittingDoctorId: e.target.value })}
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 bg-white"
-                        >
-                            <option value="">Select Doctor</option>
-                            {doctors.map(doc => (
-                                <option key={doc.doctorId} value={doc.doctorId}>
-                                    {doc.fullName} ({doc.department})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                        <div>
+                            <Label className="mb-1.5 block">Admitting doctor</Label>
+                            <Select value={formData.admittingDoctorId} onValueChange={(v) => setFormData({ ...formData, admittingDoctorId: v })}>
+                                <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                                <SelectContent>
+                                    {doctors.map(doc => (
+                                        <SelectItem key={doc.doctorId} value={String(doc.doctorId)}>
+                                            {doc.fullName} ({doc.department})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">Select Bed</label>
-                        <select
-                            required
-                            value={formData.bedId}
-                            onChange={(e) => setFormData({ ...formData, bedId: e.target.value })}
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 bg-white shadow-sm"
-                        >
-                            <option value="">Select Bed</option>
-                            {beds.map(bed => (
-                                <option key={bed.bedId} value={bed.bedId}>
-                                    {bed.ward} - {bed.bedNumber} (${bed.pricePerDay}/day)
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                        <div>
+                            <Label className="mb-1.5 block">Select bed</Label>
+                            <Select value={formData.bedId} onValueChange={(v) => setFormData({ ...formData, bedId: v })}>
+                                <SelectTrigger><SelectValue placeholder="Select bed" /></SelectTrigger>
+                                <SelectContent>
+                                    {beds.length === 0 ? (
+                                        <div className="px-2 py-6 text-center text-sm text-muted-foreground">No available beds.</div>
+                                    ) : beds.map(bed => (
+                                        <SelectItem key={bed.bedId} value={String(bed.bedId)}>
+                                            {bed.ward} - {bed.bedNumber} (₹{bed.pricePerDay}/day)
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">Admission Notes</label>
-                        <textarea
-                            rows="3"
-                            value={formData.admissionNotes}
-                            onChange={(e) => setFormData({ ...formData, admissionNotes: e.target.value })}
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5"
-                            placeholder="Reason for admission..."
-                        />
-                    </div>
+                        <div>
+                            <Label className="mb-1.5 block">Admission notes</Label>
+                            <Textarea
+                                rows={3} value={formData.admissionNotes}
+                                onChange={(e) => setFormData({ ...formData, admissionNotes: e.target.value })}
+                                placeholder="Reason for admission…"
+                            />
+                        </div>
 
-                    <div className="pt-4">
-                        <button
-                            type="submit"
-                            className="w-full flex justify-center items-center gap-2 rounded-lg bg-primary-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:bg-primary-700 hover:scale-[1.02]"
-                        >
-                            <BedDouble size={20} />
-                            Admit Patient
-                        </button>
-                    </div>
-                </form>
-            </div>
+                        <Button type="submit" size="lg" className="w-full" disabled={submitting || !formData.patientId || !formData.admittingDoctorId || !formData.bedId}>
+                            <BedDouble /> {submitting ? 'Admitting…' : 'Admit patient'}
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 };
