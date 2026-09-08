@@ -31,3 +31,4 @@ uploads_data/
 database-backup/
 *.sql
 *.sql.gz
+data-snapshot/

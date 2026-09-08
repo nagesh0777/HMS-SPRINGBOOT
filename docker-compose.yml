@@ -4,7 +4,7 @@ services:
     container_name: trikaar-db
     restart: unless-stopped
     command: >
-      --innodb-buffer-pool-size=64M --performance_schema=OFF --max_connections=20
+      --innodb-buffer-pool-size=64M --performance_schema=OFF --max_connections=50
     environment:
       TZ: Asia/Kolkata
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
@@ -22,14 +22,14 @@ services:
     container_name: trikaar-backend
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       TZ: Asia/Kolkata
       SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/trikaar_emr?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0 -Xss512k"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=65.0 -Xms128m -Xmx280m -Xss512k -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
       APP_JWT_SECRET: 9B7E3C5A2D8F614B09E273A5D4C1B098FE7D6C5B4A3928170D6E5F4C3B2A10985
       APP_JWT_EXPIRATION_MS: 86400000
       SMTP_USERNAME: croctechconnect@gmail.com
@@ -47,7 +47,7 @@ services:
     container_name: trikaar-frontend
     restart: unless-stopped
     ports:
-      - "8085:80"
+      - "127.0.0.1:8085:80"
     depends_on:
       - backend
     labels:
@@ -57,6 +57,20 @@ services:
       - "traefik.http.routers.hms-frontend.tls=true"
       - "traefik.http.routers.hms-frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.hms-frontend.loadbalancer.server.port=80"
+      # Traefik Rate Limiting Middleware (100 req/s, burst 50)
+      - "traefik.http.middlewares.hms-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.hms-ratelimit.ratelimit.burst=50"
+      # Traefik Security Headers Middleware
+      - "traefik.http.middlewares.hms-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.hms-headers.headers.browserXSSFilter=true"
+      - "traefik.http.middlewares.hms-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.hms-headers.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.hms-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.hms-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.hms-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.hms-headers.headers.frameDeny=true"
+      # Attach Middlewares to Router
+      - "traefik.http.routers.hms-frontend.middlewares=hms-ratelimit,hms-headers"
     mem_limit: 80m
 
 volumes:
