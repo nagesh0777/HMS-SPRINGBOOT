@@ -200,7 +200,7 @@ const PatientRegistration = () => {
                         <User size={24} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight font-display">{isEditMode ? 'Edit Patient Profile' : 'New Patient Registration'}</h1>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{isEditMode ? 'Edit Patient Profile' : 'New Patient Registration'}</h1>
                         <p className="text-xs text-slate-500 font-semibold mt-1">{isEditMode ? `Updating information for ${formData.firstName} ${formData.lastName}` : 'Enter patient demographics and clinical details to register them in the system.'}</p>
                     </div>
                 </div>

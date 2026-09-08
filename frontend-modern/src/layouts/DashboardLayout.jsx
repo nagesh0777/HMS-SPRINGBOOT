@@ -1,83 +1,72 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import AICopilotPanel from '../components/AICopilotPanel';
-import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command-dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    HeartPulse,
-    LayoutDashboard,
-    Users,
-    User,
-    Calendar,
-    Bed,
-    Shield,
-    LogOut,
-    Clock,
-    Menu,
-    Building,
-    X,
-    Stethoscope,
-    Pill,
-    ClipboardList,
-    Search,
-    Activity,
-    Bell,
-    FileText,
-    UserCog,
-    BookOpen,
-    Check,
-    CheckCheck,
-    AlertTriangle,
-    FlaskConical,
-    Settings,
-    Zap,
-    ExternalLink,
-    Receipt,
-    Settings2,
-    Package,
-    TrendingUp,
-    Database,
-    ChevronLeft,
-    ChevronRight,
-    History
+    LayoutDashboard, Users, User, Calendar, Bed, Shield, LogOut, Clock, Menu,
+    Building, Stethoscope, Pill, ClipboardList, Search, Activity, Bell, UserCog,
+    BookOpen, Check, CheckCheck, AlertTriangle, FlaskConical, Settings, Zap,
+    Receipt, Settings2, Package, ChevronLeft, ChevronRight, History, X,
 } from 'lucide-react';
 
+import AICopilotPanel from '../components/AICopilotPanel';
+import { CommandDialog, CommandInput, CommandList, CommandEmpty } from '@/components/ui/command-dialog';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Logo, LogoLockup } from '@/components/app/logo';
+import { ThemeToggle } from '@/components/app/theme-toggle';
+import { EmptyState } from '@/components/app/empty-state';
+import { cn } from '@/lib/utils';
+
+/** Notification kinds carry clinical weight, so each gets a tone rather than a raw colour. */
 const notifTypeConfig = {
-    appointment_reminder: { icon: <Calendar size={14} />, color: '#3b82f6', bg: '#eff6ff' },
-    lab_result: { icon: <FlaskConical size={14} />, color: '#f59e0b', bg: '#fffbeb' },
-    follow_up: { icon: <Clock size={14} />, color: '#8b5cf6', bg: '#f5f3ff' },
-    emergency: { icon: <AlertTriangle size={14} />, color: '#ef4444', bg: '#fef2f2' },
-    system: { icon: <Settings size={14} />, color: '#6b7280', bg: '#f9fafb' },
-    default: { icon: <Bell size={14} />, color: '#3b82f6', bg: '#eff6ff' },
+    appointment_reminder: { icon: Calendar, tone: 'text-info' },
+    lab_result: { icon: FlaskConical, tone: 'text-warning' },
+    follow_up: { icon: Clock, tone: 'text-info' },
+    emergency: { icon: AlertTriangle, tone: 'text-destructive' },
+    system: { icon: Settings, tone: 'text-muted-foreground' },
+    default: { icon: Bell, tone: 'text-muted-foreground' },
 };
 
 const DashboardLayout = () => {
     const navigate = useNavigate();
+    // Previously this was a useState seeded from window.location.pathname and updated only
+    // inside click handlers, so browser back/forward left the wrong item highlighted.
+    // Reading the router's location keeps the sidebar honest however navigation happened.
+    const location = useLocation();
+    const activePath = location.pathname;
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [isCollapsed, setIsCollapsed] = useState(() => {
-        return localStorage.getItem('sidebar-collapsed') === 'true';
-    });
-    const [activePath, setActivePath] = useState(window.location.pathname);
+    const [isCollapsed, setIsCollapsed] = useState(
+        () => localStorage.getItem('sidebar-collapsed') === 'true',
+    );
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [notifLoading, setNotifLoading] = useState(false);
-    const notifRef = useRef(null);
 
     useEffect(() => {
         localStorage.setItem('sidebar-collapsed', isCollapsed);
     }, [isCollapsed]);
 
+    // Close the mobile drawer whenever the route changes.
+    useEffect(() => { setIsSidebarOpen(false); }, [location.pathname]);
+
     const userRole = localStorage.getItem('role') || 'Staff';
     const userName = localStorage.getItem('userName') || 'System User';
     const isOwnerAdmin = userName.trim().toLowerCase() === 'nagesh';
     const effectiveRole = isOwnerAdmin ? 'SuperAdmin' : userRole;
-    const subscriptionModules = (localStorage.getItem('subscriptionModules') || '').split(',').map(m => m.trim()).filter(Boolean);
+    const subscriptionModules = (localStorage.getItem('subscriptionModules') || '')
+        .split(',').map(m => m.trim()).filter(Boolean);
 
-    // Appointment popup notification (Doctor role only)
+    // ---- Appointment popup (Doctor only) ----
     const [apptPopup, setApptPopup] = useState(null);
     const apptPopupTimer = useRef(null);
 
@@ -96,15 +85,13 @@ const DashboardLayout = () => {
         };
     }, [effectiveRole]);
 
-    // Global Patient Command Search Pad
+    // ---- Global patient search ----
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
 
-    // Only the open shortcut is ours now — closing on Escape is handled by the dialog itself.
-    // Keeping a window-level Escape listener as well would mean two things racing to close it,
-    // and would also swallow Escape for any other dialog open at the time.
+    // Only the open shortcut is ours — the dialog handles Escape itself.
     useEffect(() => {
         const handleGlobalKeyDown = (e) => {
             if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === 'F2') {
@@ -116,18 +103,14 @@ const DashboardLayout = () => {
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, []);
 
-    // Fetch matching patients with debounce
     useEffect(() => {
-        if (!searchQuery.trim()) {
-            setSearchResults([]);
-            return;
-        }
+        if (!searchQuery.trim()) { setSearchResults([]); return; }
         setSearching(true);
         const delay = setTimeout(async () => {
             try {
                 const res = await axios.get(`/api/DoctorPortal/SearchPatient?query=${encodeURIComponent(searchQuery)}`);
                 setSearchResults(res.data?.Results || []);
-            } catch (err) {
+            } catch {
                 setSearchResults([]);
             } finally {
                 setSearching(false);
@@ -135,6 +118,7 @@ const DashboardLayout = () => {
         }, 300);
         return () => clearTimeout(delay);
     }, [searchQuery]);
+
     const hasAiAccess = () => {
         if (effectiveRole === 'SuperAdmin') return true;
         if (subscriptionModules.includes('AI Copilot')) return true;
@@ -142,28 +126,18 @@ const DashboardLayout = () => {
         return modules.split(',').map(m => m.trim()).includes('AICopilot');
     };
 
+    // ---- Notifications ----
     useEffect(() => {
         const fetchUnread = async () => {
             try {
                 const res = await axios.get('/api/Notifications/UnreadCount');
                 if (res.data.Results) setUnreadCount(res.data.Results.unread || 0);
-            } catch (e) { /* silent */ }
+            } catch { /* silent — a failed poll should not interrupt clinical work */ }
         };
         fetchUnread();
         const interval = setInterval(fetchUnread, 30000);
         return () => clearInterval(interval);
     }, []);
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (notifRef.current && !notifRef.current.contains(e.target)) {
-                setNotifOpen(false);
-            }
-        };
-        if (notifOpen) document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [notifOpen]);
 
     const fetchNotifications = async () => {
         setNotifLoading(true);
@@ -177,20 +151,13 @@ const DashboardLayout = () => {
         }
     };
 
-    const toggleNotifPanel = () => {
-        if (!notifOpen) fetchNotifications();
-        setNotifOpen(!notifOpen);
-    };
-
     const markAsRead = async (id, e) => {
         if (e) e.stopPropagation();
         try {
             await axios.put(`/api/Notifications/${id}/Read`);
-            setNotifications(prev => prev.map(n =>
-                n.notificationId === id ? { ...n, isRead: true } : n
-            ));
+            setNotifications(prev => prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n)));
             setUnreadCount(prev => Math.max(0, prev - 1));
-        } catch (e) { console.error('Failed to mark as read', e); }
+        } catch (err) { console.error('Failed to mark as read', err); }
     };
 
     const markAllRead = async (e) => {
@@ -199,13 +166,12 @@ const DashboardLayout = () => {
             await axios.put('/api/Notifications/ReadAll');
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
-        } catch (e) { console.error('Failed to mark all read', e); }
+        } catch (err) { console.error('Failed to mark all read', err); }
     };
 
     const timeAgo = (dateStr) => {
         if (!dateStr) return '';
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const mins = Math.floor(diff / 60000);
+        const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
         if (mins < 1) return 'Just now';
         if (mins < 60) return `${mins}m ago`;
         const hrs = Math.floor(mins / 60);
@@ -215,115 +181,82 @@ const DashboardLayout = () => {
         return new Date(dateStr).toLocaleDateString();
     };
 
+    // ---- Navigation model (unchanged) ----
     const getMenuGroups = () => {
         if (effectiveRole === 'Doctor') {
             return [
-                {
-                    title: 'Clinical Workspace',
-                    items: [
-                        { id: 'doctor-dashboard', label: 'My Workspace', icon: <Activity size={20} />, path: '/dashboard/doctor' },
-                        { id: 'doctor-queue', label: 'Patient Queue', icon: <ClipboardList size={20} />, path: '/dashboard/doctor/queue' },
-                        { id: 'doctor-history', label: 'Treated History', icon: <History size={20} />, path: '/dashboard/doctor/history' },
-                        { id: 'doctor-prescriptions', label: 'Prescriptions', icon: <Pill size={20} />, path: '/dashboard/doctor/prescriptions' },
-                        { id: 'doctor-followups', label: 'Follow-Ups', icon: <UserCog size={20} />, path: '/dashboard/doctor/followups' },
-                    ]
-                },
-                {
-                    title: 'Ward Management',
-                    items: [
-                        { id: 'adt', label: 'ADT & Ward', icon: <Bed size={20} />, path: '/dashboard/adt' },
-                    ]
-                },
-                {
-                    title: 'Reference & Profile',
-                    items: [
-                        { id: 'doctor-profile', label: 'My Profile', icon: <User size={20} />, path: '/dashboard/doctor/profile' },
-                        { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, path: '/dashboard/notifications' },
-                        { id: 'portal-guide', label: 'Help & Guide', icon: <BookOpen size={20} />, path: '/dashboard/guide' },
-                    ]
-                }
+                { title: 'Clinical Workspace', items: [
+                    { id: 'doctor-dashboard', label: 'My Workspace', icon: Activity, path: '/dashboard/doctor' },
+                    { id: 'doctor-queue', label: 'Patient Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
+                    { id: 'doctor-history', label: 'Treated History', icon: History, path: '/dashboard/doctor/history' },
+                    { id: 'doctor-prescriptions', label: 'Prescriptions', icon: Pill, path: '/dashboard/doctor/prescriptions' },
+                    { id: 'doctor-followups', label: 'Follow-Ups', icon: UserCog, path: '/dashboard/doctor/followups' },
+                ]},
+                { title: 'Ward Management', items: [
+                    { id: 'adt', label: 'ADT & Ward', icon: Bed, path: '/dashboard/adt' },
+                ]},
+                { title: 'Reference & Profile', items: [
+                    { id: 'doctor-profile', label: 'My Profile', icon: User, path: '/dashboard/doctor/profile' },
+                    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/dashboard/notifications' },
+                    { id: 'portal-guide', label: 'Help & Guide', icon: BookOpen, path: '/dashboard/guide' },
+                ]},
             ];
         }
-
         return [
-            {
-                title: 'Core Workflow',
-                items: [
-                    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-                    { id: 'patients', label: 'Patients', icon: <Users size={20} />, path: '/dashboard/patients' },
-                    { id: 'appointments', label: 'Appointments', icon: <Calendar size={20} />, path: '/dashboard/appointments' },
-                    { id: 'adt', label: 'ADT & Ward', icon: <Bed size={20} />, path: '/dashboard/adt' },
-                ]
-            },
-            {
-                title: 'Finance & Services',
-                items: [
-                    { id: 'billing', label: 'Billing', icon: <Receipt size={20} />, path: '/dashboard/billing' },
-                    { id: 'service-catalog', label: 'Service Rates', icon: <Package size={20} />, path: '/dashboard/services' },
-                ]
-            },
-            {
-                title: 'Workforce',
-                items: [
-                    { id: 'doctors', label: 'Doctor Roster', icon: <Stethoscope size={20} />, path: '/dashboard/doctors' },
-                    { id: 'employee-management', label: 'Employee Management', icon: <Shield size={20} />, path: '/dashboard/staff' },
-                ]
-            },
-            {
-                title: 'Doctor Workspace',
-                items: [
-                    { id: 'doctor-dashboard', label: 'My Workspace', icon: <Activity size={20} />, path: '/dashboard/doctor' },
-                    { id: 'doctor-queue', label: 'Patient Queue', icon: <ClipboardList size={20} />, path: '/dashboard/doctor/queue' },
-                    { id: 'doctor-history', label: 'Treated History', icon: <History size={20} />, path: '/dashboard/doctor/history' },
-                    { id: 'doctor-prescriptions', label: 'Prescriptions', icon: <Pill size={20} />, path: '/dashboard/doctor/prescriptions' },
-                    { id: 'doctor-followups', label: 'Follow-Ups', icon: <UserCog size={20} />, path: '/dashboard/doctor/followups' },
-                ]
-            },
-            {
-                title: 'Administration',
-                items: [
-                    { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, path: '/dashboard/notifications' },
-                    { id: 'hospital-settings', label: 'Settings', icon: <Settings2 size={20} />, path: '/dashboard/settings' },
-                    { id: 'hospitals', label: 'Hospital Network', icon: <Building size={20} />, path: '/dashboard/hospitals' },
-                    { id: 'portal-guide', label: 'Help & Guide', icon: <BookOpen size={20} />, path: '/dashboard/guide' },
-                ]
-            }
+            { title: 'Core Workflow', items: [
+                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+                { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
+                { id: 'appointments', label: 'Appointments', icon: Calendar, path: '/dashboard/appointments' },
+                { id: 'adt', label: 'ADT & Ward', icon: Bed, path: '/dashboard/adt' },
+            ]},
+            { title: 'Finance & Services', items: [
+                { id: 'billing', label: 'Billing', icon: Receipt, path: '/dashboard/billing' },
+                { id: 'service-catalog', label: 'Service Rates', icon: Package, path: '/dashboard/services' },
+            ]},
+            { title: 'Workforce', items: [
+                { id: 'doctors', label: 'Doctor Roster', icon: Stethoscope, path: '/dashboard/doctors' },
+                { id: 'employee-management', label: 'Employee Management', icon: Shield, path: '/dashboard/staff' },
+            ]},
+            { title: 'Doctor Workspace', items: [
+                { id: 'doctor-dashboard', label: 'My Workspace', icon: Activity, path: '/dashboard/doctor' },
+                { id: 'doctor-queue', label: 'Patient Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
+                { id: 'doctor-history', label: 'Treated History', icon: History, path: '/dashboard/doctor/history' },
+                { id: 'doctor-prescriptions', label: 'Prescriptions', icon: Pill, path: '/dashboard/doctor/prescriptions' },
+                { id: 'doctor-followups', label: 'Follow-Ups', icon: UserCog, path: '/dashboard/doctor/followups' },
+            ]},
+            { title: 'Administration', items: [
+                { id: 'notifications', label: 'Notifications', icon: Bell, path: '/dashboard/notifications' },
+                { id: 'hospital-settings', label: 'Settings', icon: Settings2, path: '/dashboard/settings' },
+                { id: 'hospitals', label: 'Hospital Network', icon: Building, path: '/dashboard/hospitals' },
+                { id: 'portal-guide', label: 'Help & Guide', icon: BookOpen, path: '/dashboard/guide' },
+            ]},
         ];
     };
 
     const menuGroups = getMenuGroups();
 
     const rolePermissions = {
-        'SuperAdmin': ['dashboard', 'hospitals', 'portal-guide'],
-        'Admin': ['dashboard', 'patients', 'appointments', 'doctors', 'adt', 'billing', 'service-catalog', 'employee-management', 'notifications', 'hospital-settings', 'portal-guide'],
-        'Doctor': ['doctor-dashboard', 'doctor-queue', 'doctor-history', 'doctor-prescriptions', 'doctor-followups', 'adt', 'notifications', 'portal-guide', 'doctor-profile'],
-        'Helpdesk': ['dashboard', 'patients', 'appointments', 'billing', 'employee-management', 'notifications', 'portal-guide'],
-        'Staff': ['dashboard', 'patients', 'notifications', 'portal-guide']
+        SuperAdmin: ['dashboard', 'hospitals', 'portal-guide'],
+        Admin: ['dashboard', 'patients', 'appointments', 'doctors', 'adt', 'billing', 'service-catalog', 'employee-management', 'notifications', 'hospital-settings', 'portal-guide'],
+        Doctor: ['doctor-dashboard', 'doctor-queue', 'doctor-history', 'doctor-prescriptions', 'doctor-followups', 'adt', 'notifications', 'portal-guide', 'doctor-profile'],
+        Helpdesk: ['dashboard', 'patients', 'appointments', 'billing', 'employee-management', 'notifications', 'portal-guide'],
+        Staff: ['dashboard', 'patients', 'notifications', 'portal-guide'],
     };
 
     const getEffectivePermissions = () => {
-        const basePerms = rolePermissions[effectiveRole] || rolePermissions['Staff'];
+        const basePerms = rolePermissions[effectiveRole] || rolePermissions.Staff;
         if (effectiveRole === 'SuperAdmin') return basePerms;
 
         if ((effectiveRole === 'Admin' || effectiveRole === 'Doctor') && subscriptionModules.length > 0) {
             const planAllowed = subscriptionModules.map(m => m.toLowerCase());
             const moduleMap = {
-                'dashboard': 'dashboard',
-                'patients': 'patients',
-                'appointments': 'appointments',
-                'doctor queue': 'doctor-queue',
-                'prescriptions': 'doctor-prescriptions',
-                'billing': 'billing',
-                'service catalog': 'service-catalog',
-                'staff': 'employee-management',
-                'adt': 'adt',
-                'beds': 'adt',
-                'notifications': 'notifications',
+                dashboard: 'dashboard', patients: 'patients', appointments: 'appointments',
+                'doctor queue': 'doctor-queue', prescriptions: 'doctor-prescriptions',
+                billing: 'billing', 'service catalog': 'service-catalog', staff: 'employee-management',
+                adt: 'adt', beds: 'adt', notifications: 'notifications',
             };
             const result = ['dashboard', 'portal-guide', 'notifications', 'hospital-settings', 'doctors', 'doctor-profile', 'doctor-history'];
-            planAllowed.forEach(mod => {
-                if (moduleMap[mod]) result.push(moduleMap[mod]);
-            });
+            planAllowed.forEach(mod => { if (moduleMap[mod]) result.push(moduleMap[mod]); });
             if (planAllowed.includes('doctor queue')) result.push('doctor-dashboard');
             return basePerms.filter(perm => [...new Set(result)].includes(perm));
         }
@@ -333,11 +266,10 @@ const DashboardLayout = () => {
         if (!modules || !modules.trim()) return ['dashboard', 'portal-guide'];
         const allowed = modules.split(',').map(m => m.trim().toLowerCase());
         const moduleMap = {
-            'patients': 'patients', 'appointments': 'appointments', 'adt': 'adt',
-            'doctors': 'doctors', 'staff': 'employee-management', 'attendance': 'employee-management',
-            'billing': 'billing', 'service catalog': 'service-catalog', 'services': 'service-catalog',
-            'notifications': 'notifications',
-            'settings': 'hospital-settings',
+            patients: 'patients', appointments: 'appointments', adt: 'adt',
+            doctors: 'doctors', staff: 'employee-management', attendance: 'employee-management',
+            billing: 'billing', 'service catalog': 'service-catalog', services: 'service-catalog',
+            notifications: 'notifications', settings: 'hospital-settings',
         };
         const result = ['dashboard', 'portal-guide'];
         allowed.forEach(mod => { if (moduleMap[mod]) result.push(moduleMap[mod]); });
@@ -348,529 +280,489 @@ const DashboardLayout = () => {
 
     const getBottomNavItems = () => {
         if (effectiveRole === 'Doctor') return [
-            { id: 'doctor-dashboard', label: 'Home', icon: <Activity size={22} />, path: '/dashboard/doctor' },
-            { id: 'doctor-queue', label: 'Queue', icon: <ClipboardList size={22} />, path: '/dashboard/doctor/queue' },
-            { id: 'doctor-prescriptions', label: 'Rx', icon: <Pill size={22} />, path: '/dashboard/doctor/prescriptions' },
-            { id: 'doctor-followups', label: 'Follow-Up', icon: <UserCog size={22} />, path: '/dashboard/doctor/followups' },
-            { id: 'doctor-profile', label: 'Profile', icon: <User size={22} />, path: '/dashboard/doctor/profile' },
+            { id: 'doctor-dashboard', label: 'Home', icon: Activity, path: '/dashboard/doctor' },
+            { id: 'doctor-queue', label: 'Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
+            { id: 'doctor-prescriptions', label: 'Rx', icon: Pill, path: '/dashboard/doctor/prescriptions' },
+            { id: 'doctor-followups', label: 'Follow-Up', icon: UserCog, path: '/dashboard/doctor/followups' },
+            { id: 'doctor-profile', label: 'Profile', icon: User, path: '/dashboard/doctor/profile' },
         ];
         if (effectiveRole === 'Admin' || effectiveRole === 'SuperAdmin') return [
-            { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={22} />, path: '/dashboard' },
-            { id: 'patients', label: 'Patients', icon: <Users size={22} />, path: '/dashboard/patients' },
-            { id: 'appointments', label: 'Appts', icon: <Calendar size={22} />, path: '/dashboard/appointments' },
-            { id: 'billing', label: 'Billing', icon: <Receipt size={22} />, path: '/dashboard/billing' },
-            { id: 'hospital-settings', label: 'Settings', icon: <Settings2 size={22} />, path: '/dashboard/settings' },
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
+            { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
+            { id: 'appointments', label: 'Appts', icon: Calendar, path: '/dashboard/appointments' },
+            { id: 'billing', label: 'Billing', icon: Receipt, path: '/dashboard/billing' },
+            { id: 'hospital-settings', label: 'Settings', icon: Settings2, path: '/dashboard/settings' },
         ];
-        // Helpdesk / Staff
         return [
-            { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={22} />, path: '/dashboard' },
-            { id: 'patients', label: 'Patients', icon: <Users size={22} />, path: '/dashboard/patients' },
-            { id: 'appointments', label: 'Appts', icon: <Calendar size={22} />, path: '/dashboard/appointments' },
-            { id: 'notifications', label: 'Alerts', icon: <Bell size={22} />, path: '/dashboard/notifications' },
-            { id: 'portal-guide', label: 'Help', icon: <BookOpen size={22} />, path: '/dashboard/guide' },
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
+            { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
+            { id: 'appointments', label: 'Appts', icon: Calendar, path: '/dashboard/appointments' },
+            { id: 'notifications', label: 'Alerts', icon: Bell, path: '/dashboard/notifications' },
+            { id: 'portal-guide', label: 'Help', icon: BookOpen, path: '/dashboard/guide' },
         ];
     };
 
     const bottomNavItems = getBottomNavItems();
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        localStorage.removeItem('userName');
-        localStorage.removeItem('doctorId');
-        localStorage.removeItem('employeeId');
-        localStorage.removeItem('hospitalId');
-        localStorage.removeItem('assignedModules');
-        localStorage.removeItem('subscriptionPlan');
-        localStorage.removeItem('subscriptionStatus');
-        localStorage.removeItem('subscriptionModules');
+        ['token', 'role', 'userName', 'doctorId', 'employeeId', 'hospitalId',
+         'assignedModules', 'subscriptionPlan', 'subscriptionStatus', 'subscriptionModules']
+            .forEach(k => localStorage.removeItem(k));
         navigate('/login');
     };
+
+    const isItemActive = (path) =>
+        activePath === path || (path !== '/dashboard' && activePath.startsWith(path));
 
     const panelNotifications = notifications.slice(0, 8);
     const panelUnread = notifications.filter(n => !n.isRead).length;
 
-    return (
-        <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-            {isSidebarOpen && (
-                <div
-                    className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-sm transition-opacity md:hidden"
-                    onClick={() => setIsSidebarOpen(false)}
-                />
-            )}
+    /* ---------------- Sidebar ---------------- */
+    const SidebarNav = ({ collapsed = false, onNavigate }) => (
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4 scrollbar-thin">
+            {menuGroups.map((group, idx) => {
+                const visibleItems = group.items.filter(item => effectivePerms.includes(item.id));
+                if (visibleItems.length === 0) return null;
 
-            <aside className={`fixed inset-y-0 left-0 z-[49] bg-slate-900 shadow-2xl transition-all duration-300 ease-in-out md:translate-x-0 ${
-                isCollapsed ? 'w-20' : 'w-64'
-            } ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className={`flex items-center ${isCollapsed ? 'justify-center px-4' : 'justify-between px-6'} h-20 border-b border-slate-800`}>
-                    {!isCollapsed && (
-                        <div className="flex items-center gap-2 text-white overflow-hidden whitespace-nowrap">
-                            <HeartPulse className="h-8 w-8 text-blue-400 flex-shrink-0" />
-                            <span className="text-xl font-bold tracking-tight">Trikaar HMS</span>
-                        </div>
-                    )}
-                    {isCollapsed && (
-                        <HeartPulse className="h-8 w-8 text-blue-400 flex-shrink-0" />
-                    )}
-                    <button 
-                        type="button"
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                    >
-                        {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-                    </button>
-                    <button className="md:hidden p-2 text-slate-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
-                        <X size={20} />
-                    </button>
-                </div>
+                return (
+                    <div key={idx}>
+                        {collapsed ? (
+                            <div className="mx-2 mb-2 border-t border-sidebar-border first:hidden" />
+                        ) : (
+                            <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {group.title}
+                            </h3>
+                        )}
+                        <div className="space-y-0.5">
+                            {visibleItems.map((item) => {
+                                const Icon = item.icon;
+                                const active = isItemActive(item.path);
+                                const showDot = item.id === 'notifications' && unreadCount > 0;
 
-                <nav className="mt-4 px-3 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 160px)' }}>
-                    {menuGroups.map((group, idx) => {
-                        const visibleItems = group.items.filter(item => effectivePerms.includes(item.id));
-                        if (visibleItems.length === 0) return null;
-
-                        return (
-                            <div key={idx}>
-                                {isCollapsed ? (
-                                    <div className="border-t border-slate-800/80 my-4 first:mt-0" />
-                                ) : (
-                                    <h3 className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                        {group.title}
-                                    </h3>
-                                )}
-                                <div className="space-y-1">
-                                    {visibleItems.map((item) => {
-                                        const isActive = activePath === item.path ||
-                                        (item.path !== '/dashboard' && activePath.startsWith(item.path));
-                                        return (
-                                            <button
-                                                key={item.path}
-                                                onClick={() => {
-                                                    setActivePath(item.path);
-                                                    navigate(item.path);
-                                                    setIsSidebarOpen(false);
-                                                }}
-                                                title={isCollapsed ? item.label : undefined}
-                                                className={`flex items-center rounded-lg py-2.5 transition-all duration-200 ${
-                                                    isCollapsed ? 'w-full justify-center px-0' : 'w-full gap-3 px-3 text-sm font-medium'
-                                                } ${
-                                                    isActive
-                                                        ? 'bg-blue-600/10 text-blue-400 shadow-[inset_2px_0_0_0_#3b82f6]'
-                                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                            >
-                                                <div className="relative flex items-center justify-center">
-                                                    {item.icon}
-                                                    {isCollapsed && item.id === 'notifications' && unreadCount > 0 && (
-                                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-slate-900 animate-pulse" />
-                                                    )}
-                                                </div>
-                                                {!isCollapsed && (
-                                                    <>
-                                                        <span className="truncate">{item.label}</span>
-                                                        {item.id === 'notifications' && unreadCount > 0 && (
-                                                            <span className="ml-auto px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
-                                                                {unreadCount > 99 ? '99+' : unreadCount}
-                                                            </span>
-                                                        )}
-                                                    </>
+                                const button = (
+                                    <button
+                                        key={item.path}
+                                        onClick={() => { navigate(item.path); onNavigate?.(); }}
+                                        aria-current={active ? 'page' : undefined}
+                                        className={cn(
+                                            'relative flex w-full items-center rounded-md py-2 text-sm transition-colors',
+                                            collapsed ? 'justify-center px-0' : 'gap-2.5 px-2',
+                                            active
+                                                ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                                                : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+                                        )}
+                                    >
+                                        <span className="relative flex items-center justify-center">
+                                            <Icon className="h-[18px] w-[18px] shrink-0" />
+                                            {collapsed && showDot && (
+                                                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar" />
+                                            )}
+                                        </span>
+                                        {!collapsed && (
+                                            <>
+                                                <span className="truncate">{item.label}</span>
+                                                {showDot && (
+                                                    <span className="tabular ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
+                                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                                    </span>
                                                 )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </nav>
+                                            </>
+                                        )}
+                                    </button>
+                                );
 
-                <div className="absolute bottom-8 left-0 w-full px-3 text-center">
-                    <button
-                        onClick={handleLogout}
-                        title={isCollapsed ? "Sign Out" : undefined}
-                        className={`flex items-center rounded-xl bg-red-50 py-3 text-red-600 transition-colors hover:bg-red-100 ${
-                            isCollapsed ? 'w-full justify-center px-0' : 'w-full gap-3 px-4 text-sm font-bold'
-                        }`}
-                    >
-                        <LogOut size={20} />
-                        {!isCollapsed && <span>Sign Out</span>}
-                    </button>
-                </div>
-            </aside>
-
-            <main className={`flex-1 overflow-y-auto bg-gray-50/50 transition-all duration-300 ${
-                isCollapsed ? 'md:ml-20' : 'md:ml-64'
-            }`}>
-                <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/80 px-4 py-2 md:py-4 backdrop-blur-md md:px-8">
-                    <div className="flex items-center gap-4">
-                        <button
-                            className="rounded-lg bg-gray-50 p-2 text-gray-600 md:hidden"
-                            onClick={() => setIsSidebarOpen(true)}
-                        >
-                            <Menu size={24} />
-                        </button>
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-800 md:text-2xl leading-tight">Trikaar HMS</h2>
-                            <p className="hidden text-xs text-gray-500 md:block">Welcome back, {userName}</p>
+                                // Collapsed rail has no labels, so the tooltip is the only affordance.
+                                return collapsed ? (
+                                    <Tooltip key={item.path}>
+                                        <TooltipTrigger asChild>{button}</TooltipTrigger>
+                                        <TooltipContent side="right">{item.label}</TooltipContent>
+                                    </Tooltip>
+                                ) : button;
+                            })}
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                        {/* Notification Bell + Dropdown */}
-                        <div className="relative" ref={notifRef}>
-                            <button
-                                id="notification-bell-btn"
-                                onClick={toggleNotifPanel}
-                                className={`relative p-2 rounded-xl transition-all duration-200 ${notifOpen ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                            >
-                                <Bell size={20} />
-                                {unreadCount > 0 && (
-                                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                                        {unreadCount > 9 ? '9+' : unreadCount}
-                                    </span>
-                                )}
-                            </button>
+                );
+            })}
+        </nav>
+    );
 
-                            {/* Notification Dropdown Panel */}
-                            {notifOpen && (
-                                <div
-                                    className="absolute right-0 mt-2 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
-                                    style={{
-                                        animation: 'notifSlideIn 0.2s ease-out',
-                                        zIndex: 50,
-                                    }}
-                                >
-                                    {/* Panel Header */}
-                                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-                                        <div className="flex items-center gap-2">
-                                            <Bell size={18} className="text-blue-600" />
-                                            <span className="text-sm font-bold text-gray-900">Notifications</span>
-                                            {panelUnread > 0 && (
-                                                <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
-                                                    {panelUnread} new
-                                                </span>
-                                            )}
-                                        </div>
-                                        {panelUnread > 0 && (
-                                            <button
-                                                onClick={markAllRead}
-                                                className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded-lg hover:bg-blue-100"
-                                            >
-                                                <CheckCheck size={13} /> Mark all read
-                                            </button>
-                                        )}
-                                    </div>
+    const SidebarFooter = ({ collapsed = false }) => (
+        <div className="border-t border-sidebar-border p-3">
+            <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className={cn(
+                    'w-full text-muted-foreground hover:bg-destructive-subtle hover:text-destructive',
+                    collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2',
+                )}
+            >
+                <LogOut className="h-[18px] w-[18px]" />
+                {!collapsed && <span>Sign out</span>}
+            </Button>
+        </div>
+    );
 
-                                    {/* Panel Body */}
-                                    <div className="max-h-[400px] overflow-y-auto overscroll-contain" style={{ scrollbarWidth: 'thin' }}>
-                                        {notifLoading ? (
-                                            <div className="flex items-center justify-center py-12">
-                                                <div className="w-6 h-6 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                            </div>
-                                        ) : panelNotifications.length === 0 ? (
-                                            <div className="text-center py-12 px-4">
-                                                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                                                    <Bell size={20} className="text-gray-400" />
-                                                </div>
-                                                <p className="text-sm font-semibold text-gray-500">No notifications yet</p>
-                                                <p className="text-xs text-gray-400 mt-1">You're all caught up!</p>
-                                            </div>
-                                        ) : (
-                                            panelNotifications.map((n, i) => {
-                                                const tc = notifTypeConfig[n.type] || notifTypeConfig.default;
-                                                return (
-                                                    <div
-                                                        key={n.notificationId || i}
-                                                        className={`group flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-all duration-150 border-b border-gray-50 last:border-0 ${n.isRead
-                                                            ? 'bg-white hover:bg-gray-50'
-                                                            : 'bg-blue-50/40 hover:bg-blue-50/70'
-                                                            }`}
-                                                        onClick={() => {
-                                                            if (!n.isRead) markAsRead(n.notificationId);
-                                                        }}
-                                                    >
-                                                        {/* Icon */}
-                                                        <div
-                                                            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5"
-                                                            style={{ backgroundColor: tc.bg, color: tc.color }}
-                                                        >
-                                                            {tc.icon}
-                                                        </div>
-                                                        {/* Content */}
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <p className={`text-xs leading-snug truncate ${n.isRead ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
-                                                                    {n.title}
-                                                                </p>
-                                                                {n.priority === 'urgent' && <Zap size={10} className="text-red-500 flex-shrink-0" />}
-                                                                {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>}
-                                                            </div>
-                                                            <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">{n.message}</p>
-                                                            <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                                                                <Clock size={9} /> {timeAgo(n.createdOn)}
-                                                            </p>
-                                                        </div>
-                                                        {/* Mark read button */}
-                                                        {!n.isRead && (
-                                                            <button
-                                                                onClick={(e) => markAsRead(n.notificationId, e)}
-                                                                className="flex-shrink-0 p-1.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                                title="Mark as read"
-                                                            >
-                                                                <Check size={12} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })
-                                        )}
-                                    </div>
+    return (
+        <div className="flex h-screen overflow-hidden bg-background">
+            {/* Desktop sidebar */}
+            <aside
+                className={cn(
+                    'fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 md:flex',
+                    isCollapsed ? 'w-16' : 'w-60',
+                )}
+            >
+                <div className={cn('flex h-14 shrink-0 items-center border-b border-sidebar-border', isCollapsed ? 'justify-center px-2' : 'justify-between px-4')}>
+                    {isCollapsed ? <Logo variant="mark" className="h-7 w-7" /> : <LogoLockup />}
+                    {!isCollapsed && (
+                        <Button variant="ghost" size="icon-sm" onClick={() => setIsCollapsed(true)} aria-label="Collapse sidebar">
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
 
-                                    {/* Panel Footer */}
-                                    {panelNotifications.length > 0 && (
-                                        <div className="border-t border-gray-100">
-                                            <button
-                                                onClick={() => {
-                                                    setNotifOpen(false);
-                                                    setActivePath('/dashboard/notifications');
-                                                    navigate('/dashboard/notifications');
-                                                }}
-                                                className="flex items-center justify-center gap-2 w-full px-4 py-3 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors"
-                                            >
-                                                View All Notifications <ExternalLink size={12} />
-                                            </button>
-                                        </div>
+                {isCollapsed && (
+                    <div className="flex justify-center border-b border-sidebar-border py-2">
+                        <Button variant="ghost" size="icon-sm" onClick={() => setIsCollapsed(false)} aria-label="Expand sidebar">
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
+
+                <SidebarNav collapsed={isCollapsed} />
+                <SidebarFooter collapsed={isCollapsed} />
+            </aside>
+
+            {/* Mobile drawer — Radix Sheet, so focus is trapped and Escape closes it. */}
+            <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+                <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0" hideClose>
+                    <SheetTitle className="sr-only">Navigation</SheetTitle>
+                    <div className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-4">
+                        <LogoLockup />
+                        <Button variant="ghost" size="icon-sm" onClick={() => setIsSidebarOpen(false)} aria-label="Close menu">
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <SidebarNav onNavigate={() => setIsSidebarOpen(false)} />
+                    <SidebarFooter />
+                </SheetContent>
+            </Sheet>
+
+            {/* Main column */}
+            <div className={cn('flex min-w-0 flex-1 flex-col transition-[margin] duration-200', isCollapsed ? 'md:ml-16' : 'md:ml-60')}>
+                <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur md:px-6">
+                    <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)} aria-label="Open menu">
+                        <Menu className="h-5 w-5" />
+                    </Button>
+
+                    <div className="md:hidden"><Logo variant="mark" className="h-6 w-6" /></div>
+
+                    {/* Search opener. On desktop it shows the shortcut so the hotkey is discoverable
+                        rather than folklore; on mobile it collapses to an icon. */}
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsSearchOpen(true)}
+                        className="ml-auto h-9 gap-2 px-2.5 text-muted-foreground md:ml-0 md:mr-auto md:w-64 md:justify-start md:px-3"
+                    >
+                        <Search className="h-4 w-4" />
+                        <span className="hidden md:inline">Search patients…</span>
+                        <kbd className="ml-auto hidden rounded border bg-muted px-1.5 font-sans text-[10px] font-medium md:inline">⌘K</kbd>
+                    </Button>
+
+                    <div className="flex items-center gap-0.5">
+                        <ThemeToggle />
+
+                        <Popover
+                            open={notifOpen}
+                            onOpenChange={(o) => { setNotifOpen(o); if (o) fetchNotifications(); }}
+                        >
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="relative text-muted-foreground" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+                                    <Bell className="h-[18px] w-[18px]" />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-[360px] max-w-[calc(100vw-1.5rem)] p-0">
+                                <div className="flex items-center justify-between border-b px-4 py-2.5">
+                                    <p className="text-sm font-semibold">Notifications</p>
+                                    {panelUnread > 0 && (
+                                        <Button variant="ghost" size="sm" onClick={markAllRead} className="h-7 gap-1.5 px-2 text-xs">
+                                            <CheckCheck className="h-3.5 w-3.5" /> Mark all read
+                                        </Button>
                                     )}
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="text-right hidden sm:block">
-                            <p className="text-xs font-black text-gray-900 leading-none capitalize">{userName}</p>
-                            <p className="text-[10px] font-bold text-primary-600 uppercase tracking-widest">{userRole}</p>
-                        </div>
-                        <button
-                            onClick={() => {
-                                if (effectiveRole === 'Doctor') {
-                                    setActivePath('/dashboard/doctor/profile');
-                                    navigate('/dashboard/doctor/profile');
-                                }
-                            }}
-                            className={`h-10 w-10 overflow-hidden rounded-xl border-2 border-white shadow-md ring-2 ring-gray-100 transition-all ${
-                                effectiveRole === 'Doctor' ? 'cursor-pointer hover:scale-105 hover:ring-blue-400' : 'cursor-default'
-                            }`}
-                            title={effectiveRole === 'Doctor' ? 'My Profile' : undefined}
-                        >
-                            <img src={`https://ui-avatars.com/api/?name=${userName}&background=0D8ABC&color=fff&bold=true`} alt="User" className="w-full h-full object-cover" />
-                        </button>
+                                <div className="max-h-[380px] overflow-y-auto overscroll-contain scrollbar-thin">
+                                    {notifLoading ? (
+                                        <div className="flex justify-center py-10">
+                                            <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+                                        </div>
+                                    ) : panelNotifications.length === 0 ? (
+                                        <EmptyState
+                                            icon={Bell}
+                                            title="You're all caught up"
+                                            description="New alerts will appear here."
+                                            className="py-10"
+                                        />
+                                    ) : (
+                                        panelNotifications.map((n, i) => {
+                                            const tc = notifTypeConfig[n.type] || notifTypeConfig.default;
+                                            const NIcon = tc.icon;
+                                            return (
+                                                <button
+                                                    key={n.notificationId || i}
+                                                    onClick={() => { if (!n.isRead) markAsRead(n.notificationId); }}
+                                                    className={cn(
+                                                        'group flex w-full items-start gap-3 border-b px-4 py-3 text-left transition-colors last:border-0 hover:bg-accent/50',
+                                                        !n.isRead && 'bg-accent/30',
+                                                    )}
+                                                >
+                                                    <NIcon className={cn('mt-0.5 h-4 w-4 shrink-0', tc.tone)} />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <span className={cn('truncate text-[13px]', n.isRead ? 'font-medium text-muted-foreground' : 'font-semibold text-foreground')}>
+                                                                {n.title}
+                                                            </span>
+                                                            {n.priority === 'urgent' && <Zap className="h-3 w-3 shrink-0 text-destructive" />}
+                                                            {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-info" />}
+                                                        </span>
+                                                        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{n.message}</span>
+                                                        <span className="mt-1 block text-[11px] text-muted-foreground">{timeAgo(n.createdOn)}</span>
+                                                    </span>
+                                                    {!n.isRead && (
+                                                        <span
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={(e) => markAsRead(n.notificationId, e)}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter') markAsRead(n.notificationId, e); }}
+                                                            aria-label="Mark as read"
+                                                            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                                                        >
+                                                            <Check className="h-3.5 w-3.5" />
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {panelNotifications.length > 0 && (
+                                    <div className="border-t p-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full text-xs"
+                                            onClick={() => { setNotifOpen(false); navigate('/dashboard/notifications'); }}
+                                        >
+                                            View all notifications
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="ml-1 h-9 gap-2 px-1.5 md:pr-2.5">
+                                    <Avatar className="h-7 w-7">
+                                        <AvatarFallback className="bg-primary text-[10px] text-primary-foreground">
+                                            {initials(userName)}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <span className="hidden text-left md:block">
+                                        <span className="block max-w-[120px] truncate text-xs font-medium capitalize leading-tight">{userName}</span>
+                                        <span className="block text-[10px] leading-tight text-muted-foreground">{userRole}</span>
+                                    </span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuLabel className="font-normal">
+                                    <p className="truncate text-sm font-medium capitalize">{userName}</p>
+                                    <p className="text-xs text-muted-foreground">{userRole}</p>
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {effectiveRole === 'Doctor' && (
+                                    <DropdownMenuItem onSelect={() => navigate('/dashboard/doctor/profile')} className="gap-2">
+                                        <User className="h-4 w-4" /> My profile
+                                    </DropdownMenuItem>
+                                )}
+                                {effectivePerms.includes('hospital-settings') && (
+                                    <DropdownMenuItem onSelect={() => navigate('/dashboard/settings')} className="gap-2">
+                                        <Settings2 className="h-4 w-4" /> Settings
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onSelect={() => navigate('/dashboard/guide')} className="gap-2">
+                                    <BookOpen className="h-4 w-4" /> Help &amp; guide
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={handleLogout} className="gap-2 text-destructive focus:text-destructive">
+                                    <LogOut className="h-4 w-4" /> Sign out
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </header>
 
-                <div className="p-3 md:p-8 max-w-[1600px] mx-auto pb-24 md:pb-8">
-                    <Outlet />
-                </div>
-            </main>
+                <main className="flex-1 overflow-y-auto scrollbar-thin">
+                    <div className="mx-auto max-w-[1600px] p-4 pb-24 md:p-6 md:pb-8">
+                        <Outlet />
+                    </div>
+                </main>
+            </div>
 
-            {/* Mobile Bottom Navigation Bar */}
-            <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-                <div className="flex items-stretch h-16">
-                    {bottomNavItems.map((item) => {
-                        const isActive = activePath === item.path ||
-                            (item.path !== '/dashboard' && activePath.startsWith(item.path));
-                        const isAllowed = effectivePerms.includes(item.id);
-                        if (!isAllowed) return null;
+            {/* Mobile bottom navigation */}
+            <nav className="fixed inset-x-0 bottom-0 z-30 border-t bg-background pb-safe md:hidden">
+                <div className="flex h-16 items-stretch">
+                    {bottomNavItems.filter(i => effectivePerms.includes(i.id)).map((item) => {
+                        const Icon = item.icon;
+                        const active = isItemActive(item.path);
                         return (
                             <button
                                 key={item.path}
-                                onClick={() => {
-                                    setActivePath(item.path);
-                                    navigate(item.path);
-                                    setIsSidebarOpen(false);
-                                }}
-                                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1 transition-all duration-150 relative ${
-                                    isActive
-                                        ? 'text-blue-600'
-                                        : 'text-gray-400 hover:text-gray-600'
-                                }`}
+                                onClick={() => navigate(item.path)}
+                                aria-current={active ? 'page' : undefined}
+                                className={cn(
+                                    'relative flex flex-1 flex-col items-center justify-center gap-1 transition-colors',
+                                    active ? 'text-foreground' : 'text-muted-foreground',
+                                )}
                             >
-                                {isActive && (
-                                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-full" />
-                                )}
-                                <span className={`transition-transform duration-150 ${isActive ? 'scale-110' : ''}`}>
-                                    {item.icon}
+                                {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-foreground" />}
+                                <span className="relative">
+                                    <Icon className="h-[22px] w-[22px]" />
+                                    {item.id === 'notifications' && unreadCount > 0 && (
+                                        <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+                                    )}
                                 </span>
-                                <span className={`text-[10px] font-bold tracking-tight leading-none ${
-                                    isActive ? 'text-blue-600' : 'text-gray-400'
-                                }`}>{item.label}</span>
-                                {item.id === 'notifications' && unreadCount > 0 && (
-                                    <span className="absolute top-1.5 right-1/4 w-2 h-2 bg-red-500 rounded-full border border-white" />
-                                )}
+                                <span className="text-[10px] font-medium leading-none">{item.label}</span>
                             </button>
                         );
                     })}
-                    {/* More/Menu button to open sidebar */}
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="flex flex-1 flex-col items-center justify-center gap-1 text-muted-foreground"
                     >
-                        <Menu size={22} />
-                        <span className="text-[10px] font-bold tracking-tight leading-none">More</span>
+                        <Menu className="h-[22px] w-[22px]" />
+                        <span className="text-[10px] font-medium leading-none">More</span>
                     </button>
                 </div>
-                {/* iOS safe area padding */}
-                <div className="h-safe-area-inset-bottom bg-white" style={{ height: 'env(safe-area-inset-bottom)' }} />
             </nav>
 
             {hasAiAccess() && <AICopilotPanel />}
 
-            {/* Quick Search Overlay */}
-            <AnimatePresence>
-                {/* Radix-backed palette: focus is trapped inside it, Escape closes, and the
-                    page behind is inert. The previous overlay did none of these — Tab walked
-                    straight out of the palette into the page behind the backdrop. */}
-                <CommandDialog
-                    open={isSearchOpen}
-                    onOpenChange={(open) => { setIsSearchOpen(open); if (!open) setSearchQuery(''); }}
-                    label="Patient search"
-                >
-                    <CommandInput
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        placeholder="Search patient by name, mobile or code..."
-                    />
-                    <CommandList>
-                        {searching ? (
-                            <div className="flex items-center justify-center py-10">
-                                <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-muted border-t-primary" />
-                            </div>
-                        ) : searchResults.length > 0 ? (
-                            searchResults.map(p => (
-                                <div key={p.patientId} className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-accent/60">
-                                    <div className="flex min-w-0 items-center gap-3">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-accent-foreground">
-                                            {(p.firstName || '?')[0]}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="truncate text-sm font-semibold text-foreground">{p.firstName} {p.lastName}</p>
-                                            <p className="truncate text-xs text-muted-foreground">
-                                                {p.patientCode || `#${p.patientId}`} · {p.gender} · {p.phoneNumber}{p.age ? ` · Age ${p.age}` : ''}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-1.5">
-                                        <Button
-                                            size="sm"
-                                            onClick={() => {
-                                                setIsSearchOpen(false);
-                                                setSearchQuery('');
-                                                navigate(`/dashboard/doctor/prescriptions?patientId=${p.patientId}&patientName=${encodeURIComponent(`${p.firstName} ${p.lastName}`)}`);
-                                            }}
-                                        >
-                                            <Pill size={13} /> Start Rx
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            onClick={() => {
-                                                setIsSearchOpen(false);
-                                                setSearchQuery('');
-                                                navigate(`/dashboard/doctor/patient/${p.patientId}`);
-                                            }}
-                                        >
-                                            Profile
-                                        </Button>
+            {/* Patient command palette */}
+            <CommandDialog
+                open={isSearchOpen}
+                onOpenChange={(open) => { setIsSearchOpen(open); if (!open) setSearchQuery(''); }}
+                label="Patient search"
+            >
+                <CommandInput
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search patient by name, mobile or code…"
+                />
+                <CommandList>
+                    {searching ? (
+                        <div className="flex justify-center py-10">
+                            <span className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+                        </div>
+                    ) : searchResults.length > 0 ? (
+                        searchResults.map(p => (
+                            <div key={p.patientId} className="flex items-center justify-between gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/60">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarFallback>{initials(`${p.firstName} ${p.lastName}`)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">{p.firstName} {p.lastName}</p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                            {p.patientCode || `#${p.patientId}`} · {p.gender} · {p.phoneNumber}{p.age ? ` · Age ${p.age}` : ''}
+                                        </p>
                                     </div>
                                 </div>
-                            ))
-                        ) : searchQuery.length > 1 ? (
-                            <CommandEmpty>No patient matches &ldquo;{searchQuery}&rdquo;</CommandEmpty>
-                        ) : (
-                            <CommandEmpty>Start typing to look up a patient</CommandEmpty>
-                        )}
-                    </CommandList>
-                    <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2.5 text-[11px] font-medium text-muted-foreground">
-                        <span>
-                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">⌘K</kbd>
-                            {' or '}
-                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">F2</kbd>
-                            {' to open'}
-                        </span>
-                        <span>
-                            <kbd className="rounded border bg-background px-1.5 py-0.5 font-semibold text-foreground">Esc</kbd> to close
-                        </span>
-                    </div>
-                </CommandDialog>
-            </AnimatePresence>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsSearchOpen(false); setSearchQuery('');
+                                            navigate(`/dashboard/doctor/prescriptions?patientId=${p.patientId}&patientName=${encodeURIComponent(`${p.firstName} ${p.lastName}`)}`);
+                                        }}
+                                    >
+                                        <Pill /> Start Rx
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setIsSearchOpen(false); setSearchQuery('');
+                                            navigate(`/dashboard/doctor/patient/${p.patientId}`);
+                                        }}
+                                    >
+                                        Profile
+                                    </Button>
+                                </div>
+                            </div>
+                        ))
+                    ) : searchQuery.length > 1 ? (
+                        <CommandEmpty>No patient matches &ldquo;{searchQuery}&rdquo;</CommandEmpty>
+                    ) : (
+                        <CommandEmpty>Start typing to look up a patient</CommandEmpty>
+                    )}
+                </CommandList>
+                <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2 text-[11px] text-muted-foreground">
+                    <span>
+                        <kbd className="rounded border bg-background px-1.5 py-0.5 font-medium text-foreground">⌘K</kbd>
+                        {' / '}
+                        <kbd className="rounded border bg-background px-1.5 py-0.5 font-medium text-foreground">F2</kbd> to open
+                    </span>
+                    <span><kbd className="rounded border bg-background px-1.5 py-0.5 font-medium text-foreground">Esc</kbd> to close</span>
+                </div>
+            </CommandDialog>
 
-            {/* New Appointment Popup Notification (Doctor only) */}
+            {/* New appointment toast (Doctor only) */}
             <AnimatePresence>
                 {apptPopup && (
                     <motion.div
-                        initial={{ opacity: 0, x: -80, scale: 0.95 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -80, scale: 0.95 }}
-                        transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                        className="fixed bottom-20 left-4 md:bottom-6 md:left-[17rem] z-50 w-80 max-w-[calc(100vw-2rem)]"
+                        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                        transition={{ type: 'spring', damping: 24, stiffness: 320 }}
+                        className="fixed bottom-20 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] md:bottom-6 md:left-[16.5rem]"
                     >
-                        <div className="bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
-                            {/* Green accent top bar */}
-                            <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
-                            <div className="p-4 flex items-start gap-3">
-                                <div className="flex-shrink-0 w-10 h-10 bg-green-500/20 border border-green-500/30 rounded-xl flex items-center justify-center">
-                                    <Stethoscope size={18} className="text-green-400" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
-                                        <p className="text-xs font-black text-green-400 uppercase tracking-wider">New Patient Queued</p>
-                                    </div>
-                                    <p className="font-bold text-white text-sm mt-1 truncate">
+                        <div className="overflow-hidden rounded-lg border bg-card shadow-lg">
+                            <div className="flex items-start gap-3 p-4">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success-subtle text-success">
+                                    <Stethoscope className="h-[18px] w-[18px]" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-success">New patient queued</p>
+                                    <p className="mt-0.5 truncate text-sm font-medium">
                                         {apptPopup.count > 1 ? `${apptPopup.count} new appointments` : apptPopup.patientName}
                                     </p>
-                                    <p className="text-slate-400 text-xs mt-0.5">
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
                                         {apptPopup.appointmentType}
-                                        {apptPopup.time && ` • ${new Date(apptPopup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                        {apptPopup.time && ` · ${new Date(apptPopup.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                                     </p>
                                 </div>
-                                <button
-                                    onClick={() => setApptPopup(null)}
-                                    className="flex-shrink-0 p-1 text-slate-500 hover:text-white transition-colors rounded-lg hover:bg-slate-700"
-                                >
-                                    <X size={14} />
-                                </button>
+                                <Button variant="ghost" size="icon-sm" onClick={() => setApptPopup(null)} aria-label="Dismiss">
+                                    <X className="h-3.5 w-3.5" />
+                                </Button>
                             </div>
-                            <div className="px-4 pb-3 flex gap-2">
-                                <button
-                                    onClick={() => { setApptPopup(null); navigate('/dashboard/doctor/queue'); setActivePath('/dashboard/doctor/queue'); }}
-                                    className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-black rounded-xl transition-colors"
+                            <div className="flex gap-2 border-t p-2">
+                                <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => { setApptPopup(null); navigate('/dashboard/doctor/queue'); }}
                                 >
-                                    View Queue
-                                </button>
-                                <button
-                                    onClick={() => setApptPopup(null)}
-                                    className="px-3 py-2 text-slate-400 hover:text-white text-xs font-semibold rounded-xl hover:bg-slate-700 transition-colors"
-                                >
-                                    Dismiss
-                                </button>
+                                    View queue
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setApptPopup(null)}>Dismiss</Button>
                             </div>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            {/* Notification dropdown animation */}
-            <style>{`
-                @keyframes notifSlideIn {
-                    from { opacity: 0; transform: translateY(-8px) scale(0.97); }
-                    to { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                .line-clamp-2 {
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                }
-            `}</style>
         </div>
     );
 };

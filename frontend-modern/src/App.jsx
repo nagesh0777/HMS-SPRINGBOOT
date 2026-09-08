@@ -1,4 +1,6 @@
 import React, { lazy, Suspense } from 'react';
+import { ThemeProvider } from './components/theme-provider';
+import { TooltipProvider } from './components/ui/tooltip';
 import { ToastProvider } from './components/Toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -97,6 +99,8 @@ function App() {
   const isAuthenticated = !!localStorage.getItem('token');
 
   return (
+    <ThemeProvider>
+    <TooltipProvider delayDuration={300}>
     <ToastProvider>
       <Router>
         <Suspense fallback={<RouteFallback />}>
@@ -168,6 +172,8 @@ function App() {
         </Suspense>
       </Router>
     </ToastProvider>
+    </TooltipProvider>
+    </ThemeProvider>
   );
 }
 

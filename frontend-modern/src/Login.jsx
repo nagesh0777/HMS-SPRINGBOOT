@@ -1,8 +1,14 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { User, Lock, HeartPulse, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { Logo } from "@/components/app/logo";
+import { ThemeToggle } from "@/components/app/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 
 const Login = () => {
     const [username, setUsername] = useState("");
@@ -97,59 +103,46 @@ const Login = () => {
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-[440px] space-y-8">
-                {/* Brand Logo & Header */}
-                <div className="text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm ring-1 ring-primary-700/10">
-                        <HeartPulse size={26} className="stroke-[2.5]" />
-                    </div>
-                    <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-gray-900 font-display">
-                        Login to Trikaar HMS
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-500">
-                        Enter your credentials to access your clinician workspace
+        <div className="relative flex min-h-screen flex-col items-center justify-center bg-muted/40 px-4 py-12">
+            <div className="absolute right-4 top-4">
+                <ThemeToggle />
+            </div>
+
+            <div className="w-full max-w-[400px]">
+                <div className="mb-8 flex flex-col items-center text-center">
+                    <Logo variant="full" className="h-8" />
+                    <h1 className="mt-6 text-2xl font-semibold tracking-tight">Sign in to HMS</h1>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                        Enter your credentials to access your workspace
                     </p>
                 </div>
 
-                {/* Login Card */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        {/* Username Field */}
-                        <div className="space-y-1.5">
-                            <label htmlFor="username" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                Username / Staff ID
-                            </label>
-                            <div className="relative rounded-lg shadow-sm">
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                                    <User className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
+                <Card className="p-6 sm:p-8">
+                    <form onSubmit={handleLogin} className="space-y-5">
+                        <div className="space-y-2">
+                            <Label htmlFor="username">Username / Staff ID</Label>
+                            <div className="relative">
+                                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
                                     id="username"
                                     name="username"
                                     type="text"
                                     autoComplete="username"
+                                    autoFocus
                                     required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     placeholder="yourusername"
-                                    className="block w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm font-medium transition-all"
+                                    className="h-11 pl-9"
                                 />
                             </div>
                         </div>
 
-                        {/* Password Field */}
-                        <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                                <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Password
-                                </label>
-                            </div>
-                            <div className="relative rounded-lg shadow-sm">
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                                    <Lock className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Password</Label>
+                            <div className="relative">
+                                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
                                     id="password"
                                     name="password"
                                     type={showPassword ? "text" : "password"}
@@ -158,44 +151,52 @@ const Login = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="block w-full rounded-xl border border-gray-300 py-3 pl-11 pr-11 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm font-medium transition-all"
+                                    className="h-11 pl-9 pr-10"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                                    // Announced state matters here: a screen-reader user otherwise
+                                    // has no way to tell whether their password is currently visible.
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                    aria-pressed={showPassword}
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
                             </div>
                         </div>
 
-                        {/* Error Message */}
                         {error && (
-                            <motion.div 
-                                initial={{ opacity: 0, y: -5 }} 
-                                animate={{ opacity: 1, y: 0 }} 
-                                className="flex items-start gap-2.5 rounded-xl bg-red-50 p-3.5 border border-red-100 text-xs font-medium text-red-700"
+                            <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                // Assertive: a failed sign-in is the one thing the user is waiting on.
+                                role="alert"
+                                aria-live="assertive"
+                                className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive-subtle p-3 text-sm text-destructive"
                             >
-                                <ShieldCheck className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                 <span>{error}</span>
                             </motion.div>
                         )}
 
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3.5 text-sm font-bold text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-colors disabled:opacity-50 active:scale-[0.99] transition-transform"
-                        >
+                        <Button type="submit" disabled={isLoading} size="lg" className="w-full">
                             {isLoading ? (
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Signing in…
+                                </>
                             ) : (
-                                "Login"
+                                "Sign in"
                             )}
-                        </button>
+                        </Button>
                     </form>
-                </div>
+                </Card>
+
+                <p className="mt-6 text-center text-xs text-muted-foreground">
+                    Trikaar HMS · Hospital Management System
+                </p>
             </div>
         </div>
     );

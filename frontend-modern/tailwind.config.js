@@ -13,9 +13,8 @@ export default {
         },
         extend: {
             colors: {
-                // shadcn semantic tokens, driven by the CSS variables in index.css. Components
-                // reference roles (primary, muted, destructive) rather than raw shades, so the
-                // whole app re-themes from one place.
+                // Every colour is a role, not a hue. Components reference meaning
+                // (primary, muted, destructive) so the whole app re-themes from index.css.
                 border: 'hsl(var(--border))',
                 input: 'hsl(var(--input))',
                 ring: 'hsl(var(--ring))',
@@ -28,10 +27,6 @@ export default {
                 secondary: {
                     DEFAULT: 'hsl(var(--secondary))',
                     foreground: 'hsl(var(--secondary-foreground))',
-                },
-                destructive: {
-                    DEFAULT: 'hsl(var(--destructive))',
-                    foreground: 'hsl(var(--destructive-foreground))',
                 },
                 muted: {
                     DEFAULT: 'hsl(var(--muted))',
@@ -49,25 +44,55 @@ export default {
                     DEFAULT: 'hsl(var(--card))',
                     foreground: 'hsl(var(--card-foreground))',
                 },
-                // Clinical status colours. Named by meaning, not hue, so "critical" stays
-                // recognisable if the palette is ever retuned.
+
+                // Clinical status. Named by meaning so "critical" stays recognisable
+                // if the palette is ever retuned. `subtle` is the tinted surface used
+                // by pills; the solid value stays for high-emphasis marks.
+                destructive: {
+                    DEFAULT: 'hsl(var(--destructive))',
+                    foreground: 'hsl(var(--destructive-foreground))',
+                    subtle: 'hsl(var(--destructive-subtle))',
+                },
                 success: {
                     DEFAULT: 'hsl(var(--success))',
                     foreground: 'hsl(var(--success-foreground))',
+                    subtle: 'hsl(var(--success-subtle))',
                 },
                 warning: {
                     DEFAULT: 'hsl(var(--warning))',
                     foreground: 'hsl(var(--warning-foreground))',
+                    subtle: 'hsl(var(--warning-subtle))',
+                },
+                info: {
+                    DEFAULT: 'hsl(var(--info))',
+                    foreground: 'hsl(var(--info-foreground))',
+                    subtle: 'hsl(var(--info-subtle))',
+                },
+
+                sidebar: {
+                    DEFAULT: 'hsl(var(--sidebar))',
+                    foreground: 'hsl(var(--sidebar-foreground))',
+                    border: 'hsl(var(--sidebar-border))',
+                    accent: 'hsl(var(--sidebar-accent))',
+                    'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+                },
+
+                chart: {
+                    1: 'hsl(var(--chart-1))',
+                    2: 'hsl(var(--chart-2))',
+                    3: 'hsl(var(--chart-3))',
+                    4: 'hsl(var(--chart-4))',
+                    5: 'hsl(var(--chart-5))',
                 },
             },
             borderRadius: {
+                xl: 'calc(var(--radius) + 4px)',
                 lg: 'var(--radius)',
                 md: 'calc(var(--radius) - 2px)',
                 sm: 'calc(var(--radius) - 4px)',
             },
             fontFamily: {
                 sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                display: ['Outfit', 'Inter', 'sans-serif'],
             },
             keyframes: {
                 'accordion-down': {
@@ -78,10 +103,19 @@ export default {
                     from: { height: 'var(--radix-accordion-content-height)' },
                     to: { height: '0' },
                 },
+                'fade-in': {
+                    from: { opacity: '0', transform: 'translateY(4px)' },
+                    to: { opacity: '1', transform: 'none' },
+                },
+                shimmer: {
+                    '100%': { transform: 'translateX(100%)' },
+                },
             },
             animation: {
                 'accordion-down': 'accordion-down 0.2s ease-out',
                 'accordion-up': 'accordion-up 0.2s ease-out',
+                'fade-in': 'fade-in 0.2s ease-out',
+                shimmer: 'shimmer 1.6s infinite',
             },
         },
     },

@@ -1,18 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
 import {
     Bell, Check, CheckCheck, Clock, AlertTriangle,
-    Calendar, FlaskConical, Stethoscope, Settings, Zap
+    Calendar, FlaskConical, Settings, Zap,
 } from 'lucide-react';
 
+import { PageHeader } from '@/components/app/page-header';
+import { EmptyState } from '@/components/app/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
+/**
+ * Icon and tone per notification kind. Only genuinely clinical kinds carry colour —
+ * a system backup notice is grey because it is not a clinical signal.
+ */
 const typeConfig = {
-    appointment_reminder: { icon: <Calendar size={16} />, color: 'bg-blue-100 text-blue-600' },
-    lab_result: { icon: <FlaskConical size={16} />, color: 'bg-amber-100 text-amber-600' },
-    follow_up: { icon: <Clock size={16} />, color: 'bg-purple-100 text-purple-600' },
-    emergency: { icon: <AlertTriangle size={16} />, color: 'bg-red-100 text-red-600' },
-    system: { icon: <Settings size={16} />, color: 'bg-gray-100 text-gray-600' },
-    default: { icon: <Bell size={16} />, color: 'bg-blue-100 text-blue-600' },
+    appointment_reminder: { icon: Calendar, tone: 'text-info' },
+    lab_result: { icon: FlaskConical, tone: 'text-warning' },
+    follow_up: { icon: Clock, tone: 'text-info' },
+    emergency: { icon: AlertTriangle, tone: 'text-destructive' },
+    system: { icon: Settings, tone: 'text-muted-foreground' },
+    default: { icon: Bell, tone: 'text-muted-foreground' },
 };
 
 const NotificationsPage = () => {
@@ -20,26 +32,25 @@ const NotificationsPage = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
 
-    useEffect(() => { fetchNotifications(); }, []);
-
-    const fetchNotifications = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get('/api/Notifications');
-            if (res.data.Results) setNotifications(res.data.Results);
-        } catch (e) {
-            console.error('Failed to fetch notifications', e);
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            setLoading(true);
+            try {
+                const res = await axios.get('/api/Notifications');
+                if (res.data.Results) setNotifications(res.data.Results);
+            } catch (e) {
+                console.error('Failed to fetch notifications', e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchNotifications();
+    }, []);
 
     const markAsRead = async (id) => {
         try {
             await axios.put(`/api/Notifications/${id}/Read`);
-            setNotifications(prev => prev.map(n =>
-                n.notificationId === id ? { ...n, isRead: true } : n
-            ));
+            setNotifications(prev => prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n)));
         } catch (e) {
             console.error('Failed to mark as read', e);
         }
@@ -54,90 +65,124 @@ const NotificationsPage = () => {
         }
     };
 
+    const unreadCount = notifications.filter(n => !n.isRead).length;
     const filtered = notifications.filter(n => {
         if (filter === 'unread') return !n.isRead;
         if (filter === 'read') return n.isRead;
         return true;
     });
 
-    const unreadCount = notifications.filter(n => !n.isRead).length;
+    const FILTERS = [
+        { key: 'all', label: 'All', count: notifications.length },
+        { key: 'unread', label: 'Unread', count: unreadCount },
+        { key: 'read', label: 'Read', count: notifications.length - unreadCount },
+    ];
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-                        <Bell size={24} className="text-blue-500" /> Notifications
-                        {unreadCount > 0 && (
-                            <span className="px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">{unreadCount}</span>
-                        )}
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">Stay updated with important alerts and reminders</p>
-                </div>
-                {unreadCount > 0 && (
-                    <button onClick={markAllRead}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
-                        <CheckCheck size={16} /> Mark All Read
-                    </button>
-                )}
-            </div>
+        <div className="space-y-5">
+            <PageHeader
+                title="Notifications"
+                description="Alerts and reminders from across the hospital."
+                icon={Bell}
+                actions={
+                    unreadCount > 0 && (
+                        <Button variant="outline" onClick={markAllRead}>
+                            <CheckCheck /> Mark all read
+                        </Button>
+                    )
+                }
+            />
 
-            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 w-fit">
-                {[
-                    { key: 'all', label: `All (${notifications.length})` },
-                    { key: 'unread', label: `Unread (${unreadCount})` },
-                    { key: 'read', label: 'Read' },
-                ].map(f => (
-                    <button key={f.key} onClick={() => setFilter(f.key)}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${filter === f.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <div className="flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
+                {FILTERS.map(f => (
+                    <button
+                        key={f.key}
+                        onClick={() => setFilter(f.key)}
+                        aria-pressed={filter === f.key}
+                        className={cn(
+                            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                            filter === f.key
+                                ? 'bg-secondary text-secondary-foreground'
+                                : 'text-muted-foreground hover:text-foreground',
+                        )}
+                    >
                         {f.label}
+                        <span className="tabular text-xs text-muted-foreground">{f.count}</span>
                     </button>
                 ))}
             </div>
 
             {loading ? (
-                <div className="flex items-center justify-center h-48">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="space-y-2">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[76px]" />)}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                    <Bell size={48} className="mx-auto mb-3 opacity-40" />
-                    <p className="font-semibold">No notifications</p>
-                    <p className="text-sm mt-1">{filter === 'unread' ? 'All caught up!' : 'Nothing to show'}</p>
-                </div>
+                <Card>
+                    <EmptyState
+                        icon={Bell}
+                        title={filter === 'unread' ? "You're all caught up" : 'Nothing to show'}
+                        description={
+                            filter === 'unread'
+                                ? 'Every notification has been read.'
+                                : filter === 'read'
+                                    ? 'No notifications have been read yet.'
+                                    : 'Alerts about appointments, lab results and admissions will appear here.'
+                        }
+                    />
+                </Card>
             ) : (
                 <div className="space-y-2">
                     {filtered.map((n, i) => {
                         const tc = typeConfig[n.type] || typeConfig.default;
+                        const Icon = tc.icon;
+                        const unread = !n.isRead;
+
                         return (
-                            <motion.div key={n.notificationId || i}
-                                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.02 }}
-                                className={`rounded-xl p-4 ring-1 transition-all hover:shadow-sm cursor-pointer ${n.isRead ? 'bg-white ring-gray-100' : 'bg-blue-50/50 ring-blue-200'}`}
-                                onClick={() => !n.isRead && markAsRead(n.notificationId)}>
-                                <div className="flex items-start gap-3">
-                                    <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${tc.color}`}>
-                                        {tc.icon}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <p className={`text-sm ${n.isRead ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>{n.title}</p>
-                                            {n.priority === 'urgent' && <Zap size={12} className="text-red-500" />}
-                                            {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500"></span>}
-                                        </div>
-                                        <p className="text-sm text-gray-500 mt-0.5">{n.message}</p>
-                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                                            <Clock size={10} /> {n.createdOn ? new Date(n.createdOn).toLocaleString() : ''}
+                            <Card
+                                key={n.notificationId || i}
+                                onClick={() => unread && markAsRead(n.notificationId)}
+                                className={cn(
+                                    'group flex items-start gap-3 p-4 transition-colors',
+                                    unread && 'cursor-pointer bg-accent/40 hover:bg-accent/60',
+                                )}
+                            >
+                                <Icon className={cn('mt-0.5 h-[18px] w-[18px] shrink-0', tc.tone)} />
+
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className={cn('text-sm', unread ? 'font-semibold' : 'font-medium text-muted-foreground')}>
+                                            {n.title}
                                         </p>
+                                        {n.priority === 'urgent' && (
+                                            <Badge variant="destructive" className="gap-1">
+                                                <Zap className="h-2.5 w-2.5" /> Urgent
+                                            </Badge>
+                                        )}
+                                        {unread && <span className="h-1.5 w-1.5 rounded-full bg-info" />}
                                     </div>
-                                    {!n.isRead && (
-                                        <button onClick={(e) => { e.stopPropagation(); markAsRead(n.notificationId); }}
-                                            className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors" title="Mark as read">
-                                            <Check size={14} />
-                                        </button>
-                                    )}
+                                    <p className="mt-1 text-sm text-muted-foreground">{n.message}</p>
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        {n.createdOn ? new Date(n.createdOn).toLocaleString() : ''}
+                                    </p>
                                 </div>
-                            </motion.div>
+
+                                {unread && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                aria-label="Mark as read"
+                                                onClick={(e) => { e.stopPropagation(); markAsRead(n.notificationId); }}
+                                                className="shrink-0 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                                            >
+                                                <Check className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Mark as read</TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </Card>
                         );
                     })}
                 </div>

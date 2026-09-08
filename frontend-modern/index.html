@@ -2,13 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/trikaar-mark.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#0f172a" />
-    <title>Trikaar HMS</title>
+    <meta name="apple-mobile-web-app-title" content="Trikaar HMS" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Navy from the Trikaar mark. Split by scheme so the mobile browser chrome
+         matches the app background rather than fighting it. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101828" />
+
+    <title>Trikaar HMS — Hospital Management</title>
+    <meta name="description" content="Trikaar HMS — clinical, ward and billing operations for modern hospitals." />
+
+    <meta property="og:title" content="Trikaar HMS" />
+    <meta property="og:description" content="Clinical, ward and billing operations for modern hospitals." />
+    <meta property="og:image" content="/trikaar-og.png" />
+    <meta property="og:type" content="website" />
+
+    <!-- Applied before first paint so a dark-mode reload never flashes white. -->
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('theme');
+          var dark = s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

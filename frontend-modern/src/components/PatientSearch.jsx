@@ -1,102 +1,185 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, User, Phone } from 'lucide-react';
+import { Search, Check, X } from 'lucide-react';
 
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+/**
+ * Type-ahead patient picker for the booking and admission forms.
+ *
+ * Reception drives this at speed with a queue in front of them, so it is a proper
+ * combobox: arrow keys move the highlight, Enter selects, Escape closes, and clicking
+ * away dismisses. The previous version was mouse-only and had no way to close the
+ * dropdown at all, which left it covering the fields underneath.
+ */
 const PatientSearch = ({ onSelect, selectedPatientId }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
     const [selectedPatient, setSelectedPatient] = useState(null);
+    const [highlight, setHighlight] = useState(0);
+    const rootRef = useRef(null);
 
     useEffect(() => {
-        if (searchTerm.length > 2) {
-            const delayDebounceFn = setTimeout(() => {
-                fetchPatients();
-            }, 300);
-            return () => clearTimeout(delayDebounceFn);
-        } else {
-            setResults([]);
-        }
+        if (searchTerm.length <= 2) { setResults([]); return; }
+        const delay = setTimeout(async () => {
+            try {
+                const response = await axios.get(`/api/Patient?search=${encodeURIComponent(searchTerm)}`);
+                if (response.data.Results) {
+                    setResults(response.data.Results);
+                    setShowResults(true);
+                    setHighlight(0);
+                }
+            } catch (error) {
+                console.error('Error searching patients:', error);
+            }
+        }, 300);
+        return () => clearTimeout(delay);
     }, [searchTerm]);
 
-    // Fetch details if we have search results but want to display selected one
+    // Hydrate the chip when a patient id arrives from the URL (booking straight after
+    // registration, or from a patient's chart).
     useEffect(() => {
         if (selectedPatientId && !selectedPatient) {
-            axios.get(`/api/Patient/${selectedPatientId}`).then(res => {
-                if (res.data.Results) setSelectedPatient(res.data.Results);
-            });
+            axios.get(`/api/Patient/${selectedPatientId}`)
+                .then(res => { if (res.data.Results) setSelectedPatient(res.data.Results); })
+                .catch(() => { });
         }
-    }, [selectedPatientId]);
+    }, [selectedPatientId, selectedPatient]);
 
-    const fetchPatients = async () => {
-        try {
-            const response = await axios.get(`/api/Patient?search=${searchTerm}`);
-            if (response.data.Results) {
-                setResults(response.data.Results);
-                setShowResults(true);
-            }
-        } catch (error) {
-            console.error("Error searching patients:", error);
-        }
-    };
+    useEffect(() => {
+        const onClickAway = (e) => {
+            if (rootRef.current && !rootRef.current.contains(e.target)) setShowResults(false);
+        };
+        document.addEventListener('mousedown', onClickAway);
+        return () => document.removeEventListener('mousedown', onClickAway);
+    }, []);
 
     const handleSelect = (patient) => {
         setSelectedPatient(patient);
-        setSearchTerm(`${patient.firstName} ${patient.lastName} (${patient.patientCode})`);
+        setSearchTerm('');
         setResults([]);
         setShowResults(false);
         onSelect(patient.patientId);
     };
 
+    const clearSelection = () => {
+        setSelectedPatient(null);
+        setSearchTerm('');
+        onSelect('');
+    };
+
+    const onKeyDown = (e) => {
+        if (!showResults || results.length === 0) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setHighlight(h => (h + 1) % results.length);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setHighlight(h => (h - 1 + results.length) % results.length);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSelect(results[highlight]);
+        } else if (e.key === 'Escape') {
+            setShowResults(false);
+        }
+    };
+
+    const noMatches = showResults && results.length === 0 && searchTerm.length > 2;
+
     return (
-        <div className="relative">
-            <label className="mb-2 block text-sm font-medium text-gray-700">Find Patient (Name, Mobile, or Code)</label>
-            <div className="relative">
-                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        if (selectedPatient) setSelectedPatient(null);
-                    }}
-                    onFocus={() => { if (results.length > 0) setShowResults(true); }}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 pl-10 focus:border-primary-500 focus:outline-none"
-                    placeholder="Type name, mobile or code..."
-                    autoComplete="off"
-                />
-            </div>
+        <div className="space-y-2" ref={rootRef}>
+            <Label htmlFor="patient-search">Patient</Label>
 
-            {showResults && results.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden">
-                    {results.map(patient => (
-                        <div
-                            key={patient.patientId}
-                            onClick={() => handleSelect(patient)}
-                            className="flex items-center gap-3 border-b border-gray-100 p-3 hover:bg-gray-50 cursor-pointer"
+            {selectedPatient ? (
+                // Once chosen, show the person rather than a text field still holding their
+                // name — it makes the committed selection unambiguous.
+                <div className="flex items-center gap-3 rounded-md border bg-muted/40 p-2.5">
+                    <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-[10px]">
+                            {initials(`${selectedPatient.firstName} ${selectedPatient.lastName}`)}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                            {selectedPatient.firstName} {selectedPatient.lastName}
+                        </p>
+                        <p className="tabular truncate text-xs text-muted-foreground">
+                            {[selectedPatient.patientCode, selectedPatient.phoneNumber].filter(Boolean).join(' · ')}
+                        </p>
+                    </div>
+                    <Check className="h-4 w-4 shrink-0 text-success" />
+                    <button
+                        type="button"
+                        onClick={clearSelection}
+                        aria-label="Choose a different patient"
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            ) : (
+                <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        id="patient-search"
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onFocus={() => { if (results.length > 0) setShowResults(true); }}
+                        onKeyDown={onKeyDown}
+                        placeholder="Search name, mobile or code…"
+                        autoComplete="off"
+                        role="combobox"
+                        aria-expanded={showResults}
+                        aria-controls="patient-search-results"
+                        className="pl-9"
+                    />
+
+                    {showResults && results.length > 0 && (
+                        <ul
+                            id="patient-search-results"
+                            role="listbox"
+                            className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md scrollbar-thin"
                         >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                                <User size={16} />
-                            </div>
-                            <div className="flex-1">
-                                <div className="text-sm font-bold text-gray-900">{patient.firstName} {patient.lastName}</div>
-                                <div className="text-[10px] text-gray-500">Code: {patient.patientCode} • Phone: {patient.phoneNumber || 'N/A'}</div>
-                            </div>
+                            {results.map((patient, i) => (
+                                <li key={patient.patientId} role="option" aria-selected={i === highlight}>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelect(patient)}
+                                        onMouseEnter={() => setHighlight(i)}
+                                        className={cn(
+                                            'flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors',
+                                            i === highlight && 'bg-accent',
+                                        )}
+                                    >
+                                        <Avatar className="h-7 w-7">
+                                            <AvatarFallback className="text-[10px]">
+                                                {initials(`${patient.firstName} ${patient.lastName}`)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-medium">
+                                                {patient.firstName} {patient.lastName}
+                                            </span>
+                                            <span className="tabular block truncate text-xs text-muted-foreground">
+                                                {[patient.patientCode, patient.phoneNumber].filter(Boolean).join(' · ')}
+                                            </span>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {noMatches && (
+                        <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-4 text-center text-sm text-muted-foreground shadow-md">
+                            No patients match “{searchTerm}”.
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {showResults && results.length === 0 && searchTerm.length > 2 && !selectedPatient && (
-                <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white p-4 text-center text-sm text-gray-500 shadow-xl">
-                    No patients found.
-                </div>
-            )}
-
-            {selectedPatient && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 p-2 text-xs text-green-700 font-medium border border-green-100">
-                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                    Selected: {selectedPatient.firstName} {selectedPatient.lastName} ({selectedPatient.patientCode})
+                    )}
                 </div>
             )}
         </div>
