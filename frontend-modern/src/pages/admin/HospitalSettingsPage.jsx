@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
-import { Settings, Upload, Save, Building, Phone, Mail, FileText, Image, Hash, Shield, Eye, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Settings, Upload, Save, Building, Phone, Mail, FileText, Image, Hash, Shield, Loader2 } from 'lucide-react';
+import { PageHeader } from '@/components/app/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 const HospitalSettingsPage = () => {
     const toast = useToast();
@@ -12,18 +18,12 @@ const HospitalSettingsPage = () => {
     const [settings, setSettings] = useState({
         hospitalName: '', address: '', phoneNumber: '', email: '',
         gstNumber: '', registrationNumber: '', footerText: '', hospitalCode: '',
-        logoPath: '', signatureImagePath: ''
+        logoPath: '', signatureImagePath: '',
     });
     const [logoPreview, setLogoPreview] = useState(null);
     const [sigPreview, setSigPreview] = useState(null);
 
-
-
-    useEffect(() => {
-        fetchSettings();
-    }, []);
-
-
+    useEffect(() => { fetchSettings(); }, []);
 
     const fetchSettings = async () => {
         try {
@@ -60,143 +60,120 @@ const HospitalSettingsPage = () => {
         } catch (e) { toast.error(`Failed to upload ${type}`); }
     };
 
-    const getFileUrl = (path) => {
-        if (!path) return null;
-        return `/api/Files${path.replace(/^\/uploads/, '')}`;
-    };
+    const getFileUrl = (path) => (path ? `/api/Files${path.replace(/^\/uploads/, '')}` : null);
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64">
-            <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-        </div>
-    );
+    if (loading) {
+        return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-8">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-2xl text-blue-600"><Settings size={28} /></div>
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Hospital Settings</h1>
-                    <p className="text-gray-500 font-medium">Configure branding, contact info, and PDF appearance.</p>
-                </div>
-            </div>
+        <div className="mx-auto max-w-3xl space-y-6">
+            <PageHeader
+                title="Hospital settings"
+                description="Configure branding, contact info and PDF appearance."
+                icon={Settings}
+            />
 
-            {/* Logo & Signature */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block">Hospital Logo</label>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Card className="p-6">
+                    <Label className="mb-4 block">Hospital logo</Label>
                     <div className="flex flex-col items-center gap-4">
-                        <div className="w-32 h-32 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden">
+                        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/30">
                             {(logoPreview || getFileUrl(settings.logoPath)) ? (
-                                <img src={logoPreview || getFileUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain" />
-                            ) : <Image size={32} className="text-gray-300" />}
+                                <img src={logoPreview || getFileUrl(settings.logoPath)} alt="Logo" className="h-full w-full object-contain" />
+                            ) : <Image className="h-8 w-8 text-muted-foreground" />}
                         </div>
                         <input ref={logoRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => uploadFile(e.target.files[0], 'logo')} />
-                        <button onClick={() => logoRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold hover:bg-blue-100 transition-all">
-                            <Upload size={14} />{settings.logoPath ? 'Change Logo' : 'Upload Logo'}
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => logoRef.current?.click()}>
+                            <Upload /> {settings.logoPath ? 'Change logo' : 'Upload logo'}
+                        </Button>
                     </div>
-                </div>
+                </Card>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block">Authorized Signature</label>
+                <Card className="p-6">
+                    <Label className="mb-4 block">Authorized signature</Label>
                     <div className="flex flex-col items-center gap-4">
-                        <div className="w-32 h-32 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden">
+                        <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/30">
                             {(sigPreview || getFileUrl(settings.signatureImagePath)) ? (
-                                <img src={sigPreview || getFileUrl(settings.signatureImagePath)} alt="Signature" className="w-full h-full object-contain" />
-                            ) : <FileText size={32} className="text-gray-300" />}
+                                <img src={sigPreview || getFileUrl(settings.signatureImagePath)} alt="Signature" className="h-full w-full object-contain" />
+                            ) : <FileText className="h-8 w-8 text-muted-foreground" />}
                         </div>
                         <input ref={sigRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => uploadFile(e.target.files[0], 'signature')} />
-                        <button onClick={() => sigRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold hover:bg-purple-100 transition-all">
-                            <Upload size={14} />{settings.signatureImagePath ? 'Change Signature' : 'Upload Signature'}
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => sigRef.current?.click()}>
+                            <Upload /> {settings.signatureImagePath ? 'Change signature' : 'Upload signature'}
+                        </Button>
                     </div>
-                </div>
+                </Card>
             </div>
 
-            {/* Basic Info */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm space-y-5">
-                <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">Basic Information</h2>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Hospital Name</label>
-                        <div className="relative">
-                            <Building size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input value={settings.hospitalName || ''} onChange={e => setSettings(s => ({ ...s, hospitalName: e.target.value }))}
-                                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Hospital Name" />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Address</label>
-                        <textarea value={settings.address || ''} onChange={e => setSettings(s => ({ ...s, address: e.target.value }))} rows={2}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none" placeholder="Full address" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Phone</label>
-                            <div className="relative">
-                                <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input value={settings.phoneNumber || ''} onChange={e => setSettings(s => ({ ...s, phoneNumber: e.target.value }))}
-                                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="+91..." />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Email</label>
-                            <div className="relative">
-                                <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input value={settings.email || ''} onChange={e => setSettings(s => ({ ...s, email: e.target.value }))}
-                                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="admin@hospital.com" />
-                            </div>
-                        </div>
+            <Card className="space-y-4 p-6">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Basic information</h2>
+                <div>
+                    <Label className="mb-1.5 block">Hospital name</Label>
+                    <div className="relative">
+                        <Building className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input value={settings.hospitalName || ''} onChange={e => setSettings(s => ({ ...s, hospitalName: e.target.value }))} placeholder="Hospital name" className="pl-9" />
                     </div>
                 </div>
-            </div>
-
-            {/* Registration & Tax */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm space-y-5">
-                <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">Registration & Tax</h2>
+                <div>
+                    <Label className="mb-1.5 block">Address</Label>
+                    <Textarea value={settings.address || ''} onChange={e => setSettings(s => ({ ...s, address: e.target.value }))} rows={2} placeholder="Full address" />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">GST Number</label>
+                        <Label className="mb-1.5 block">Phone</Label>
                         <div className="relative">
-                            <Hash size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input value={settings.gstNumber || ''} onChange={e => setSettings(s => ({ ...s, gstNumber: e.target.value }))}
-                                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="22AAAAA0000A1Z5" />
+                            <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input value={settings.phoneNumber || ''} onChange={e => setSettings(s => ({ ...s, phoneNumber: e.target.value }))} placeholder="+91…" className="pl-9" />
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Registration Number</label>
+                        <Label className="mb-1.5 block">Email</Label>
                         <div className="relative">
-                            <Shield size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input value={settings.registrationNumber || ''} onChange={e => setSettings(s => ({ ...s, registrationNumber: e.target.value }))}
-                                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="REG-2024-XXXX" />
+                            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input value={settings.email || ''} onChange={e => setSettings(s => ({ ...s, email: e.target.value }))} placeholder="admin@hospital.com" className="pl-9" />
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            <Card className="space-y-4 p-6">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Registration &amp; tax</h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label className="mb-1.5 block">GST number</Label>
+                        <div className="relative">
+                            <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input value={settings.gstNumber || ''} onChange={e => setSettings(s => ({ ...s, gstNumber: e.target.value }))} placeholder="22AAAAA0000A1Z5" className="pl-9" />
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="mb-1.5 block">Registration number</Label>
+                        <div className="relative">
+                            <Shield className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input value={settings.registrationNumber || ''} onChange={e => setSettings(s => ({ ...s, registrationNumber: e.target.value }))} placeholder="REG-2024-XXXX" className="pl-9" />
                         </div>
                     </div>
                 </div>
                 <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Hospital Code (for Bill Numbers)</label>
-                    <input value={settings.hospitalCode || ''} onChange={e => setSettings(s => ({ ...s, hospitalCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) }))}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="APL" maxLength={5} />
-                    <p className="text-[10px] text-gray-400 mt-1">Used in bill numbers: BILL-{settings.hospitalCode || 'XXX'}-00001</p>
+                    <Label className="mb-1.5 block">Hospital code (for bill numbers)</Label>
+                    <Input
+                        value={settings.hospitalCode || ''}
+                        onChange={e => setSettings(s => ({ ...s, hospitalCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) }))}
+                        placeholder="APL" maxLength={5} className="uppercase"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">Used in bill numbers: BILL-{settings.hospitalCode || 'XXX'}-00001</p>
                 </div>
-            </div>
+            </Card>
 
-            {/* PDF Footer */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm space-y-4">
-                <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">PDF Footer Text</h2>
-                <textarea value={settings.footerText || ''} onChange={e => setSettings(s => ({ ...s, footerText: e.target.value }))} rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    placeholder="Thank you for choosing our hospital. Get well soon!" />
-            </div>
+            <Card className="space-y-3 p-6">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">PDF footer text</h2>
+                <Textarea value={settings.footerText || ''} onChange={e => setSettings(s => ({ ...s, footerText: e.target.value }))} rows={3} placeholder="Thank you for choosing our hospital. Get well soon!" />
+            </Card>
 
-
-
-            {/* Save Button */}
-            <button onClick={handleSave} disabled={saving}
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
-                <Save size={18} />{saving ? 'Saving...' : 'Save Settings'}
-            </button>
+            <Button onClick={handleSave} disabled={saving} size="lg" className="w-full">
+                {saving ? <Loader2 className="animate-spin" /> : <Save />} {saving ? 'Saving…' : 'Save settings'}
+            </Button>
         </div>
     );
 };
