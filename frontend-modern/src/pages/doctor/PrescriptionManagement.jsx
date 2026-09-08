@@ -3,15 +3,23 @@ import { DosageInput, parseDosage, formatDosage } from '@/components/ui/dosage-i
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus, Pill, Search, Send, Download, Edit3, X, Check,
-    AlertTriangle, FileText, Trash2, Save, RefreshCw,
-    CheckCircle, User, Settings, Copy, ChevronDown, Activity, Printer
+    Plus, Pill, Search, Send, Edit3, X, Check,
+    AlertTriangle, FileText, Trash2, RefreshCw,
+    User, Settings, Copy, Printer, Loader2,
 } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import { PageHeader } from '@/components/app/page-header';
+import { EmptyState } from '@/components/app/empty-state';
+import { StatusPill } from '@/components/app/status-pill';
+import { Card } from '@/components/ui/card';
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 const MEDICINE_DB = [
     'Amoxicillin', 'Azithromycin', 'Paracetamol', 'Ibuprofen', 'Cetirizine',
@@ -22,11 +30,12 @@ const MEDICINE_DB = [
     'Ranitidine', 'Domperidone', 'Ondansetron', 'Salbutamol', 'Budesonide',
     'Metronidazole', 'Acyclovir', 'Clindamycin', 'Levofloxacin', 'Rabeprazole',
     'Montelukast', 'Fexofenadine', 'Loperamide', 'ORS', 'Vitamin D3',
-    'Vitamin B12', 'Iron Supplement', 'Calcium', 'Folic Acid', 'Multivitamin'
+    'Vitamin B12', 'Iron Supplement', 'Calcium', 'Folic Acid', 'Multivitamin',
 ];
 
 const FREQUENCIES = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'As needed', 'Every 8 hours', 'Every 12 hours', 'Before meals', 'After meals', 'At bedtime', 'Morning only', 'Night only'];
 const DURATIONS = ['1 day', '3 days', '5 days', '7 days', '10 days', '14 days', '21 days', '30 days', '60 days', '90 days', 'Ongoing'];
+const TIMINGS = ['Before food', 'After food', 'With food', 'Empty stomach', 'At bedtime', 'As needed'];
 
 // Default templates - stored in localStorage so doctors can customize
 const DEFAULT_TEMPLATES = [
@@ -75,19 +84,28 @@ const DEFAULT_TEMPLATES = [
     },
 ];
 
-const Toast = ({ message, type, onClose }) => (
-    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-        className={`fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold ${type === 'success' ? 'bg-green-600 text-white' : type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
-        {type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-        {message}
-        <button onClick={onClose} className="ml-2 hover:opacity-80"><X size={14} /></button>
-    </motion.div>
-);
+const bmiCategory = (bmiVal) => {
+    const bmi = parseFloat(bmiVal);
+    if (!bmi) return { label: 'N/A', tone: 'neutral' };
+    if (bmi < 18.5) return { label: 'Underweight', tone: 'info' };
+    if (bmi < 25) return { label: 'Normal', tone: 'success' };
+    if (bmi < 30) return { label: 'Overweight', tone: 'warning' };
+    return { label: 'Obese', tone: 'destructive' };
+};
+const TONE_BADGE = {
+    neutral: 'bg-muted text-muted-foreground',
+    info: 'bg-info-subtle text-info',
+    success: 'bg-success-subtle text-success',
+    warning: 'bg-warning-subtle text-warning',
+    destructive: 'bg-destructive-subtle text-destructive',
+};
 
 const PrescriptionManagement = () => {
     const [searchParams] = useSearchParams();
     const prePatientId = searchParams.get('patientId');
     const prePatientName = searchParams.get('patientName');
+    const toast = useToast();
+    const showToast = toast.showToast;
 
     const [prescriptions, setPrescriptions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -96,11 +114,9 @@ const PrescriptionManagement = () => {
     const [medSearch, setMedSearch] = useState('');
     const [showMedSuggestions, setShowMedSuggestions] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [toast, setToast] = useState(null);
     const [sendingPdfId, setSendingPdfId] = useState(null);
     const [showTemplateManager, setShowTemplateManager] = useState(false);
 
-    // Patient search within prescription
     const [patientSearch, setPatientSearch] = useState('');
     const [patientResults, setPatientResults] = useState([]);
     const [searchingPatient, setSearchingPatient] = useState(false);
@@ -108,42 +124,21 @@ const PrescriptionManagement = () => {
         prePatientId ? { patientId: parseInt(prePatientId), name: prePatientName || `Patient #${prePatientId}` } : null
     );
 
-    // Templates — loaded from DB, saved to DB
     const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
-    const [templatesLoaded, setTemplatesLoaded] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
 
-    // Form state
     const [form, setForm] = useState({
-        diagnosis: '',
-        clinicalNotes: '', // Chief complaint
-        allergyWarnings: '',
-        recommendedTests: '',
-        advice: '',
-        medicines: [],
-        followUpDate: '',
-        followUpNotes: '',
-        patientWeight: '',
-        patientHeight: '',
+        diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '',
+        medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '',
     });
     const [appliedTemplates, setAppliedTemplates] = useState([]);
 
     const [currentMed, setCurrentMed] = useState({
-        name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '', timing: 'After food'
+        name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '', timing: 'After food',
     });
 
-    const showToast = useCallback((text, type = 'success') => {
-        setToast({ text, type });
-        setTimeout(() => setToast(null), 4000);
-    }, []);
-
     useEffect(() => { fetchPrescriptions(); }, []);
-
-    useEffect(() => {
-        if (prePatientId) {
-            fetchPatientDetails(prePatientId);
-        }
-    }, [prePatientId]);
+    useEffect(() => { if (prePatientId) fetchPatientDetails(prePatientId); }, [prePatientId]);
 
     const fetchPatientDetails = async (patientId) => {
         try {
@@ -151,14 +146,10 @@ const PrescriptionManagement = () => {
             if (res.data.Results?.patient) {
                 const p = res.data.Results.patient;
                 setSelectedPatient({ patientId: p.patientId, name: `${p.firstName} ${p.lastName}`, data: p });
-                setForm(prev => ({
-                    ...prev,
-                    patientWeight: p.weight || '',
-                    patientHeight: p.height || ''
-                }));
+                setForm(prev => ({ ...prev, patientWeight: p.weight || '', patientHeight: p.height || '' }));
             }
         } catch (e) {
-            console.error("Failed to fetch preloaded patient details", e);
+            console.error('Failed to fetch preloaded patient details', e);
         }
     };
 
@@ -166,34 +157,19 @@ const PrescriptionManagement = () => {
         const w = parseFloat(weight);
         const h = parseFloat(height);
         if (!w || !h || h <= 0) return null;
-        const bmi = w / ((h / 100) * (h / 100));
-        return bmi.toFixed(1);
+        return (w / ((h / 100) * (h / 100))).toFixed(1);
     };
 
-    const getBMICategory = (bmiVal) => {
-        const bmi = parseFloat(bmiVal);
-        if (!bmi) return { label: 'N/A', color: 'text-gray-400 bg-gray-50' };
-        if (bmi < 18.5) return { label: 'Underweight', color: 'text-amber-600 bg-amber-50 ring-amber-200' };
-        if (bmi < 25) return { label: 'Normal', color: 'text-green-600 bg-green-50 ring-green-200' };
-        if (bmi < 30) return { label: 'Overweight', color: 'text-orange-600 bg-orange-50 ring-orange-200' };
-        return { label: 'Obese', color: 'text-red-600 bg-red-50 ring-red-200' };
-    };
-
-    // Load templates from DB on mount
     useEffect(() => {
         const loadTemplates = async () => {
             try {
                 const res = await axios.get('/api/DoctorPortal/Templates');
                 if (res.data.Results && res.data.Results !== '[]') {
                     const parsed = JSON.parse(res.data.Results);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        setTemplates(parsed);
-                    }
+                    if (Array.isArray(parsed) && parsed.length > 0) setTemplates(parsed);
                 }
             } catch (e) {
                 console.warn('Could not load templates from DB, using defaults:', e);
-            } finally {
-                setTemplatesLoaded(true);
             }
         };
         loadTemplates();
@@ -235,11 +211,7 @@ const PrescriptionManagement = () => {
 
     const selectPatient = (p) => {
         setSelectedPatient({ patientId: p.patientId, name: `${p.firstName} ${p.lastName}`, data: p });
-        setForm(prev => ({
-            ...prev,
-            patientWeight: p.weight || '',
-            patientHeight: p.height || ''
-        }));
+        setForm(prev => ({ ...prev, patientWeight: p.weight || '', patientHeight: p.height || '' }));
         setPatientSearch('');
         setPatientResults([]);
     };
@@ -254,21 +226,14 @@ const PrescriptionManagement = () => {
         setMedSearch('');
     };
 
-    const removeMedicine = (index) => {
-        setForm(prev => ({ ...prev, medicines: prev.medicines.filter((_, i) => i !== index) }));
-    };
-
-    const updateMedicine = (index, field, value) => {
-        setForm(prev => ({
-            ...prev,
-            medicines: prev.medicines.map((m, i) => i === index ? { ...m, [field]: value } : m)
-        }));
-    };
+    const removeMedicine = (index) => setForm(prev => ({ ...prev, medicines: prev.medicines.filter((_, i) => i !== index) }));
+    const updateMedicine = (index, field, value) => setForm(prev => ({
+        ...prev, medicines: prev.medicines.map((m, i) => i === index ? { ...m, [field]: value } : m),
+    }));
 
     const applyTemplate = (template) => {
         const isAlreadyApplied = appliedTemplates.includes(template.id);
         if (isAlreadyApplied) {
-            // Remove template medicines
             const templateMedNames = template.medicines.map(m => m.name);
             setForm(prev => ({
                 ...prev,
@@ -278,7 +243,6 @@ const PrescriptionManagement = () => {
             setAppliedTemplates(prev => prev.filter(id => id !== template.id));
             showToast(`Removed "${template.name}"`, 'info');
         } else {
-            // Add template medicines (combine)
             const existingNames = form.medicines.map(m => m.name);
             const newMeds = template.medicines.filter(m => !existingNames.includes(m.name)).map(m => ({ ...m, timing: m.timing || 'After food' }));
             setForm(prev => ({
@@ -292,14 +256,8 @@ const PrescriptionManagement = () => {
     };
 
     const savePrescription = async (sendToPharmacy = false) => {
-        if (!selectedPatient) {
-            showToast('Please select a patient first', 'error');
-            return;
-        }
-        if (form.medicines.length === 0) {
-            showToast('Add at least one medicine', 'error');
-            return;
-        }
+        if (!selectedPatient) { showToast('Please select a patient first', 'error'); return; }
+        if (form.medicines.length === 0) { showToast('Add at least one medicine', 'error'); return; }
         setSaving(true);
         try {
             const payload = {
@@ -323,7 +281,7 @@ const PrescriptionManagement = () => {
                 setAppliedTemplates([]);
                 setSelectedPatient(null);
                 fetchPrescriptions();
-                showToast(sendToPharmacy ? `Prescription sent to pharmacy for ${selectedPatient.name}` : `Prescription saved for ${selectedPatient.name}`);
+                showToast(sendToPharmacy ? `Prescription sent to pharmacy for ${selectedPatient.name}` : `Prescription saved for ${selectedPatient.name}`, 'success');
             } else {
                 showToast(res.data.ErrorMessage || 'Failed to save', 'error');
             }
@@ -335,64 +293,49 @@ const PrescriptionManagement = () => {
         }
     };
 
-    const sendToPharmacy = async (id) => {
-        try {
-            await axios.put(`/api/DoctorPortal/Prescriptions/${id}/SendToPharmacy`);
-            setPrescriptions(prev => prev.map(p =>
-                p.prescriptionId === id ? { ...p, status: 'sent_to_pharmacy' } : p
-            ));
-            showToast('Sent to pharmacy');
-        } catch (e) {
-            showToast('Failed to send to pharmacy', 'error');
-        }
-    };
-
     // Template management
     const saveTemplate = (template) => {
         let updated;
         if (template.id) {
             updated = templates.map(t => t.id === template.id ? template : t);
         } else {
-            const newTpl = { ...template, id: `custom_${Date.now()}` };
-            updated = [...templates, newTpl];
+            updated = [...templates, { ...template, id: `custom_${Date.now()}` }];
         }
         setTemplates(updated);
         setEditingTemplate(null);
-        showToast(`Template "${template.name}" saved`);
+        showToast(`Template "${template.name}" saved`, 'success');
         saveTemplatesToDb(updated);
     };
 
     const deleteTemplate = (id) => {
         const updated = templates.filter(t => t.id !== id);
         setTemplates(updated);
-        showToast('Template deleted');
+        showToast('Template deleted', 'success');
         saveTemplatesToDb(updated);
     };
 
     const saveCurrentAsTemplate = () => {
-        if (form.medicines.length === 0) {
-            showToast('Add medicines first before saving as template', 'error');
-            return;
-        }
+        if (form.medicines.length === 0) { showToast('Add medicines first before saving as template', 'error'); return; }
         const name = prompt('Enter template name:', form.diagnosis || 'My Template');
         if (!name) return;
-        const newTemplate = {
-            id: `custom_${Date.now()}`,
-            name,
-            medicines: form.medicines.map(m => ({ ...m }))
-        };
+        const newTemplate = { id: `custom_${Date.now()}`, name, medicines: form.medicines.map(m => ({ ...m })) };
         const updated = [...templates, newTemplate];
         setTemplates(updated);
-        showToast(`Template "${name}" created`);
+        showToast(`Template "${name}" created`, 'success');
         saveTemplatesToDb(updated);
     };
 
+    /*
+     * ── Print / PDF generation ──
+     *
+     * Deliberately left outside the app's design system. This produces a physical document
+     * a patient carries to a pharmacy, not app UI — the colour, borders and letterhead layout
+     * here serve print legibility and hospital branding, which is a different job than the
+     * monochrome on-screen system above. Untouched from the pre-makeover version.
+     */
     const loadHtml2Pdf = () => {
         return new Promise((resolve, reject) => {
-            if (window.html2pdf) {
-                resolve(window.html2pdf);
-                return;
-            }
+            if (window.html2pdf) { resolve(window.html2pdf); return; }
             const script = document.createElement('script');
             script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
             script.onload = () => resolve(window.html2pdf);
@@ -405,21 +348,18 @@ const PrescriptionManagement = () => {
         let meds = [];
         try { meds = rx.medicines ? JSON.parse(rx.medicines) : []; } catch (e) { }
 
-        // Fetch hospital branding
         let settings = {};
         try {
             const sRes = await axios.get('/api/HospitalSettings');
             if (sRes.data.Results) settings = sRes.data.Results;
         } catch (e) { }
 
-        // Fetch patient details
         let patient = {};
         try {
             const pRes = await axios.get(`/api/DoctorPortal/Patient/${rx.patientId}`);
             if (pRes.data.Results?.patient) patient = pRes.data.Results.patient;
         } catch (e) { }
 
-        // Fetch consulting doctor details
         let doctor = {};
         try {
             if (rx.doctorId) {
@@ -427,10 +367,9 @@ const PrescriptionManagement = () => {
                 if (dRes.data.Results) doctor = dRes.data.Results;
             }
         } catch (e) {
-            console.error("Failed to fetch doctor details:", e);
+            console.error('Failed to fetch doctor details:', e);
         }
 
-        // Fallback for Weight and Height
         const weightVal = (rx.patientWeight !== null && rx.patientWeight !== undefined && rx.patientWeight !== '') ? rx.patientWeight : (patient.weight || '');
         const heightVal = (rx.patientHeight !== null && rx.patientHeight !== undefined && rx.patientHeight !== '') ? rx.patientHeight : (patient.height || '');
 
@@ -452,11 +391,7 @@ const PrescriptionManagement = () => {
         const sigUrl = settings.signatureImagePath ? window.location.origin + '/api/Files' + settings.signatureImagePath.replace('/uploads', '') : '';
         const qrUrl = doctor.consultationQrPath ? window.location.origin + doctor.consultationQrPath : '';
 
-        return {
-            settings, patient, doctor, meds,
-            logoUrl, sigUrl, qrUrl,
-            weightVal, heightVal, bmi, bmiCategory, bmiBadgeColor
-        };
+        return { settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, bmi, bmiCategory, bmiBadgeColor };
     };
 
     const getPrescriptionHtml = (rx, settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, bmi, bmiCategory, bmiBadgeColor) => {
@@ -1007,15 +942,14 @@ const PrescriptionManagement = () => {
     };
 
     const handlePrintPrescription = async (rx) => {
-        showToast("Preparing print layout...", "info");
+        showToast('Preparing print layout...', 'info');
         try {
             const data = await fetchPrescriptionPrintData(rx);
             if (!data) return;
-
             const html = getPrescriptionHtml(
                 rx, data.settings, data.patient, data.doctor, data.meds,
                 data.logoUrl, data.sigUrl, data.qrUrl,
-                data.weightVal, data.heightVal, data.bmi, data.bmiCategory, data.bmiBadgeColor
+                data.weightVal, data.heightVal, data.bmi, data.bmiCategory, data.bmiBadgeColor,
             );
 
             const iframe = document.createElement('iframe');
@@ -1033,41 +967,34 @@ const PrescriptionManagement = () => {
 
             iframe.contentWindow.focus();
             setTimeout(() => {
-                try {
-                    iframe.contentWindow.print();
-                } catch (printErr) {
-                    console.error("Iframe print triggered error:", printErr);
-                }
-                setTimeout(() => {
-                    document.body.removeChild(iframe);
-                }, 1000);
+                try { iframe.contentWindow.print(); }
+                catch (printErr) { console.error('Iframe print triggered error:', printErr); }
+                setTimeout(() => { document.body.removeChild(iframe); }, 1000);
             }, 500);
-
         } catch (e) {
-            console.error("Print failed:", e);
-            showToast("Failed to initiate print process.", "error");
+            console.error('Print failed:', e);
+            showToast('Failed to initiate print process.', 'error');
         }
     };
 
     const handleDownloadPdf = async (rx) => {
-        showToast("Generating PDF download. Please wait...", "info");
+        showToast('Generating PDF download. Please wait...', 'info');
         try {
             const data = await fetchPrescriptionPrintData(rx);
             if (!data) return;
-
             const html = getPrescriptionHtml(
                 rx, data.settings, data.patient, data.doctor, data.meds,
                 data.logoUrl, data.sigUrl, data.qrUrl,
-                data.weightVal, data.heightVal, data.bmi, data.bmiCategory, data.bmiBadgeColor
+                data.weightVal, data.heightVal, data.bmi, data.bmiCategory, data.bmiBadgeColor,
             );
 
             const html2pdf = await loadHtml2Pdf();
-            
+
             const iframe = document.createElement('iframe');
             iframe.style.position = 'fixed';
             iframe.style.left = '0';
             iframe.style.top = '0';
-            iframe.style.width = '800px'; 
+            iframe.style.width = '800px';
             iframe.style.height = '1130px';
             iframe.style.border = '0';
             iframe.style.zIndex = '-9999';
@@ -1079,23 +1006,22 @@ const PrescriptionManagement = () => {
             doc.write(html);
             doc.close();
 
-            // Wait 500ms for signatures and images to load
             await new Promise(resolve => setTimeout(resolve, 500));
 
             const opt = {
-                margin:       10,
-                filename:     `Prescription_${rx.patientName || 'Patient'}_${rx.prescriptionId}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                margin: 10,
+                filename: `Prescription_${rx.patientName || 'Patient'}_${rx.prescriptionId}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             };
 
             await html2pdf().from(iframe.contentWindow.document.body).set(opt).save();
             document.body.removeChild(iframe);
-            showToast("PDF Downloaded successfully!", "success");
+            showToast('PDF downloaded successfully!', 'success');
         } catch (e) {
-            console.error("Failed to generate PDF download:", e);
-            showToast("Failed to generate PDF download.", "error");
+            console.error('Failed to generate PDF download:', e);
+            showToast('Failed to generate PDF download.', 'error');
         }
     };
 
@@ -1104,19 +1030,19 @@ const PrescriptionManagement = () => {
         try {
             const res = await axios.post(`/api/DoctorPortal/Prescriptions/${rx.prescriptionId}/SendPdf`);
             if (res.data?.Status === 'OK') {
-                const phone = res.data?.Results?.patientPhone || 'Registered Mobile';
-                showToast(`[WhatsApp & SMS Automated Dispatcher] Prescription PDF link successfully delivered to patient's registered mobile number: ${phone}!`, 'success');
+                const phone = res.data?.Results?.patientPhone || 'registered mobile';
+                showToast(`Prescription PDF sent to patient's ${phone}.`, 'success');
             } else {
-                showToast(res.data?.ErrorMessage || "Failed to dispatch PDF link.", 'error');
+                showToast(res.data?.ErrorMessage || 'Failed to send PDF.', 'error');
             }
         } catch (e) {
             console.error(e);
-            showToast("Failed to send prescription PDF to patient mobile number.", 'error');
+            showToast('Failed to send prescription PDF to patient mobile number.', 'error');
         } finally {
             setSendingPdfId(null);
         }
     };
-
+    /* ── End print / PDF generation ── */
 
     const filteredMeds = MEDICINE_DB.filter(m => m.toLowerCase().includes(medSearch.toLowerCase()));
     const filteredRx = prescriptions.filter(rx => {
@@ -1125,233 +1051,233 @@ const PrescriptionManagement = () => {
         return (rx.diagnosis || '').toLowerCase().includes(s) || (rx.patientName || '').toLowerCase().includes(s) || String(rx.patientId).includes(s);
     });
 
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-gray-900">Prescriptions</h1>
-                    <p className="text-sm text-gray-500 mt-1">Create and manage digital prescriptions</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => setShowTemplateManager(!showTemplateManager)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
-                        <Settings size={16} /> Templates
-                    </button>
-                    <button onClick={() => { setShowForm(!showForm); if (showForm) { setSelectedPatient(null); } }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:shadow-xl transition-all">
-                        {showForm ? <X size={16} /> : <Plus size={16} />}
-                        {showForm ? 'Close' : 'New Prescription'}
-                    </button>
-                </div>
-            </div>
+    const bmi = calculateBMI(form.patientWeight, form.patientHeight);
 
-            {/* Template Manager */}
-            <AnimatePresence>
+    return (
+        <div className="space-y-5">
+            <PageHeader
+                title="Prescriptions"
+                description="Create and manage digital prescriptions."
+                icon={FileText}
+                actions={
+                    <>
+                        <Button variant="outline" onClick={() => setShowTemplateManager(!showTemplateManager)}>
+                            <Settings /> Templates
+                        </Button>
+                        <Button onClick={() => { setShowForm(!showForm); if (showForm) setSelectedPatient(null); }}>
+                            {showForm ? <X /> : <Plus />} {showForm ? 'Close' : 'New prescription'}
+                        </Button>
+                    </>
+                }
+            />
+
+            {/* Template manager */}
+            <AnimatePresence initial={false}>
                 {showTemplateManager && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                        <div className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-gray-100 space-y-4">
+                        <Card className="space-y-4 p-5">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                    <Settings size={18} className="text-gray-500" /> Prescription Templates
+                                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                                    <Settings className="h-4 w-4 text-muted-foreground" /> Prescription templates
                                 </h3>
-                                <button onClick={() => setEditingTemplate({ id: '', name: '', medicines: [{ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] })}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100">
-                                    <Plus size={14} /> New Template
-                                </button>
+                                <Button
+                                    variant="outline" size="sm"
+                                    onClick={() => setEditingTemplate({ id: '', name: '', medicines: [{ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] })}
+                                >
+                                    <Plus /> New template
+                                </Button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                                 {templates.map(t => (
-                                    <div key={t.id} className="p-4 rounded-xl bg-gray-50 ring-1 ring-gray-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="font-bold text-gray-900 text-sm">{t.name}</h4>
+                                    <div key={t.id} className="rounded-md border bg-muted/30 p-3.5">
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <h4 className="text-sm font-semibold">{t.name}</h4>
                                             <div className="flex gap-1">
                                                 <button onClick={() => setEditingTemplate({ ...t, medicines: t.medicines.map(m => ({ ...m })) })}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit3 size={13} /></button>
-                                                <button onClick={() => deleteTemplate(t.id)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={13} /></button>
+                                                        className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
+                                                    <Edit3 className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button onClick={() => deleteTemplate(t.id)} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive-subtle hover:text-destructive">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
                                             </div>
                                         </div>
                                         <div className="space-y-1">
                                             {t.medicines.map((m, i) => (
-                                                <p key={i} className="text-xs text-gray-500 flex items-center gap-1">
-                                                    <Pill size={10} className="text-blue-500" />
-                                                    <span className="font-medium text-gray-700">{m.name}</span> {m.dosage} • {m.frequency}
+                                                <p key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <Pill className="h-3 w-3 shrink-0" />
+                                                    <span className="font-medium text-foreground">{m.name}</span> {m.dosage} · {m.frequency}
                                                 </p>
                                             ))}
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </Card>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Template Editor Modal */}
-            <AnimatePresence>
-                {editingTemplate && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }}
-                            className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4">{editingTemplate.id ? 'Edit Template' : 'New Template'}</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <Label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">Template name *</Label>
-                                    <Input value={editingTemplate.name}
-                                        onChange={e => setEditingTemplate(p => ({ ...p, name: e.target.value }))}
-                                        placeholder="e.g. Common Cold / Flu" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase">Medicines</label>
-                                    {editingTemplate.medicines.map((m, i) => (
-                                        <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-lg bg-muted/40 p-2">
-                                            <input className="col-span-12 sm:col-span-5 px-3 py-2 rounded-lg border border-gray-200 text-xs" placeholder="Name" value={m.name}
-                                                onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], name: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }} />
-                                            {/* Stepper rather than a text box: adjusting a template
-                                                dose (5ml → 7.5ml for a child) is a nudge, not a
-                                                retype. Stored back as the same "7.5 ml" string the
-                                                rest of the app already reads. */}
-                                            <div className="col-span-8 sm:col-span-3">
-                                                <DosageInput
-                                                    amount={parseDosage(m.dosage).amount}
-                                                    unit={parseDosage(m.dosage).unit}
-                                                    onAmountChange={(amount) => {
-                                                        const meds = [...editingTemplate.medicines];
-                                                        meds[i] = { ...meds[i], dosage: formatDosage(amount, parseDosage(meds[i].dosage).unit) };
-                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
-                                                    }}
-                                                    onUnitChange={(unit) => {
-                                                        const meds = [...editingTemplate.medicines];
-                                                        meds[i] = { ...meds[i], dosage: formatDosage(parseDosage(meds[i].dosage).amount, unit) };
-                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
-                                                    }}
-                                                />
-                                            </div>
-                                            <select className="col-span-4 sm:col-span-3 px-2 py-2 rounded-lg border border-gray-200 text-xs bg-white" value={m.frequency}
-                                                onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], frequency: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }}>
-                                                {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
-                                            </select>
-                                            <button onClick={() => { const meds = editingTemplate.medicines.filter((_, j) => j !== i); setEditingTemplate(p => ({ ...p, medicines: meds })); }}
-                                                className="col-span-2 sm:col-span-1 p-2 text-red-400 hover:text-red-600 flex justify-center"><Trash2 size={14} /></button>
+            {/* Template editor */}
+            <Dialog open={!!editingTemplate} onOpenChange={(o) => !o && setEditingTemplate(null)}>
+                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>{editingTemplate?.id ? 'Edit template' : 'New template'}</DialogTitle>
+                    </DialogHeader>
+                    {editingTemplate && (
+                        <div className="space-y-4">
+                            <div>
+                                <Label className="mb-1.5 block">Template name</Label>
+                                <Input value={editingTemplate.name} onChange={e => setEditingTemplate(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Common Cold / Flu" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Medicines</Label>
+                                {editingTemplate.medicines.map((m, i) => (
+                                    <div key={i} className="grid grid-cols-12 items-center gap-2 rounded-md bg-muted/40 p-2">
+                                        <Input
+                                            className="col-span-12 h-8 text-xs sm:col-span-5"
+                                            placeholder="Name" value={m.name}
+                                            onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], name: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }}
+                                        />
+                                        {/* Stepper rather than a text box: adjusting a template
+                                            dose (5ml → 7.5ml for a child) is a nudge, not a
+                                            retype. Stored back as the same "7.5 ml" string the
+                                            rest of the app already reads. */}
+                                        <div className="col-span-8 sm:col-span-3">
+                                            <DosageInput
+                                                amount={parseDosage(m.dosage).amount}
+                                                unit={parseDosage(m.dosage).unit}
+                                                onAmountChange={(amount) => {
+                                                    const meds = [...editingTemplate.medicines];
+                                                    meds[i] = { ...meds[i], dosage: formatDosage(amount, parseDosage(meds[i].dosage).unit) };
+                                                    setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                }}
+                                                onUnitChange={(unit) => {
+                                                    const meds = [...editingTemplate.medicines];
+                                                    meds[i] = { ...meds[i], dosage: formatDosage(parseDosage(meds[i].dosage).amount, unit) };
+                                                    setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                }}
+                                            />
                                         </div>
-                                    ))}
-                                    <Button variant="ghost" size="sm" className="text-primary"
-                                        onClick={() => setEditingTemplate(p => ({ ...p, medicines: [...p.medicines, { name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] }))}>
-                                        <Plus size={14} /> Add medicine
-                                    </Button>
-                                </div>
+                                        <select
+                                            className="col-span-4 h-8 rounded-md border border-input bg-background px-2 text-xs sm:col-span-3"
+                                            value={m.frequency}
+                                            onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], frequency: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }}
+                                        >
+                                            {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
+                                        </select>
+                                        <button
+                                            onClick={() => { const meds = editingTemplate.medicines.filter((_, j) => j !== i); setEditingTemplate(p => ({ ...p, medicines: meds })); }}
+                                            className="col-span-2 flex justify-center p-2 text-muted-foreground hover:text-destructive sm:col-span-1"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <Button
+                                    variant="ghost" size="sm"
+                                    onClick={() => setEditingTemplate(p => ({ ...p, medicines: [...p.medicines, { name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }] }))}
+                                >
+                                    <Plus /> Add medicine
+                                </Button>
                             </div>
-                            <div className="flex gap-3 mt-6">
-                                <Button variant="outline" className="flex-1" onClick={() => setEditingTemplate(null)}>Cancel</Button>
-                                <Button className="flex-1" onClick={() => {
-                                    if (!editingTemplate.name.trim()) { showToast('Template name required', 'error'); return; }
-                                    saveTemplate(editingTemplate);
-                                }}>Save template</Button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingTemplate(null)}>Cancel</Button>
+                        <Button onClick={() => {
+                            if (!editingTemplate.name.trim()) { showToast('Template name required', 'error'); return; }
+                            saveTemplate(editingTemplate);
+                        }}>
+                            Save template
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-            {/* New Prescription Form */}
-            <AnimatePresence>
+            {/* New prescription form */}
+            <AnimatePresence initial={false}>
                 {showForm && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                        <div className="rounded-3xl bg-white p-6 shadow-lg ring-1 ring-gray-100 space-y-6">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <Edit3 size={20} className="text-blue-500" /> New Prescription
+                        <Card className="space-y-6 p-5 sm:p-6">
+                            <h3 className="flex items-center gap-2 text-base font-semibold">
+                                <Edit3 className="h-[18px] w-[18px] text-muted-foreground" /> New prescription
                             </h3>
 
-                            {/* Step 1: Select Patient */}
-                            <div className="bg-blue-50/50 rounded-2xl p-4 ring-1 ring-blue-100">
-                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3 flex items-center gap-1">
-                                    <User size={12} /> Step 1: Select Patient
+                            {/* Step 1 — Patient */}
+                            <div className="rounded-lg border bg-muted/30 p-4">
+                                <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <User className="h-3 w-3" /> Step 1 — Select patient
                                 </p>
                                 {selectedPatient ? (
-                                     <div className="space-y-4 w-full">
-                                         <div className="flex items-center gap-3">
-                                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-                                                 {selectedPatient.name[0]}
-                                             </div>
-                                             <div className="flex-1">
-                                                 <p className="font-bold text-gray-900">{selectedPatient.name}</p>
-                                                 <p className="text-xs text-gray-500">
-                                                     Patient #{selectedPatient.patientId}
-                                                     {selectedPatient.data?.gender && ` • ${selectedPatient.data.gender}`}
-                                                     {selectedPatient.data?.age && ` • Age: ${selectedPatient.data.age}`}
-                                                     {selectedPatient.data?.phoneNumber && ` • ${selectedPatient.data.phoneNumber}`}
-                                                 </p>
-                                             </div>
-                                             <button type="button" onClick={() => setSelectedPatient(null)} className="px-3 py-1.5 bg-white text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 ring-1 ring-red-200">
-                                                 Change
-                                             </button>
-                                         </div>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-semibold text-primary-foreground">
+                                                {selectedPatient.name[0]}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold">{selectedPatient.name}</p>
+                                                <p className="tabular text-xs text-muted-foreground">
+                                                    Patient #{selectedPatient.patientId}
+                                                    {selectedPatient.data?.gender && ` · ${selectedPatient.data.gender}`}
+                                                    {selectedPatient.data?.age && ` · Age ${selectedPatient.data.age}`}
+                                                    {selectedPatient.data?.phoneNumber && ` · ${selectedPatient.data.phoneNumber}`}
+                                                </p>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => setSelectedPatient(null)}>Change</Button>
+                                        </div>
 
-                                         {/* Premium Vitals & Dynamic BMI Card */}
-                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-blue-100">
-                                             <div className="bg-white/60 backdrop-blur-sm p-3 rounded-xl ring-1 ring-blue-100/50">
-                                                 <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Registered Height</p>
-                                                 <p className="text-sm font-extrabold text-gray-900">{selectedPatient.data?.height ? `${selectedPatient.data.height} cm` : 'Not recorded'}</p>
-                                             </div>
-                                             <div className="bg-white/60 backdrop-blur-sm p-3 rounded-xl ring-1 ring-blue-100/50">
-                                                 <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Registered Weight</p>
-                                                 <p className="text-sm font-extrabold text-gray-900">{selectedPatient.data?.weight ? `${selectedPatient.data.weight} kg` : 'Not recorded'}</p>
-                                             </div>
-                                             <div className="bg-white/60 backdrop-blur-sm p-3 rounded-xl ring-1 ring-blue-100/50">
-                                                 <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Blood Group</p>
-                                                 <p className="text-sm font-extrabold text-gray-900 flex items-center gap-1">
-                                                     {selectedPatient.data?.bloodGroup ? (
-                                                         <>
-                                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>
-                                                             {selectedPatient.data.bloodGroup}
-                                                         </>
-                                                     ) : 'Not recorded'}
-                                                 </p>
-                                             </div>
-                                             {form.patientWeight && form.patientHeight ? (
-                                                 (() => {
-                                                     const bmi = calculateBMI(form.patientWeight, form.patientHeight);
-                                                     const cat = getBMICategory(bmi);
-                                                     return (
-                                                         <div className={`p-3 rounded-xl ring-1 ${cat.color} flex flex-col justify-center`}>
-                                                             <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5">Computed BMI</p>
-                                                             <p className="text-sm font-black flex items-baseline gap-1">
-                                                                 {bmi} <span className="text-[9px] font-bold tracking-tight">({cat.label})</span>
-                                                             </p>
-                                                         </div>
-                                                     );
-                                                 })()
-                                             ) : (
-                                                 <div className="bg-gray-50/50 p-3 rounded-xl ring-1 ring-gray-100/50 flex flex-col justify-center">
-                                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Computed BMI</p>
-                                                     <p className="text-xs text-gray-400 italic">Enter wt & ht below</p>
-                                                 </div>
-                                             )}
-                                         </div>
-                                     </div>
+                                        <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4">
+                                            <div className="rounded-md border bg-card p-2.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Height</p>
+                                                <p className="mt-1 text-sm font-semibold">{selectedPatient.data?.height ? `${selectedPatient.data.height} cm` : 'Not recorded'}</p>
+                                            </div>
+                                            <div className="rounded-md border bg-card p-2.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Weight</p>
+                                                <p className="mt-1 text-sm font-semibold">{selectedPatient.data?.weight ? `${selectedPatient.data.weight} kg` : 'Not recorded'}</p>
+                                            </div>
+                                            <div className="rounded-md border bg-card p-2.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Blood group</p>
+                                                <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+                                                    {selectedPatient.data?.bloodGroup ? (
+                                                        <><span className="h-1.5 w-1.5 rounded-full bg-destructive" /> {selectedPatient.data.bloodGroup}</>
+                                                    ) : 'Not recorded'}
+                                                </p>
+                                            </div>
+                                            {form.patientWeight && form.patientHeight ? (
+                                                <div className={cn('flex flex-col justify-center rounded-md p-2.5', TONE_BADGE[bmiCategory(bmi).tone])}>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider">Computed BMI</p>
+                                                    <p className="mt-0.5 text-sm font-semibold">{bmi} <span className="text-[10px] font-medium">({bmiCategory(bmi).label})</span></p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col justify-center rounded-md border bg-card p-2.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Computed BMI</p>
+                                                    <p className="mt-0.5 text-xs italic text-muted-foreground">Enter wt &amp; ht below</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="relative">
-                                        <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
-                                        <input type="text" placeholder="Search by patient name, phone, or ID..."
+                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        {searchingPatient && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+                                        <Input
+                                            placeholder="Search by patient name, phone or ID…"
                                             value={patientSearch}
                                             onChange={e => { setPatientSearch(e.target.value); searchPatient(e.target.value); }}
-                                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                        {searchingPatient && (
-                                            <RefreshCw className="absolute right-3 top-3 text-blue-400 animate-spin" size={16} />
-                                        )}
+                                            className="pl-9"
+                                        />
                                         {patientResults.length > 0 && (
-                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-48 overflow-y-auto z-20">
+                                            <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover shadow-md scrollbar-thin">
                                                 {patientResults.map(p => (
                                                     <button key={p.patientId} onClick={() => selectPatient(p)}
-                                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0">
-                                                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                                                            className="flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-0 hover:bg-accent">
+                                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-sm font-semibold">
                                                             {(p.firstName || '?')[0]}
                                                         </div>
                                                         <div>
-                                                            <p className="font-semibold text-gray-900">{p.firstName} {p.lastName}</p>
-                                                            <p className="text-xs text-gray-500">{p.patientCode || `#${p.patientId}`} • {p.gender} • {p.phoneNumber}</p>
+                                                            <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
+                                                            <p className="tabular text-xs text-muted-foreground">{p.patientCode || `#${p.patientId}`} · {p.gender} · {p.phoneNumber}</p>
                                                         </div>
                                                     </button>
                                                 ))}
@@ -1361,209 +1287,116 @@ const PrescriptionManagement = () => {
                                 )}
                             </div>
 
-                            {/* Step 2: Diagnosis & Templates */}
-
+                            {/* Step 2 — Diagnosis */}
                             <div>
-
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-
-                                    <FileText size={12} /> Step 2: Select Conditions (combine multiple)
-
+                                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <FileText className="h-3 w-3" /> Step 2 — Conditions (combine multiple)
                                 </p>
-
-                                <div className="flex flex-wrap gap-2 mb-3">
-
+                                <div className="mb-3 flex flex-wrap gap-1.5">
                                     {templates.map(t => (
-
                                         <button key={t.id} onClick={() => applyTemplate(t)}
-
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${appliedTemplates.includes(t.id)
-
-                                                ? 'bg-blue-600 text-white ring-2 ring-blue-300 shadow-md'
-
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-
-                                            {appliedTemplates.includes(t.id) && <Check size={12} />}
-
+                                                className={cn(
+                                                    'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+                                                    appliedTemplates.includes(t.id) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent',
+                                                )}>
+                                            {appliedTemplates.includes(t.id) && <Check className="h-3 w-3" />}
                                             {t.name}
-
                                         </button>
-
                                     ))}
-
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-
+                                <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div>
-
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Diagnosis</label>
-
-                                        <input type="text" value={form.diagnosis}
-
-                                            onChange={e => setForm(prev => ({ ...prev, diagnosis: e.target.value }))}
-
-                                            placeholder="Auto-filled from templates above"
-
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
+                                        <Label className="mb-1 block">Diagnosis</Label>
+                                        <Input value={form.diagnosis} onChange={e => setForm(prev => ({ ...prev, diagnosis: e.target.value }))} placeholder="Auto-filled from conditions above" />
                                     </div>
-
                                     <div>
-
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-
-                                            <AlertTriangle size={11} className="text-amber-500" /> Allergy Warnings
-
-                                        </label>
-
-                                        <input type="text" value={form.allergyWarnings}
-
-                                            onChange={e => setForm(prev => ({ ...prev, allergyWarnings: e.target.value }))}
-
+                                        <Label className="mb-1 flex items-center gap-1">
+                                            <AlertTriangle className="h-3 w-3 text-warning" /> Allergy warnings
+                                        </Label>
+                                        <Input
+                                            value={form.allergyWarnings} onChange={e => setForm(prev => ({ ...prev, allergyWarnings: e.target.value }))}
                                             placeholder="Known allergies or drug interactions"
-
-                                            className="w-full px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50/30 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-
-                                    </div>
-
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-                                    <div>
-
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weight (kg)</label>
-
-                                        <input type="number" step="0.1" value={form.patientWeight}
-
-                                            onChange={e => setForm(prev => ({ ...prev, patientWeight: e.target.value }))}
-
-                                            placeholder="e.g. 72"
-
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-                                    </div>
-
-                                    <div>
-
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Height (cm)</label>
-
-                                        <input type="number" step="0.1" value={form.patientHeight}
-
-                                            onChange={e => setForm(prev => ({ ...prev, patientHeight: e.target.value }))}
-                                            placeholder="e.g. 170"
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Chief Complaint (Patient's words)</label>
-                                        <input type="text" value={form.clinicalNotes}
-                                            onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))}
-                                            placeholder="e.g. Headache since 3 days, mild fever, body ache..."
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                            className="border-warning/40 bg-warning-subtle/30 focus-visible:ring-warning"
+                                        />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+
+                                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Recommended Tests / Investigations</label>
-                                        <input type="text" value={form.recommendedTests}
-                                            onChange={e => setForm(prev => ({ ...prev, recommendedTests: e.target.value }))}
-                                            placeholder="e.g. CBC, Blood Sugar Fasting, X-Ray Chest, ECG"
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <Label className="mb-1 block">Weight (kg)</Label>
+                                        <Input type="number" step="0.1" value={form.patientWeight} onChange={e => setForm(prev => ({ ...prev, patientWeight: e.target.value }))} placeholder="e.g. 72" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Advice & Instructions</label>
-                                        <input type="text" value={form.advice}
-                                            onChange={e => setForm(prev => ({ ...prev, advice: e.target.value }))}
-                                            placeholder="e.g. Drink plenty of water, Avoid oily foods, Take adequate rest"
-                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <Label className="mb-1 block">Height (cm)</Label>
+                                        <Input type="number" step="0.1" value={form.patientHeight} onChange={e => setForm(prev => ({ ...prev, patientHeight: e.target.value }))} placeholder="e.g. 170" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <Label className="mb-1 block">Chief complaint (patient's words)</Label>
+                                        <Input value={form.clinicalNotes} onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))} placeholder="e.g. Headache since 3 days, mild fever…" />
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div>
+                                        <Label className="mb-1 block">Recommended tests / investigations</Label>
+                                        <Input value={form.recommendedTests} onChange={e => setForm(prev => ({ ...prev, recommendedTests: e.target.value }))} placeholder="e.g. CBC, Blood Sugar Fasting, X-Ray Chest" />
+                                    </div>
+                                    <div>
+                                        <Label className="mb-1 block">Advice &amp; instructions</Label>
+                                        <Input value={form.advice} onChange={e => setForm(prev => ({ ...prev, advice: e.target.value }))} placeholder="e.g. Drink plenty of water, avoid oily foods" />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Step 3: Add Medicines */}
+                            {/* Step 3 — Medicines */}
                             <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                    <Pill size={12} /> Step 3: Medicines ({form.medicines.length})
+                                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <Pill className="h-3 w-3" /> Step 3 — Medicines ({form.medicines.length})
                                 </p>
 
-                                {/* Medicine list */}
                                 {form.medicines.length > 0 && (
-                                    <div className="space-y-2 mb-4">
+                                    <div className="mb-4 space-y-2">
                                         {form.medicines.map((med, i) => (
-
-                                            <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
-
-                                                <div className="w-7 h-7 rounded-lg bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-xs flex-shrink-0 mt-0.5">{i + 1}</div>
-
-                                                <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-6 gap-2">
-
-                                                    <input className="col-span-2 md:col-span-1 px-3 py-1.5 rounded-lg border border-blue-200 text-xs font-semibold bg-white" value={med.name}
-
-                                                        onChange={e => updateMedicine(i, 'name', e.target.value)} placeholder="Name" />
-
-                                                    <input className="px-3 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.dosage}
-
-                                                        onChange={e => updateMedicine(i, 'dosage', e.target.value)} placeholder="Dosage" />
-
-                                                    <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.frequency}
-
-                                                        onChange={e => updateMedicine(i, 'frequency', e.target.value)}>
-
+                                            <div key={i} className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+                                                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-secondary text-xs font-semibold">{i + 1}</div>
+                                                <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 md:grid-cols-6">
+                                                    <Input className="col-span-2 h-8 text-xs md:col-span-1" value={med.name} onChange={e => updateMedicine(i, 'name', e.target.value)} placeholder="Name" />
+                                                    <Input className="h-8 text-xs" value={med.dosage} onChange={e => updateMedicine(i, 'dosage', e.target.value)} placeholder="Dosage" />
+                                                    <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={med.frequency} onChange={e => updateMedicine(i, 'frequency', e.target.value)}>
                                                         {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
-
                                                     </select>
-
-                                                    <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.duration}
-
-                                                        onChange={e => updateMedicine(i, 'duration', e.target.value)}>
-
+                                                    <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={med.duration} onChange={e => updateMedicine(i, 'duration', e.target.value)}>
                                                         {DURATIONS.map(d => <option key={d}>{d}</option>)}
-
                                                     </select>
-
-                                                    <select className="px-2 py-1.5 rounded-lg border border-blue-200 text-xs bg-white font-semibold" value={med.timing || 'After food'}
-
-                                                        onChange={e => updateMedicine(i, 'timing', e.target.value)}>
-
-                                                        <option>Before food</option><option>After food</option><option>With food</option><option>Empty stomach</option><option>At bedtime</option><option>As needed</option>
-
+                                                    <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={med.timing || 'After food'} onChange={e => updateMedicine(i, 'timing', e.target.value)}>
+                                                        {TIMINGS.map(t => <option key={t}>{t}</option>)}
                                                     </select>
-
-                                                    <input className="col-span-2 md:col-span-6 px-3 py-1.5 rounded-lg border border-blue-200 text-xs bg-white" value={med.instructions || ''}
-
-                                                        onChange={e => updateMedicine(i, 'instructions', e.target.value)} placeholder="Special instructions (optional)" />
-
+                                                    <Input className="col-span-2 h-8 text-xs md:col-span-6" value={med.instructions || ''} onChange={e => updateMedicine(i, 'instructions', e.target.value)} placeholder="Special instructions (optional)" />
                                                 </div>
-
-                                                <button onClick={() => removeMedicine(i)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
-
-                                                    <Trash2 size={14} />
-
+                                                <button onClick={() => removeMedicine(i)} className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive-subtle hover:text-destructive">
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 </button>
-
                                             </div>
-
                                         ))}
                                     </div>
                                 )}
 
-                                {/* Add new medicine */}
-                                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
                                         <div className="relative md:col-span-2">
-                                            <input type="text" value={currentMed.name || medSearch}
+                                            <Input
+                                                value={currentMed.name || medSearch}
                                                 onChange={e => { setMedSearch(e.target.value); setCurrentMed(prev => ({ ...prev, name: e.target.value })); setShowMedSuggestions(true); }}
                                                 onFocus={() => setShowMedSuggestions(true)}
                                                 onBlur={() => setTimeout(() => setShowMedSuggestions(false), 200)}
-                                                placeholder="Medicine name..."
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                                placeholder="Medicine name…"
+                                            />
                                             {showMedSuggestions && medSearch && (
-                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-40 overflow-y-auto z-20">
+                                                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-md border bg-popover shadow-md scrollbar-thin">
                                                     {filteredMeds.slice(0, 8).map(m => (
                                                         <button key={m} onMouseDown={() => { setCurrentMed(prev => ({ ...prev, name: m })); setMedSearch(m); setShowMedSuggestions(false); }}
-                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-700">
-                                                            <Pill size={12} className="inline mr-2 text-blue-400" />{m}
+                                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent">
+                                                            <Pill className="h-3 w-3 text-muted-foreground" /> {m}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -1571,186 +1404,131 @@ const PrescriptionManagement = () => {
                                         </div>
                                         {/* Dose is entered as amount + unit and stored back as the
                                             same string the API and printed prescription expect, so
-                                            nothing downstream had to change. The step size follows
-                                            the unit: 2.5 for ml, 50 for mg. */}
+                                            nothing downstream had to change. */}
                                         <DosageInput
                                             amount={parseDosage(currentMed.dosage).amount}
                                             unit={parseDosage(currentMed.dosage).unit}
-                                            onAmountChange={(amount) => setCurrentMed(prev => ({
-                                                ...prev,
-                                                dosage: formatDosage(amount, parseDosage(prev.dosage).unit),
-                                            }))}
-                                            onUnitChange={(unit) => setCurrentMed(prev => ({
-                                                ...prev,
-                                                dosage: formatDosage(parseDosage(prev.dosage).amount, unit),
-                                            }))}
+                                            onAmountChange={(amount) => setCurrentMed(prev => ({ ...prev, dosage: formatDosage(amount, parseDosage(prev.dosage).unit) }))}
+                                            onUnitChange={(unit) => setCurrentMed(prev => ({ ...prev, dosage: formatDosage(parseDosage(prev.dosage).amount, unit) }))}
                                         />
-                                        <select value={currentMed.frequency} onChange={e => setCurrentMed(prev => ({ ...prev, frequency: e.target.value }))}
-                                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                        <select value={currentMed.frequency} onChange={e => setCurrentMed(prev => ({ ...prev, frequency: e.target.value }))} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                                             {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
                                         </select>
-                                        <select value={currentMed.duration} onChange={e => setCurrentMed(prev => ({ ...prev, duration: e.target.value }))}
-                                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                        <select value={currentMed.duration} onChange={e => setCurrentMed(prev => ({ ...prev, duration: e.target.value }))} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                                             {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
                                         </select>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row gap-3">
-
-                                        <input type="text" value={currentMed.instructions} placeholder="Special instructions..."
-
+                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                        <Input
+                                            value={currentMed.instructions} placeholder="Special instructions…"
                                             onChange={e => setCurrentMed(prev => ({ ...prev, instructions: e.target.value }))}
-
-                                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-                                        <select value={currentMed.timing} onChange={e => setCurrentMed(prev => ({ ...prev, timing: e.target.value }))}
-
-                                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold">
-
-                                            <option>Before food</option><option>After food</option><option>With food</option><option>Empty stomach</option><option>At bedtime</option><option>As needed</option>
-
+                                            className="flex-1"
+                                        />
+                                        <select value={currentMed.timing} onChange={e => setCurrentMed(prev => ({ ...prev, timing: e.target.value }))} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                                            {TIMINGS.map(t => <option key={t}>{t}</option>)}
                                         </select>
-
-                                        <button onClick={addMedicine}
-
-                                            className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors flex items-center gap-1">
-
-                                            <Plus size={14} /> Add
-
-                                        </button>
-
+                                        <Button onClick={addMedicine}><Plus /> Add</Button>
                                     </div>
                                 </div>
                             </div>
 
-
-
-                            {/* Follow-Up Appointment */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Follow-up */}
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Next Appointment Date</label>
-                                    <input type="date" value={form.followUpDate}
-                                        onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value }))}
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <Label className="mb-1 block">Next appointment date</Label>
+                                    <Input type="date" value={form.followUpDate} onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value }))} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Follow-Up Notes</label>
-                                    <input type="text" value={form.followUpNotes}
-                                        onChange={e => setForm(prev => ({ ...prev, followUpNotes: e.target.value }))}
-                                        placeholder="e.g. Review blood reports, check wound healing..."
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <Label className="mb-1 block">Follow-up notes</Label>
+                                    <Input value={form.followUpNotes} onChange={e => setForm(prev => ({ ...prev, followUpNotes: e.target.value }))} placeholder="e.g. Review blood reports, check wound healing…" />
                                 </div>
                             </div>
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-3 pt-2 flex-wrap">
-                                <button onClick={() => savePrescription(false)} disabled={saving}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">
-                                    {saving ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                                    Save Prescription
-                                </button>
-                                <button onClick={saveCurrentAsTemplate}
-                                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700 rounded-xl text-sm font-bold hover:bg-purple-100 transition-colors">
-                                    <Copy size={16} /> Save as Template
-                                </button>
-                                <button onClick={() => { setShowForm(false); setSelectedPatient(null); }}
-                                    className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">
-                                    Cancel
-                                </button>
+
+                            <div className="flex flex-wrap items-center gap-2 pt-2">
+                                <Button onClick={() => savePrescription(false)} disabled={saving}>
+                                    {saving ? <Loader2 className="animate-spin" /> : <Check />} Save prescription
+                                </Button>
+                                <Button variant="secondary" onClick={saveCurrentAsTemplate}>
+                                    <Copy /> Save as template
+                                </Button>
+                                <Button variant="ghost" onClick={() => { setShowForm(false); setSelectedPatient(null); }}>Cancel</Button>
                             </div>
-                        </div>
+                        </Card>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Search Prescriptions */}
             {!showForm && (
                 <div className="relative">
-                    <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
-                    <input type="text" placeholder="Search prescriptions by diagnosis, patient name, or ID..."
-                        value={search} onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search prescriptions by diagnosis, patient name or ID…" className="pl-9" />
                 </div>
             )}
 
-            {/* Prescriptions List */}
             {!showForm && (
                 loading ? (
-                    <div className="flex items-center justify-center h-48">
-                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="space-y-3">
+                        {Array.from({ length: 4 }).map((_, i) => <Card key={i} className="h-28 animate-pulse" />)}
                     </div>
                 ) : filteredRx.length === 0 ? (
-                    <div className="text-center py-16 text-gray-400">
-                        <FileText size={48} className="mx-auto mb-3 opacity-40" />
-                        <p className="font-semibold text-gray-500">No prescriptions found</p>
-                        <p className="text-sm mt-1">Create your first prescription to get started</p>
-                    </div>
+                    <Card>
+                        <EmptyState icon={FileText} title="No prescriptions found" description="Create your first prescription to get started." />
+                    </Card>
                 ) : (
                     <div className="space-y-3">
                         {filteredRx.map((rx, i) => {
                             let meds = [];
                             try { meds = rx.medicines ? JSON.parse(rx.medicines) : []; } catch (e) { }
                             return (
-                                <motion.div key={rx.prescriptionId}
-                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                                    className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 hover:shadow-md transition-all">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-bold text-gray-900">{rx.diagnosis || 'General Prescription'}</h4>
-                                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${rx.status === 'sent_to_pharmacy' ? 'bg-green-100 text-green-700' :
-                                                    rx.status === 'finalized' ? 'bg-blue-100 text-blue-700' :
-                                                        rx.status === 'dispensed' ? 'bg-purple-100 text-purple-700' :
-                                                            'bg-gray-100 text-gray-600'}`}>
-                                                    {rx.status?.replace(/_/g, ' ')}
-                                                </span>
+                                <motion.div key={rx.prescriptionId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
+                                    <Card className="p-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="font-semibold">{rx.diagnosis || 'General prescription'}</h4>
+                                                    <StatusPill status={rx.status} />
+                                                </div>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    Patient: <strong className="text-foreground">{rx.patientName || `#${rx.patientId}`}</strong> · {new Date(rx.createdOn).toLocaleDateString()} · {meds.length} medicine{meds.length !== 1 ? 's' : ''}
+                                                </p>
                                             </div>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Patient: <strong>{rx.patientName || `#${rx.patientId}`}</strong> • {new Date(rx.createdOn).toLocaleDateString()} • {meds.length} medicine{meds.length !== 1 ? 's' : ''}
-                                            </p>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button variant="outline" size="sm" onClick={() => handlePrintPrescription(rx)}>
+                                                    <Printer /> Print
+                                                </Button>
+                                                <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(rx)}>
+                                                    <FileText /> PDF
+                                                </Button>
+                                                <Button size="sm" onClick={() => handleSendPdf(rx)} disabled={sendingPdfId === rx.prescriptionId}>
+                                                    {sendingPdfId === rx.prescriptionId ? <Loader2 className="animate-spin" /> : <Send />}
+                                                    Send
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <button onClick={() => handlePrintPrescription(rx)}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">
-                                                <Printer size={12} /> Print
-                                            </button>
-                                            <button onClick={() => handleSendPdf(rx)}
-                                                disabled={sendingPdfId === rx.prescriptionId}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors disabled:opacity-50">
-                                                {sendingPdfId === rx.prescriptionId ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />}
-                                                Send PDF
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {meds.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-gray-100">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {meds.length > 0 && (
+                                            <div className="mt-3 grid grid-cols-1 gap-2 border-t pt-3 md:grid-cols-2">
                                                 {meds.map((m, j) => (
                                                     <div key={j} className="flex items-center gap-2 text-sm">
-                                                        <Pill size={14} className="text-blue-500 flex-shrink-0" />
-                                                        <span className="font-medium text-gray-800">{m.name}</span>
-                                                        <span className="text-gray-400">•</span>
-                                                        <span className="text-gray-500">{m.dosage} • {m.frequency} • {m.duration}</span>
+                                                        <Pill className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                                        <span className="font-medium">{m.name}</span>
+                                                        <span className="text-muted-foreground">· {m.dosage} · {m.frequency} · {m.duration}</span>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-                                    )}
-                                    {rx.allergyWarnings && (
-                                        <div className="mt-3 flex items-start gap-2 p-2 bg-amber-50 rounded-lg">
-                                            <AlertTriangle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                                            <p className="text-xs text-amber-700">{rx.allergyWarnings}</p>
-                                        </div>
-                                    )}
+                                        )}
+                                        {rx.allergyWarnings && (
+                                            <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning-subtle p-2">
+                                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                                                <p className="text-xs text-warning">{rx.allergyWarnings}</p>
+                                            </div>
+                                        )}
+                                    </Card>
                                 </motion.div>
                             );
                         })}
                     </div>
                 )
             )}
-
-            {/* Toast */}
-            <AnimatePresence>
-                {toast && <Toast message={toast.text} type={toast.type} onClose={() => setToast(null)} />}
-            </AnimatePresence>
         </div>
     );
 };
