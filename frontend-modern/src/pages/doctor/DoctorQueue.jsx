@@ -4,45 +4,60 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Play, Phone, AlertTriangle, CheckCircle, Clock,
-    User, Search, RefreshCw, ChevronRight, Zap,
-    Stethoscope, Pill, FileText, UserCheck, X
+    User, Search, RefreshCw, Zap, Stethoscope, Pill, FileText, UserCheck, X,
 } from 'lucide-react';
+import { useToast } from '../../components/Toast';
+import { PageHeader } from '@/components/app/page-header';
+import { EmptyState } from '@/components/app/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { cn } from '@/lib/utils';
 
-const statusFlow = ['initiated', 'booked', 'CheckedIn', 'InConsultation', 'Completed'];
 const statusConfig = {
-    initiated: { label: 'Scheduled', color: 'bg-blue-100 text-blue-700 ring-blue-200', dot: 'bg-blue-500', next: 'CheckedIn', nextLabel: 'Check In', nextIcon: <UserCheck size={13} /> },
-    booked: { label: 'Booked', color: 'bg-blue-100 text-blue-700 ring-blue-200', dot: 'bg-blue-500', next: 'CheckedIn', nextLabel: 'Check In', nextIcon: <UserCheck size={13} /> },
-    CheckedIn: { label: 'Checked In', color: 'bg-amber-100 text-amber-700 ring-amber-200', dot: 'bg-amber-500', next: 'InConsultation', nextLabel: 'Start Consult', nextIcon: <Play size={13} /> },
-    InConsultation: { label: 'In Consultation', color: 'bg-green-100 text-green-700 ring-green-200', dot: 'bg-green-500', next: 'Completed', nextLabel: 'Complete', nextIcon: <CheckCircle size={13} /> },
-    Completed: { label: 'Completed', color: 'bg-gray-100 text-gray-600 ring-gray-200', dot: 'bg-gray-400', next: null },
-    Cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-600 ring-red-200', dot: 'bg-red-400', next: null },
+    initiated: { label: 'Scheduled', tone: 'info', next: 'CheckedIn', nextLabel: 'Check in', nextIcon: UserCheck },
+    booked: { label: 'Booked', tone: 'info', next: 'CheckedIn', nextLabel: 'Check in', nextIcon: UserCheck },
+    CheckedIn: { label: 'Checked in', tone: 'warning', next: 'InConsultation', nextLabel: 'Start consult', nextIcon: Play },
+    InConsultation: { label: 'In consultation', tone: 'success', next: 'Completed', nextLabel: 'Complete', nextIcon: CheckCircle },
+    Completed: { label: 'Completed', tone: 'neutral', next: null },
+    Cancelled: { label: 'Cancelled', tone: 'critical', next: null },
 };
 
-const Toast = ({ message, type, onClose }) => (
-    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-        className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-        {type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-        {message}
-        <button onClick={onClose} className="ml-2 hover:opacity-80"><X size={14} /></button>
-    </motion.div>
-);
+const TONE_PILL = {
+    info: 'bg-info-subtle text-info',
+    warning: 'bg-warning-subtle text-warning',
+    success: 'bg-success-subtle text-success',
+    neutral: 'bg-muted text-muted-foreground',
+    critical: 'bg-destructive-subtle text-destructive',
+};
+const TONE_DOT = { info: 'bg-info', warning: 'bg-warning', success: 'bg-success', neutral: 'bg-muted-foreground', critical: 'bg-destructive' };
+const NEXT_BUTTON = {
+    InConsultation: 'bg-success text-success-foreground hover:bg-success/90',
+    Completed: 'bg-info text-info-foreground hover:bg-info/90',
+    CheckedIn: 'bg-warning-subtle text-warning hover:bg-warning-subtle/70',
+};
+
+const FILTERS = [
+    { key: 'active', label: 'Active' },
+    { key: 'all', label: 'All' },
+    { key: 'initiated', label: 'Scheduled' },
+    { key: 'CheckedIn', label: 'Checked in' },
+    { key: 'InConsultation', label: 'Consulting' },
+    { key: 'Completed', label: 'Done' },
+];
 
 const DoctorQueue = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [queue, setQueue] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('active');
     const [search, setSearch] = useState('');
     const [updating, setUpdating] = useState(null);
-    const [toast, setToast] = useState(null);
     const [newAlert, setNewAlert] = useState(null);
     const knownIdsRef = useRef(new Set());
     const isFirstFetch = useRef(true);
-
-    const showToast = useCallback((text, type = 'success') => {
-        setToast({ text, type });
-        setTimeout(() => setToast(null), 3000);
-    }, []);
 
     const fetchQueue = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -51,30 +66,21 @@ const DoctorQueue = () => {
             const results = res.data.Results || [];
 
             if (isFirstFetch.current) {
-                // Seed known IDs on first load — no notification
                 results.forEach(a => knownIdsRef.current.add(a.appointmentId));
                 isFirstFetch.current = false;
             } else {
-                // Detect genuinely new appointments
                 const newAppts = results.filter(a => !knownIdsRef.current.has(a.appointmentId));
                 if (newAppts.length > 0) {
                     newAppts.forEach(a => knownIdsRef.current.add(a.appointmentId));
                     const first = newAppts[0];
                     const name = `${first.firstName || ''} ${first.lastName || ''}`.trim() || `Patient #${first.patientId}`;
-                    // Fire custom event so sidebar can show notification
                     window.dispatchEvent(new CustomEvent('new-appointment', {
-                        detail: {
-                            count: newAppts.length,
-                            patientName: name,
-                            appointmentType: first.appointmentType || 'New Visit',
-                            time: first.appointmentDate
-                        }
+                        detail: { count: newAppts.length, patientName: name, appointmentType: first.appointmentType || 'New Visit', time: first.appointmentDate },
                     }));
                     setNewAlert({ name, count: newAppts.length, type: first.appointmentType || 'New Visit' });
                     setTimeout(() => setNewAlert(null), 8000);
                 }
             }
-
             setQueue(results);
         } catch (e) {
             console.error('Failed to load queue', e);
@@ -85,7 +91,8 @@ const DoctorQueue = () => {
 
     useEffect(() => {
         fetchQueue();
-        // Poll every 10 seconds for near-real-time updates
+        // Poll every 10s for near-real-time updates — the queue is the one screen a
+        // doctor leaves open all shift, so it has to notice a new booking on its own.
         const interval = setInterval(() => fetchQueue(true), 10000);
         return () => clearInterval(interval);
     }, [fetchQueue]);
@@ -94,14 +101,11 @@ const DoctorQueue = () => {
         setUpdating(appointmentId);
         try {
             await axios.put(`/api/DoctorPortal/Queue/${appointmentId}/Status`, { status: newStatus });
-            setQueue(prev => prev.map(a =>
-                a.appointmentId === appointmentId ? { ...a, appointmentStatus: newStatus } : a
-            ));
-            const sc = statusConfig[newStatus];
-            showToast(`${patientName} → ${sc?.label || newStatus}`);
+            setQueue(prev => prev.map(a => a.appointmentId === appointmentId ? { ...a, appointmentStatus: newStatus } : a));
+            toast.success(`${patientName} → ${statusConfig[newStatus]?.label || newStatus}`);
         } catch (e) {
             console.error('Failed to update status', e);
-            showToast('Failed to update status', 'error');
+            toast.error('Failed to update status');
         } finally {
             setUpdating(null);
         }
@@ -118,7 +122,7 @@ const DoctorQueue = () => {
         return true;
     });
 
-    // Sort: emergency first, then InConsultation, then CheckedIn, then initiated, then Completed
+    // Emergency first, then by clinical stage, then by appointment time.
     const statusOrder = { InConsultation: 0, CheckedIn: 1, initiated: 2, booked: 2, Completed: 3, Cancelled: 4 };
     const sorted = [...filteredQueue].sort((a, b) => {
         const aE = a.appointmentType?.toLowerCase().includes('emergency') ? -100 : 0;
@@ -131,231 +135,187 @@ const DoctorQueue = () => {
 
     const counts = {
         total: queue.length,
-        waiting: queue.filter(a => a.appointmentStatus === 'initiated' || a.appointmentStatus === 'booked' || a.appointmentStatus === 'CheckedIn').length,
+        waiting: queue.filter(a => ['initiated', 'booked', 'CheckedIn'].includes(a.appointmentStatus)).length,
         inConsult: queue.filter(a => a.appointmentStatus === 'InConsultation').length,
         completed: queue.filter(a => a.appointmentStatus === 'Completed').length,
     };
 
     return (
-        <div className="space-y-6">
-
-            {/* New Appointment Alert Banner */}
+        <div className="space-y-5">
             <AnimatePresence>
                 {newAlert && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -20, scale: 0.97 }}
-                        className="flex items-center gap-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-4 rounded-2xl shadow-lg shadow-green-200"
-                    >
-                        <div className="flex-shrink-0 w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center animate-bounce">
-                            <Stethoscope size={20} />
-                        </div>
-                        <div className="flex-1">
-                            <p className="font-black text-sm">New Patient in Queue!</p>
-                            <p className="text-green-100 text-xs font-medium mt-0.5">
-                                {newAlert.count > 1 ? `${newAlert.count} new appointments` : newAlert.name} • {newAlert.type}
-                            </p>
-                        </div>
-                        <button onClick={() => setNewAlert(null)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
-                            <X size={16} />
-                        </button>
+                    <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+                        <Card className="flex items-center gap-3 border-success/30 bg-success-subtle p-4">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success text-success-foreground">
+                                <Stethoscope className="h-[18px] w-[18px]" />
+                            </span>
+                            <div className="flex-1">
+                                <p className="text-sm font-semibold text-success">New patient in queue</p>
+                                <p className="text-xs text-success/80">
+                                    {newAlert.count > 1 ? `${newAlert.count} new appointments` : newAlert.name} · {newAlert.type}
+                                </p>
+                            </div>
+                            <button onClick={() => setNewAlert(null)} className="shrink-0 rounded-md p-1.5 text-success hover:bg-success/10">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </Card>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-gray-900">Patient Queue</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Today's appointments • <strong>{counts.waiting}</strong> waiting, <strong className="text-green-600">{counts.inConsult}</strong> in consultation, <strong>{counts.completed}</strong> completed
-                    </p>
-                </div>
-                <button onClick={fetchQueue} className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
-                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
-                </button>
-            </div>
+            <PageHeader
+                title="Patient queue"
+                icon={Clock}
+                description={
+                    <>
+                        Today's appointments · <span className="tabular font-medium text-foreground">{counts.waiting}</span> waiting,{' '}
+                        <span className="tabular font-medium text-success">{counts.inConsult}</span> in consultation,{' '}
+                        <span className="tabular font-medium text-foreground">{counts.completed}</span> completed
+                    </>
+                }
+                actions={
+                    <Button variant="outline" onClick={() => fetchQueue()} disabled={loading}>
+                        <RefreshCw className={loading ? 'animate-spin' : ''} /> Refresh
+                    </Button>
+                }
+            />
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                    { label: 'Total', value: counts.total, color: 'from-blue-500 to-blue-700' },
-                    { label: 'Waiting', value: counts.waiting, color: 'from-amber-500 to-orange-600' },
-                    { label: 'Active', value: counts.inConsult, color: 'from-green-500 to-emerald-600' },
-                    { label: 'Done', value: counts.completed, color: 'from-gray-400 to-gray-600' },
+                    { label: 'Total', value: counts.total },
+                    { label: 'Waiting', value: counts.waiting },
+                    { label: 'Active', value: counts.inConsult },
+                    { label: 'Done', value: counts.completed },
                 ].map(s => (
-                    <div key={s.label} className={`rounded-xl bg-gradient-to-br ${s.color} px-4 py-3 text-white`}>
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-white/70">{s.label}</p>
-                        <p className="text-2xl font-black">{s.value}</p>
-                    </div>
+                    <Card key={s.label} className="p-3.5">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                        <p className="tabular mt-0.5 text-2xl font-semibold">{s.value}</p>
+                    </Card>
                 ))}
             </div>
 
-            {/* Search & Filter */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
-                    <input type="text" placeholder="Search by patient name or ID..."
-                        value={search} onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by patient name or ID…" className="pl-9" />
                 </div>
-                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl overflow-x-auto whitespace-nowrap scrollbar-none flex-shrink-0">
-                    {[
-                        { key: 'active', label: 'Active' },
-                        { key: 'all', label: 'All' },
-                        { key: 'initiated', label: 'Scheduled' },
-                        { key: 'CheckedIn', label: 'Checked In' },
-                        { key: 'InConsultation', label: 'Consulting' },
-                        { key: 'Completed', label: 'Done' },
-                    ].map(f => (
-                        <button key={f.key} onClick={() => setFilter(f.key)}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${filter === f.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto rounded-lg border p-0.5 scrollbar-hide">
+                    {FILTERS.map(f => (
+                        <button key={f.key} onClick={() => setFilter(f.key)} aria-pressed={filter === f.key}
+                                className={cn(
+                                    'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                                    filter === f.key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground',
+                                )}>
                             {f.label}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Queue List */}
             {loading ? (
-                <div className="flex items-center justify-center h-48 text-gray-400">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="space-y-3">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
                 </div>
             ) : sorted.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                    <User size={48} className="mx-auto mb-3 opacity-50" />
-                    <p className="font-semibold text-gray-500">No patients in queue</p>
-                    <p className="text-sm mt-1">Patients will appear here when appointments are booked for today</p>
-                </div>
+                <Card>
+                    <EmptyState
+                        icon={User}
+                        title="No patients in queue"
+                        description="Patients will appear here when appointments are booked for today."
+                    />
+                </Card>
             ) : (
                 <div className="space-y-3">
                     <AnimatePresence>
                         {sorted.map((appt, index) => {
                             const isEmergency = appt.appointmentType?.toLowerCase().includes('emergency');
-                            const sc = statusConfig[appt.appointmentStatus] || statusConfig['initiated'];
                             const isActive = appt.appointmentStatus === 'InConsultation';
+                            const sc = statusConfig[appt.appointmentStatus] || statusConfig.initiated;
+                            const NextIcon = sc.nextIcon;
                             const patientName = `${appt.firstName || ''} ${appt.lastName || ''}`.trim() || `Patient #${appt.patientId}`;
 
                             return (
-                                <motion.div
-                                    key={appt.appointmentId}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, x: -50 }}
-                                    transition={{ delay: index * 0.03 }}
-                                    className={`relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 transition-all hover:shadow-md ${isEmergency ? 'ring-red-300 bg-red-50/30' :
-                                        isActive ? 'ring-green-300 bg-green-50/20' :
-                                            'ring-gray-100'
-                                        }`}
-                                >
-                                    {isEmergency && (
-                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500"></div>
-                                    )}
-                                    {isActive && (
-                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
-                                    )}
+                                <motion.div key={appt.appointmentId} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, x: -40 }} transition={{ delay: index * 0.02 }}>
+                                    <Card className={cn(
+                                        'relative overflow-hidden p-4',
+                                        isEmergency ? 'border-destructive/40 bg-destructive-subtle/40' : isActive && 'border-success/40 bg-success-subtle/30',
+                                    )}>
+                                        {(isEmergency || isActive) && (
+                                            <div className={cn('absolute inset-x-0 top-0 h-0.5', isEmergency ? 'bg-destructive' : 'bg-success')} />
+                                        )}
 
-                                    <div className="p-5">
-                                        <div className="flex flex-col md:flex-row md:items-center gap-4">
-                                            {/* Queue position */}
-                                            <div className={`flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-xl font-black text-lg ${isEmergency ? 'bg-red-500 text-white' :
-                                                isActive ? 'bg-green-500 text-white' :
-                                                    'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                {isEmergency ? <Zap size={20} /> : isActive ? <Stethoscope size={18} /> : index + 1}
+                                        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                                            <div className={cn(
+                                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-semibold',
+                                                isEmergency ? 'bg-destructive text-destructive-foreground' : isActive ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground',
+                                            )}>
+                                                {isEmergency ? <Zap className="h-5 w-5" /> : isActive ? <Stethoscope className="h-[18px] w-[18px]" /> : index + 1}
                                             </div>
 
-                                            {/* Patient Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h4 className="font-bold text-gray-900">{patientName}</h4>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h4 className="font-semibold">{patientName}</h4>
                                                     {isEmergency && (
-                                                        <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-black uppercase rounded-full flex items-center gap-1">
-                                                            <AlertTriangle size={10} /> Emergency
+                                                        <span className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold uppercase text-destructive-foreground">
+                                                            <AlertTriangle className="h-2.5 w-2.5" /> Emergency
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                                                    <span>{appt.patientCode || `#${appt.patientId}`}</span>
-                                                    {appt.gender && <><span>•</span><span>{appt.gender}</span></>}
-                                                    {appt.age && <><span>•</span><span>Age: {appt.age}</span></>}
-                                                    {appt.contactNumber && <><span>•</span><span><Phone size={10} className="inline" /> {appt.contactNumber}</span></>}
+                                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                                    <span className="tabular">{appt.patientCode || `#${appt.patientId}`}</span>
+                                                    {appt.gender && <><span>·</span><span>{appt.gender}</span></>}
+                                                    {appt.age && <><span>·</span><span>Age {appt.age}</span></>}
+                                                    {appt.contactNumber && <><span>·</span><span className="tabular flex items-center gap-1"><Phone className="h-2.5 w-2.5" /> {appt.contactNumber}</span></>}
                                                 </div>
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${sc.color}`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
-                                                        {sc.label}
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium', TONE_PILL[sc.tone])}>
+                                                        <span className={cn('h-1.5 w-1.5 rounded-full', TONE_DOT[sc.tone])} /> {sc.label}
                                                     </span>
-                                                    <span className="text-xs text-gray-400">
-                                                        <Clock size={12} className="inline mr-1" />
+                                                    <span className="tabular flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Clock className="h-3 w-3" />
                                                         {new Date(appt.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                     {appt.appointmentType && (
-                                                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
-                                                            {appt.appointmentType}
-                                                        </span>
+                                                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{appt.appointmentType}</span>
                                                     )}
                                                 </div>
+                                                {appt.reason && (
+                                                    <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+                                                        <strong className="text-foreground">Reason:</strong> {appt.reason}
+                                                    </p>
+                                                )}
                                             </div>
 
-                                            {/* Actions */}
-                                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap md:flex-nowrap w-full md:w-auto">
-                                                {/* Status progression button */}
+                                            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap">
                                                 {sc.next && (
-                                                    <button
+                                                    <Button
+                                                        size="sm"
                                                         onClick={() => updateStatus(appt.appointmentId, sc.next, patientName)}
                                                         disabled={updating === appt.appointmentId}
-                                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 ${sc.next === 'InConsultation' ? 'bg-green-500 text-white hover:bg-green-600 shadow-sm shadow-green-200' :
-                                                            sc.next === 'Completed' ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm shadow-blue-200' :
-                                                                'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                                            }`}
+                                                        className={NEXT_BUTTON[sc.next]}
                                                     >
-                                                        {updating === appt.appointmentId ? (
-                                                            <RefreshCw size={13} className="animate-spin" />
-                                                        ) : sc.nextIcon}
+                                                        {updating === appt.appointmentId ? <RefreshCw className="animate-spin" /> : <NextIcon />}
                                                         {sc.nextLabel}
-                                                    </button>
+                                                    </Button>
                                                 )}
-
-                                                {/* Write Prescription — show during or after consultation */}
                                                 {(appt.appointmentStatus === 'InConsultation' || appt.appointmentStatus === 'Completed') && (
-                                                    <button
-                                                        onClick={() => navigate(`/dashboard/doctor/prescriptions?patientId=${appt.patientId}&patientName=${encodeURIComponent(patientName)}`)}
-                                                        className="flex items-center gap-1.5 px-4 py-2 bg-purple-50 text-purple-700 rounded-xl text-xs font-bold hover:bg-purple-100 transition-colors"
-                                                    >
-                                                        <Pill size={13} /> Prescribe
-                                                    </button>
+                                                    <Button variant="secondary" size="sm" onClick={() => navigate(`/dashboard/doctor/prescriptions?patientId=${appt.patientId}&patientName=${encodeURIComponent(patientName)}`)}>
+                                                        <Pill /> Prescribe
+                                                    </Button>
                                                 )}
-
-                                                {/* View Patient Profile */}
-                                                <button
-                                                    onClick={() => navigate(`/dashboard/doctor/patient/${appt.patientId}`)}
-                                                    className="flex items-center gap-1.5 px-3 py-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-bold transition-colors"
-                                                    title="View Patient Profile"
-                                                >
-                                                    <FileText size={13} /> Details
-                                                </button>
+                                                <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/doctor/patient/${appt.patientId}`)} className="text-muted-foreground">
+                                                    <FileText /> Details
+                                                </Button>
                                             </div>
                                         </div>
-
-                                        {/* Reason / Notes */}
-                                        {appt.reason && (
-                                            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                                                <strong className="text-gray-600">Reason:</strong> {appt.reason}
-                                            </div>
-                                        )}
-                                    </div>
+                                    </Card>
                                 </motion.div>
                             );
                         })}
                     </AnimatePresence>
                 </div>
             )}
-
-            {/* Toast */}
-            <AnimatePresence>
-                {toast && <Toast message={toast.text} type={toast.type} onClose={() => setToast(null)} />}
-            </AnimatePresence>
         </div>
     );
 };
