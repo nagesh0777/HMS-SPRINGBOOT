@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft, Edit, Mail, Phone, Briefcase, MapPin, Calendar, Clock,
-    Shield, User, Circle, ShieldCheck, ClipboardList, Info, Lock,
-    Power, RefreshCw, Activity, Terminal, Trash2, LogIn, LogOut
+    ArrowLeft, Edit, Mail, Phone, Briefcase, Clock,
+    Shield, ShieldCheck, Info, Lock, Power, RefreshCw,
+    Activity, Trash2, LogIn, LogOut,
 } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from '../../components/Toast';
-import Skeleton from '../../components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/Skeleton';
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import PromptModal from '../../components/ui/PromptModal';
+import { EmptyState } from '@/components/app/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback, initials } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+const ACCESS_BADGE = { SuperAdmin: 'secondary', Admin: 'info' };
 
 const StaffDetails = () => {
     const { id } = useParams();
@@ -18,8 +26,7 @@ const StaffDetails = () => {
     const [staff, setStaff] = useState(null);
     const [loading, setLoading] = useState(true);
     const [attendance, setAttendance] = useState([]);
-    
-    // Modal Overlay States
+
     const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
     const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -27,11 +34,9 @@ const StaffDetails = () => {
 
     useEffect(() => {
         const userRole = localStorage.getItem('role');
-        if (userRole !== 'Admin') {
-            navigate('/dashboard');
-            return;
-        }
+        if (userRole !== 'Admin') { navigate('/dashboard'); return; }
         fetchStaff();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     const fetchStaff = async () => {
@@ -39,20 +44,15 @@ const StaffDetails = () => {
             setLoading(true);
             const [staffRes, attRes] = await Promise.all([
                 axios.get(`/api/Employee/${id}`),
-                axios.get('/api/Attendance/All')
+                axios.get('/api/Attendance/All'),
             ]);
-
-            if (staffRes.data.Results) {
-                setStaff(staffRes.data.Results);
-            }
-
+            if (staffRes.data.Results) setStaff(staffRes.data.Results);
             if (attRes.data.Results) {
-                // Filter attendance for this specific staff ID
                 const filtered = attRes.data.Results.filter(l => l.employeeId === parseInt(id));
                 setAttendance(filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
             }
         } catch (err) {
-            console.error("Error fetching staff details", err);
+            console.error('Error fetching staff details', err);
         } finally {
             setLoading(false);
         }
@@ -60,336 +60,231 @@ const StaffDetails = () => {
 
     const handleDeactivate = async () => {
         try {
-            const updated = { ...staff, isActive: !staff.isActive };
-            await axios.put(`/api/Employee/${id}`, updated);
-            toast.success(staff.isActive ? "User access deactivated" : "User access activated");
+            await axios.put(`/api/Employee/${id}`, { ...staff, isActive: !staff.isActive });
+            toast.success(staff.isActive ? 'User access deactivated' : 'User access activated');
             fetchStaff();
-        } catch (error) {
-            toast.error("Failed to update status");
-        }
+        } catch (error) { toast.error('Failed to update status'); }
     };
 
     const handleChangePassword = async (newPassword) => {
         try {
             await axios.put(`/api/Employee/${id}`, { ...staff, password: newPassword });
-            toast.success("Password updated successfully!");
+            toast.success('Password updated successfully!');
             fetchStaff();
-        } catch (error) {
-            toast.error("Failed to update password.");
-        }
+        } catch (error) { toast.error('Failed to update password.'); }
     };
 
     const handleResetPassword = async () => {
         try {
-            // No password in the payload: the backend leaves an existing password alone rather than
-            // resetting it to a shared default on every profile save.
+            // No password in the payload: the backend leaves an existing password alone rather
+            // than resetting it to a shared default on every profile save.
             await axios.put(`/api/Employee/${id}`, { ...staff });
             toast.success('Password reset. The new one-time password is shown in the response — share it directly.');
             fetchStaff();
-        } catch (error) {
-            toast.error("Failed to reset password.");
-        }
+        } catch (error) { toast.error('Failed to reset password.'); }
     };
 
     const handleDelete = async () => {
         try {
             await axios.delete(`/api/Employee/${id}`);
-            toast.success("Staff record deleted successfully");
+            toast.success('Staff record deleted successfully');
             navigate('/dashboard/staff');
-        } catch (error) {
-            toast.error("Failed to delete staff member.");
-        }
+        } catch (error) { toast.error('Failed to delete staff member.'); }
     };
 
     if (loading) {
         return (
-            <div className="max-w-6xl mx-auto space-y-8 pb-20">
-                <Skeleton variant="text" className="h-6 w-32" animation="shimmer" />
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                    <div className="space-y-8 lg:col-span-1">
-                        <Skeleton variant="rectangular" className="h-[400px] w-full" animation="shimmer" />
-                        <Skeleton variant="rectangular" className="h-[300px] w-full" animation="shimmer" />
-                    </div>
-                    <div className="space-y-8 lg:col-span-2">
-                        <Skeleton variant="rectangular" className="h-[200px] w-full" animation="shimmer" />
-                        <Skeleton variant="rectangular" className="h-[150px] w-full" animation="shimmer" />
-                        <Skeleton variant="rectangular" className="h-[350px] w-full" animation="shimmer" />
-                    </div>
+            <div className="mx-auto max-w-6xl space-y-6">
+                <Skeleton className="h-6 w-32" />
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="space-y-6 lg:col-span-1"><Skeleton className="h-[400px]" /><Skeleton className="h-[250px]" /></div>
+                    <div className="space-y-6 lg:col-span-2"><Skeleton className="h-[200px]" /><Skeleton className="h-[150px]" /><Skeleton className="h-[300px]" /></div>
                 </div>
             </div>
         );
     }
-    if (!staff) return <div className="p-10 text-center text-red-500 font-bold">Staff member not found.</div>;
+    if (!staff) return <Card><EmptyState title="Staff member not found" /></Card>;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-20">
-            {/* Header / Actions Sidebar Style */}
-            <div className="flex items-center justify-between">
-                <button
-                    onClick={() => navigate('/dashboard/staff')}
-                    className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                >
-                    <ArrowLeft size={18} />
-                    Back to Directory
-                </button>
-            </div>
+        <div className="mx-auto max-w-6xl space-y-6">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/staff')} className="-ml-2 text-muted-foreground">
+                <ArrowLeft /> Back to directory
+            </Button>
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                {/* Left Column: Profile Card & Actions */}
-                <div className="space-y-8 lg:col-span-1">
-                    {/* 1. Staff Details (TOP SECTION) */}
-                    <div className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-primary-900/5 ring-1 ring-gray-100">
-                        <div className="bg-gradient-to-br from-gray-900 to-primary-900 p-8 text-white text-center">
-                            <div className="relative mx-auto mb-6 h-32 w-32">
-                                <img
-                                    src={staff.photoPath || `https://ui-avatars.com/api/?name=${staff.firstName}+${staff.lastName}&background=random&color=fff&size=128`}
-                                    alt="Staff Profile"
-                                    className="h-full w-full rounded-2xl border-4 border-white/10 object-cover shadow-2xl"
-                                />
-                                <div className={`absolute -bottom-2 -right-2 h-6 w-6 rounded-full border-4 border-gray-950 ${
-                                    staff.status === 'Active' ? 'bg-green-500' :
-                                    staff.status === 'On Leave' ? 'bg-amber-500' : 'bg-red-500'
-                                }`}></div>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-1">
+                    <Card className="overflow-hidden p-0">
+                        <div className="bg-muted/40 p-6 text-center">
+                            <div className="relative mx-auto mb-4 h-24 w-24">
+                                <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
+                                    {staff.photoPath && <AvatarImage src={staff.photoPath} alt="" />}
+                                    <AvatarFallback className="bg-primary text-2xl text-primary-foreground">{initials(`${staff.firstName} ${staff.lastName}`)}</AvatarFallback>
+                                </Avatar>
+                                <span className={cn(
+                                    'absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-4 border-background',
+                                    staff.status === 'Active' ? 'bg-success' : staff.status === 'On Leave' ? 'bg-warning' : 'bg-destructive',
+                                )} />
                             </div>
-                            <h1 className="text-2xl font-black">{staff.firstName} {staff.lastName}</h1>
-                            <p className="mt-1 text-sm font-bold text-primary-300 uppercase tracking-widest">{staff.role}</p>
-                            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-tighter">
-                                ID: #EMP-{staff.employeeId}
+                            <h1 className="text-xl font-semibold">{staff.firstName} {staff.lastName}</h1>
+                            <p className="mt-1 text-sm text-muted-foreground">{staff.role}</p>
+                            <Badge variant="secondary" className="mt-3 tabular">EMP-{staff.employeeId}</Badge>
+                        </div>
+                        <div className="space-y-3 p-5 text-sm">
+                            <div className="flex items-center gap-3"><Briefcase className="h-4 w-4 text-muted-foreground" /> <span>{staff.department}</span></div>
+                            <div className="flex items-center gap-3 tabular"><Phone className="h-4 w-4 text-muted-foreground" /> <span>{staff.phoneNumber}</span></div>
+                            <div className="flex items-center gap-3"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /> <span className="truncate">{staff.email}</span></div>
+                            <div className="flex items-center gap-2.5 border-t pt-3">
+                                <span className={cn('h-1.5 w-1.5 rounded-full', staff.isActive ? 'bg-success' : 'bg-destructive')} />
+                                <span className="text-xs font-medium text-muted-foreground">{staff.isActive ? 'System access enabled' : 'Access restricted'}</span>
                             </div>
                         </div>
-                        <div className="space-y-4 p-6">
-                            <div className="flex items-center gap-3 text-sm">
-                                <Briefcase className="text-gray-400" size={18} />
-                                <span className="font-semibold text-gray-700">{staff.department}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <Phone className="text-gray-400" size={18} />
-                                <span className="font-semibold text-gray-700">{staff.phoneNumber}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <Mail className="text-gray-400" size={18} />
-                                <span className="font-semibold text-gray-700 truncate">{staff.email}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <div className={`h-2 w-2 rounded-full ${staff.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                <span className="font-bold uppercase text-[10px] text-gray-500 tracking-widest">
-                                    {staff.isActive ? 'System Access Enabled' : 'Access Restricted'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    </Card>
 
-                    {/* 4. Actions / Controls */}
                     {localStorage.getItem('role') === 'Admin' && (
-                        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
-                            <h3 className="mb-4 text-xs font-black uppercase tracking-widest text-gray-400">Actions & Controls</h3>
-                            <div className="grid grid-cols-1 gap-3">
-                                <button
-                                    onClick={() => navigate(`/dashboard/staff/edit/${id}`)}
-                                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-white hover:shadow-md active:scale-95"
-                                >
-                                    <Edit size={18} className="text-primary-600" />
-                                    Edit Profile
-                                </button>
-                                <button
-                                    onClick={() => setShowChangePasswordPrompt(true)}
-                                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-white hover:shadow-md active:scale-95"
-                                >
-                                    <Lock size={18} className="text-blue-600" />
-                                    Change Password
-                                </button>
-                                <button
-                                    onClick={() => setShowResetPasswordConfirm(true)}
-                                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-white hover:shadow-md active:scale-95"
-                                >
-                                    <RefreshCw size={18} className="text-orange-600" />
-                                    Reset Password
-                                </button>
-                                <button
-                                    onClick={() => setShowDeactivateConfirm(true)}
-                                    className={`flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3 text-sm font-bold transition-all hover:shadow-md active:scale-95 ${staff.isActive ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'
-                                        }`}
-                                >
-                                    <Power size={18} />
-                                    {staff.isActive ? 'Deactivate User' : 'Activate User'}
-                                </button>
-                                <div className="pt-2">
-                                    <button
-                                        onClick={() => setShowDeleteConfirm(true)}
-                                        className="flex w-full items-center gap-3 rounded-xl border-2 border-red-50 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition-all hover:bg-red-600 hover:text-white hover:shadow-xl active:scale-95"
-                                    >
-                                        <Trash2 size={18} />
-                                        Delete Staff Record
-                                    </button>
-                                </div>
+                        <Card className="space-y-2 p-5">
+                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions &amp; controls</h3>
+                            <Button variant="outline" className="w-full justify-start" onClick={() => navigate(`/dashboard/staff/edit/${id}`)}>
+                                <Edit className="text-info" /> Edit profile
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" onClick={() => setShowChangePasswordPrompt(true)}>
+                                <Lock className="text-info" /> Change password
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" onClick={() => setShowResetPasswordConfirm(true)}>
+                                <RefreshCw className="text-warning" /> Reset password
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className={cn('w-full justify-start', staff.isActive ? 'text-destructive hover:bg-destructive-subtle' : 'text-success hover:bg-success-subtle')}
+                                onClick={() => setShowDeactivateConfirm(true)}
+                            >
+                                <Power /> {staff.isActive ? 'Deactivate user' : 'Activate user'}
+                            </Button>
+                            <div className="pt-2">
+                                <Button variant="destructive" className="w-full" onClick={() => setShowDeleteConfirm(true)}>
+                                    <Trash2 /> Delete staff record
+                                </Button>
                             </div>
-                        </div>
+                        </Card>
                     )}
                 </div>
 
-                {/* Right Column: Detailed Sections */}
-                <div className="space-y-8 lg:col-span-2">
-                    {/* 2. Login & Access Info */}
-                    <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                        <h3 className="mb-6 flex items-center gap-2 text-lg font-black text-gray-900">
-                            <ShieldCheck size={20} className="text-blue-600" />
-                            Login & Access Info
+                <div className="space-y-6 lg:col-span-2">
+                    <Card className="p-6">
+                        <h3 className="mb-5 flex items-center gap-2 text-base font-semibold">
+                            <ShieldCheck className="h-[18px] w-[18px] text-muted-foreground" /> Login &amp; access info
                         </h3>
-                        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Username</p>
-                                <p className="mt-2 text-lg font-bold text-gray-900">@{staff.userName || 'Not Assigned'}</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Username</p>
+                                <p className="mt-1.5 font-medium">@{staff.userName || 'Not assigned'}</p>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Access Level</p>
-                                <span className={`mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-black ring-1 ${staff.accessLevel === 'SuperAdmin' ? 'bg-purple-50 text-purple-700 ring-purple-100' :
-                                    staff.accessLevel === 'Admin' ? 'bg-blue-50 text-blue-700 ring-blue-100' :
-                                        'bg-gray-50 text-gray-700 ring-gray-100'
-                                    }`}>
-                                    <Shield size={14} />
-                                    {staff.accessLevel || 'Standard'}
-                                </span>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Access level</p>
+                                <Badge variant={ACCESS_BADGE[staff.accessLevel] || 'secondary'} className="mt-1.5 gap-1.5">
+                                    <Shield className="h-3 w-3" /> {staff.accessLevel || 'Standard'}
+                                </Badge>
                             </div>
-
-                            {/* Attendance QR Code block removed as system is now purely manual */}
-
                             <div className="md:col-span-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Assigned Modules</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Assigned modules</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                     {(staff.assignedModules || 'General Access').split(',').map((mod, idx) => (
-                                        <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2 text-xs font-bold text-gray-600">
-                                            {mod.trim()}
-                                        </div>
+                                        <Badge key={idx} variant="outline">{mod.trim()}</Badge>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </Card>
 
-                    {/* 3. Work Information */}
-                    <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                        <h3 className="mb-6 flex items-center gap-2 text-lg font-black text-gray-900">
-                            <Clock size={20} className="text-teal-600" />
-                            Work Information
+                    <Card className="p-6">
+                        <h3 className="mb-5 flex items-center gap-2 text-base font-semibold">
+                            <Clock className="h-[18px] w-[18px] text-muted-foreground" /> Work information
                         </h3>
-                        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Shift Timing</p>
-                                <p className="mt-2 font-bold text-gray-900">{staff.shiftTiming || 'Not Scheduled'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Duty Days</p>
-                                <p className="mt-2 font-bold text-gray-900">{staff.dutyDays || 'N/A'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Station / Ward</p>
-                                <p className="mt-2 font-bold text-gray-900">{staff.assignedWard || 'Unassigned'}</p>
-                            </div>
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                            <div><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Shift timing</p><p className="mt-1.5 font-medium">{staff.shiftTiming || 'Not scheduled'}</p></div>
+                            <div><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Duty days</p><p className="mt-1.5 font-medium">{staff.dutyDays || 'N/A'}</p></div>
+                            <div><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Station / ward</p><p className="mt-1.5 font-medium">{staff.assignedWard || 'Unassigned'}</p></div>
                         </div>
-                    </div>
+                    </Card>
 
-                    {/* 5. Attendance History */}
-                    <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="flex items-center gap-2 text-lg font-black text-gray-900">
-                                <Activity size={20} className="text-orange-600" />
-                                Recent History
+                    <Card className="p-6">
+                        <div className="mb-5 flex items-center justify-between">
+                            <h3 className="flex items-center gap-2 text-base font-semibold">
+                                <Activity className="h-[18px] w-[18px] text-muted-foreground" /> Recent history
                             </h3>
-                            <span className="text-[10px] font-black bg-gray-50 px-2 py-1 rounded-lg text-gray-400 border border-gray-100">
-                                {attendance.length} TOTAL LOGS
-                            </span>
+                            <Badge variant="secondary" className="tabular">{attendance.length} logs</Badge>
                         </div>
-
-                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1 scrollbar-thin">
                             {attendance.length > 0 ? attendance.map((log, idx) => (
-                                <div key={idx} className="flex items-center justify-between rounded-2xl bg-gray-50/50 p-4 ring-1 ring-gray-100 hover:bg-white transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`p-2 rounded-xl text-white ${log.type === 'ClockIn' ? 'bg-blue-500' : 'bg-orange-500'}`}>
-                                            {log.type === 'ClockIn' ? <LogIn size={16} /> : <LogOut size={16} />}
-                                        </div>
+                                <div key={idx} className="flex items-center justify-between rounded-lg border bg-muted/20 p-3.5">
+                                    <div className="flex items-center gap-3">
+                                        <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', log.type === 'ClockIn' ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning')}>
+                                            {log.type === 'ClockIn' ? <LogIn className="h-4 w-4" /> : <LogOut className="h-4 w-4" />}
+                                        </span>
                                         <div>
-                                            <p className="text-sm font-black text-gray-900">{log.type === 'ClockIn' ? 'Checked In' : 'Checked Out'}</p>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                                                {new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                                            </p>
+                                            <p className="text-sm font-medium">{log.type === 'ClockIn' ? 'Checked in' : 'Checked out'}</p>
+                                            <p className="text-xs text-muted-foreground">{new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</p>
                                         </div>
                                     </div>
-                                    {log.remarks && (
-                                        <div className="text-[10px] bg-white px-2 py-1 rounded-lg text-gray-400 font-bold border border-gray-100">
-                                            {log.remarks}
-                                        </div>
-                                    )}
+                                    {log.remarks && <Badge variant="outline">{log.remarks}</Badge>}
                                 </div>
                             )) : (
-                                <div className="py-10 text-center text-gray-400 font-bold uppercase text-[10px] tracking-widest">
-                                    No attendance history recorded yet.
-                                </div>
+                                <EmptyState icon={Activity} title="No attendance history recorded yet" />
                             )}
                         </div>
-                    </div>
+                    </Card>
 
-                    {/* 6. Notes / Remarks */}
-                    <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-gray-100 border-l-4 border-orange-400">
-                        <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-900">
-                            <Info size={20} className="text-orange-600" />
-                            Administrative Notes
+                    <Card className="border-l-4 border-l-warning p-6">
+                        <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+                            <Info className="h-[18px] w-[18px] text-warning" /> Administrative notes
                         </h3>
-                        <p className="text-sm leading-relaxed text-gray-600">
-                            {staff.adminNotes || "No administrative remarks for this staff member."}
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                            {staff.adminNotes || 'No administrative remarks for this staff member.'}
                         </p>
-                    </div>
+                    </Card>
                 </div>
             </div>
 
-            {/* Deactivation Modal Overlay */}
             <ConfirmationModal
                 isOpen={showDeactivateConfirm}
                 onClose={() => setShowDeactivateConfirm(false)}
                 onConfirm={handleDeactivate}
-                title={staff.isActive ? "Deactivate Staff Access" : "Activate Staff Access"}
-                message={staff.isActive 
-                    ? `Are you sure you want to deactivate system login and duty shifts for ${staff.firstName} ${staff.lastName}? They will be blocked from logging into the portal immediately.`
-                    : `Are you sure you want to reactivate access for ${staff.firstName} ${staff.lastName}? They will be able to log back into the system.`
-                }
-                confirmText={staff.isActive ? "Deactivate" : "Activate"}
+                title={staff.isActive ? 'Deactivate staff access' : 'Activate staff access'}
+                message={staff.isActive
+                    ? `Deactivate system login and duty shifts for ${staff.firstName} ${staff.lastName}? They will be blocked from logging into the portal immediately.`
+                    : `Reactivate access for ${staff.firstName} ${staff.lastName}? They will be able to log back into the system.`}
+                confirmText={staff.isActive ? 'Deactivate' : 'Activate'}
                 cancelText="Cancel"
-                type={staff.isActive ? "danger" : "info"}
+                type={staff.isActive ? 'danger' : 'info'}
             />
-
-            {/* Reset Password Modal Overlay */}
             <ConfirmationModal
                 isOpen={showResetPasswordConfirm}
                 onClose={() => setShowResetPasswordConfirm(false)}
                 onConfirm={handleResetPassword}
-                title="Reset Password to Default"
-                message={`Reset the password for ${staff.firstName} ${staff.lastName}? They will get a new one-time password which you must share with them directly, and they will be asked to change it at next sign-in.`}
-                confirmText="Reset Password"
+                title="Reset password to default"
+                message={`Reset the password for ${staff.firstName} ${staff.lastName}? They will get a new one-time password which you must share with them directly.`}
+                confirmText="Reset password"
                 cancelText="Cancel"
                 type="warning"
             />
-
-            {/* Delete Record Modal Overlay */}
             <ConfirmationModal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 onConfirm={handleDelete}
-                title="Delete Staff Record"
-                message={`CRITICAL WARNING:\n\nThis will permanently delete the profile, role permissions, and active credential account for employee ${staff.firstName} ${staff.lastName}.\n\nThis administrative action is irreversible. Continue?`}
-                confirmText="Permanently Delete"
+                title="Delete staff record"
+                message={`This permanently deletes the profile, role permissions and credential account for ${staff.firstName} ${staff.lastName}. This action is irreversible.`}
+                confirmText="Permanently delete"
                 cancelText="Cancel"
                 type="danger"
             />
-
-            {/* Custom Change Password Prompt Modal */}
             <PromptModal
                 isOpen={showChangePasswordPrompt}
                 onClose={() => setShowChangePasswordPrompt(false)}
                 onSubmit={handleChangePassword}
-                title="Change Staff Password"
-                message={`Enter the new secure login passcode for ${staff.firstName} ${staff.lastName}:`}
+                title="Change staff password"
+                message={`Enter the new login password for ${staff.firstName} ${staff.lastName}:`}
                 placeholder="Enter new password (min. 6 characters)"
                 inputType="password"
-                submitText="Update Password"
+                submitText="Update password"
                 cancelText="Cancel"
             />
         </div>
