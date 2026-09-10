@@ -58,6 +58,7 @@ const HospitalSettingsPage = lazy(() => import('./pages/admin/HospitalSettingsPa
 const ServiceCatalogPage = lazy(() => import('./pages/admin/ServiceCatalogPage'));
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
 const PortalGuide = lazy(() => import('./pages/PortalGuide'));
+const CareTeamsPage = lazy(() => import('./pages/teams/CareTeamsPage'));
 const BillingDashboard = lazy(() => import('./pages/billing/BillingDashboard'));
 
 /** Shown while a route chunk downloads. Deliberately quiet — a full-page spinner on every
@@ -120,6 +121,8 @@ function App() {
             <Route index element={<DashboardHome />} />
 
             <Route path="hospitals" element={<Hospitals />} />
+            <Route path="care-teams" element={<CareTeamsPage />} />
+            <Route path="teams" element={<CareTeamsPage />} />
 
             {/* Patient Routes */}
             <Route path="patients" element={<PatientList />} />

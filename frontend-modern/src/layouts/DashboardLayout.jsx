@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LayoutDashboard, Users, User, Calendar, Bed, Shield, LogOut, Clock, Menu,
+    LayoutDashboard, Users, User, Calendar, MessageSquare, Bed, Shield, LogOut, Clock, Menu,
     Building, Stethoscope, Pill, ClipboardList, Search, Activity, Bell, UserCog,
     BookOpen, Check, CheckCheck, AlertTriangle, FlaskConical, Settings, Zap,
     Receipt, Settings2, Package, ChevronLeft, ChevronRight, History, X,
@@ -62,6 +62,7 @@ const ITEM = {
     history:       { id: 'history',       label: 'Consultation log', short: 'Log',      icon: History,         path: '/dashboard/doctor/history' },
     doctorProfile: { id: 'doctor-profile', label: 'Doctor profile',   short: 'Profile',  icon: User,            path: '/dashboard/doctor/profile' },
     hospitals:     { id: 'hospitals',     label: 'Hospitals',        short: 'Fleet',    icon: Building,        path: '/dashboard/hospitals' },
+    careTeams:     { id: 'care-teams',     label: 'Care Teams',       short: 'Teams',    icon: MessageSquare,   path: '/dashboard/care-teams' },
 };
 
 /**
@@ -75,6 +76,7 @@ const ASSIGNED_MENU = [
         ITEM.patients,
         ITEM.appointments,
         ITEM.inpatients,
+        ITEM.careTeams,
         ITEM.billing,
         { ...ITEM.doctors, module: 'doctors' },
         ITEM.staff,
@@ -91,13 +93,14 @@ const MENUS = {
         { title: 'Overview', items: [ITEM.overview] },
         { title: 'Clinical', items: [ITEM.patients, ITEM.appointments, ITEM.inpatients] },
         { title: 'Business', items: [ITEM.billing, ITEM.services] },
-        { title: 'Team',     items: [ITEM.doctors, ITEM.staff] },
+        { title: 'Team',     items: [ITEM.careTeams, ITEM.doctors, ITEM.staff] },
     ],
     // Prescribing is the reason a doctor opens this app, so it sits third — directly
     // under the two screens that lead into it — instead of below ward admin.
     Doctor: [
         { title: 'Consult', items: [ITEM.consultDesk, ITEM.queue, ITEM.prescriptions, ITEM.followups, ITEM.history] },
         { title: 'Ward',    items: [ITEM.inpatients] },
+        { title: 'Team',    items: [ITEM.careTeams] },
         { title: 'Account', items: [ITEM.doctorProfile] },
     ],
     // Front desk and general staff are defined by their employee record, not by a fixed
