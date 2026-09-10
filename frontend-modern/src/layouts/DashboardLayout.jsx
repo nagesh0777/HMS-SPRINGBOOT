@@ -60,6 +60,7 @@ const ITEM = {
     prescriptions: { id: 'prescriptions', label: 'Prescriptions',    short: 'Rx',       icon: Pill,            path: '/dashboard/doctor/prescriptions' },
     followups:     { id: 'followups',     label: 'Follow-ups',       short: 'Follow',   icon: UserCog,         path: '/dashboard/doctor/followups' },
     history:       { id: 'history',       label: 'Consultation log', short: 'Log',      icon: History,         path: '/dashboard/doctor/history' },
+    doctorProfile: { id: 'doctor-profile', label: 'Doctor profile',   short: 'Profile',  icon: User,            path: '/dashboard/doctor/profile' },
     hospitals:     { id: 'hospitals',     label: 'Hospitals',        short: 'Fleet',    icon: Building,        path: '/dashboard/hospitals' },
 };
 
@@ -97,6 +98,7 @@ const MENUS = {
     Doctor: [
         { title: 'Consult', items: [ITEM.consultDesk, ITEM.queue, ITEM.prescriptions, ITEM.followups, ITEM.history] },
         { title: 'Ward',    items: [ITEM.inpatients] },
+        { title: 'Account', items: [ITEM.doctorProfile] },
     ],
     // Front desk and general staff are defined by their employee record, not by a fixed
     // list: every entry is module-gated, so the permission checklist on the staff form is
