@@ -29,7 +29,7 @@ const DEPARTMENTS = ['OPD', 'Cardiology', 'Pediatrics', 'Gynaecology', 'Emergenc
 const STATUS_BADGE = { 'On Duty': 'success', 'On Leave': 'warning', 'Off Duty': 'secondary' };
 
 const emptyForm = {
-    fullName: '', department: 'OPD', specialization: '',
+    fullName: '', department: 'OPD', specialization: '', qualifications: '', registrationNumber: '',
     phoneNumber: '', email: '', startTime: '09:00', endTime: '17:00',
     userName: '', password: '', photoPath: '', consultationQrPath: '', status: 'On Duty',
 };
@@ -83,7 +83,8 @@ const DoctorManagementPage = () => {
     const openEdit = (doc) => {
         setForm({
             fullName: doc.fullName || '', department: doc.department || 'OPD',
-            specialization: doc.specialization || '', phoneNumber: doc.phoneNumber || '',
+            specialization: doc.specialization || '', qualifications: doc.qualifications || '',
+            registrationNumber: doc.registrationNumber || '', phoneNumber: doc.phoneNumber || '',
             email: doc.email || '', startTime: doc.startTime || '09:00',
             endTime: doc.endTime || '17:00', userName: doc.userName || '', password: '',
             photoPath: doc.photoPath || '', consultationQrPath: doc.consultationQrPath || '', status: doc.status || 'On Duty',
@@ -365,7 +366,12 @@ const DoctorManagementPage = () => {
                                             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                                         </select>
                                     </div>
-                                    <div><Label className="mb-1.5 block">Specialization</Label><Input value={form.specialization} onChange={e => setForm(p => ({ ...p, specialization: e.target.value }))} placeholder="e.g. Interventional Cardiology" /></div>
+                                    <div><Label className="mb-1.5 block">Specialization</Label><Input value={form.specialization} onChange={e => setForm(p => ({ ...p, specialization: e.target.value }))} placeholder="e.g. PAEDIATRICS" /></div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div><Label className="mb-1.5 block">Qualifications / Degree</Label><Input value={form.qualifications} onChange={e => setForm(p => ({ ...p, qualifications: e.target.value }))} placeholder="e.g. MD PAEDIATRICS (JAIPUR)" /></div>
+                                    <div><Label className="mb-1.5 block">Medical Registration No.</Label><Input value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. KMC-12345" /></div>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-5">

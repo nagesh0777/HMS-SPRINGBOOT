@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
-    Mail, Phone, Clock, Shield, Save, Lock,
+    Mail, Phone, Clock, Shield, Save, Lock, User,
     Stethoscope, Edit3, Check, Eye, EyeOff, Key, RefreshCw,
     QrCode, UploadCloud, Trash2, AlertCircle, Loader2,
 } from 'lucide-react';
@@ -31,7 +31,7 @@ const DoctorProfile = () => {
     const [message, setMessage] = useState(null);
 
     const [form, setForm] = useState({
-        specialization: '', phoneNumber: '', email: '',
+        fullName: '', department: 'OPD', specialization: '', phoneNumber: '', email: '',
         startTime: '09:00', endTime: '17:00',
         qualifications: '', registrationNumber: '',
     });
@@ -41,22 +41,25 @@ const DoctorProfile = () => {
     const [showOld, setShowOld] = useState(false);
     const [showNew, setShowNew] = useState(false);
 
-    useEffect(() => { fetchProfile(); }, []);
+    useEffect(() => { fetchProfile(true); }, []);
 
-    const fetchProfile = async () => {
-        setLoading(true);
+    const fetchProfile = async (initial = false) => {
+        if (initial) setLoading(true);
         try {
             const res = await axios.get('/api/DoctorPortal/MyProfile');
             if (res.data.Results) {
-                setProfile(res.data.Results);
+                const r = res.data.Results;
+                setProfile(r);
                 setForm({
-                    specialization: res.data.Results.specialization || '',
-                    phoneNumber: res.data.Results.phoneNumber || '',
-                    email: res.data.Results.email || '',
-                    startTime: res.data.Results.startTime || '09:00',
-                    endTime: res.data.Results.endTime || '17:00',
-                    qualifications: res.data.Results.qualifications || '',
-                    registrationNumber: res.data.Results.registrationNumber || '',
+                    fullName: r.fullName || '',
+                    department: r.department || 'OPD',
+                    specialization: r.specialization || '',
+                    phoneNumber: r.phoneNumber || '',
+                    email: r.email || '',
+                    startTime: r.startTime || '09:00',
+                    endTime: r.endTime || '17:00',
+                    qualifications: r.qualifications || '',
+                    registrationNumber: r.registrationNumber || '',
                 });
             }
         } catch (e) {
@@ -73,9 +76,9 @@ const DoctorProfile = () => {
         try {
             const res = await axios.put('/api/DoctorPortal/MyProfile', form);
             if (res.data.Status === 'OK') {
-                setMessage({ type: 'success', text: 'Profile updated successfully!' });
+                setMessage({ type: 'success', text: 'Doctor profile updated successfully!' });
                 setEditing(false);
-                fetchProfile();
+                await fetchProfile(false);
             } else {
                 setMessage({ type: 'error', text: res.data.ErrorMessage || 'Update failed' });
             }
@@ -209,10 +212,14 @@ const DoctorProfile = () => {
                             </label>
                         </div>
                         <div>
-                            <h2 className="text-xl font-semibold">{p.fullName || 'Doctor'}</h2>
+                            <div className="flex items-baseline gap-2">
+                                <h2 className="text-xl font-semibold">{p.fullName || 'Doctor'}</h2>
+                                {p.qualifications && <span className="text-sm font-semibold text-teal-700 dark:text-teal-400">{p.qualifications}</span>}
+                            </div>
                             <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                                 <span className="flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> {p.department || 'OPD'}</span>
                                 {p.specialization && <span>· {p.specialization}</span>}
+                                {p.registrationNumber && <span className="text-xs text-muted-foreground">· Reg: {p.registrationNumber}</span>}
                             </div>
                             <div className="mt-2 flex items-center gap-2">
                                 <Badge variant="secondary" className="gap-1"><Key className="h-2.5 w-2.5" /> {p.userName}</Badge>
@@ -225,14 +232,20 @@ const DoctorProfile = () => {
                 <div className="p-6">
                     <form onSubmit={handleSave} className="space-y-5">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <FIELD label="Qualifications" editing={editing} value={p.qualifications}>
-                                <Input value={form.qualifications} onChange={e => setForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. MD, DM" />
+                            <FIELD label="Doctor's full name" icon={User} editing={editing} value={p.fullName}>
+                                <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="e.g. Dr. MALLIKARJUN KOBAL" required />
+                            </FIELD>
+                            <FIELD label="Qualifications / Degree" editing={editing} value={p.qualifications}>
+                                <Input value={form.qualifications} onChange={e => setForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. MD PAEDIATRICS (JAIPUR)" />
+                            </FIELD>
+                            <FIELD label="Department" icon={Shield} editing={editing} value={p.department}>
+                                <Input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} placeholder="e.g. Paediatrics / OPD" />
+                            </FIELD>
+                            <FIELD label="Specialization" icon={Stethoscope} editing={editing} value={p.specialization}>
+                                <Input value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. PAEDIATRICS" />
                             </FIELD>
                             <FIELD label="Medical registration no." editing={editing} value={p.registrationNumber}>
                                 <Input value={form.registrationNumber} onChange={e => setForm(f => ({ ...f, registrationNumber: e.target.value }))} placeholder="e.g. KMC-12345" />
-                            </FIELD>
-                            <FIELD label="Specialization" icon={Stethoscope} editing={editing} value={p.specialization}>
-                                <Input value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. Cardiologist" />
                             </FIELD>
                             <FIELD label="Phone number" icon={Phone} editing={editing} value={p.phoneNumber}>
                                 <Input type="tel" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="98XXXXXXXX" />

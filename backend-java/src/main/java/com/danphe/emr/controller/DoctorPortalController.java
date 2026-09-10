@@ -618,7 +618,11 @@ public class DoctorPortalController {
         }
 
         Doctor doc = opt.get();
-        // Doctors can update: specialization, phone, email, availability, consultationQrPath
+        // Doctors can update all profile fields: name, department, specialization, qualifications, regNo, phone, email, availability, QR
+        if (body.containsKey("fullName") && body.get("fullName") != null && !body.get("fullName").trim().isEmpty())
+            doc.setFullName(body.get("fullName").trim());
+        if (body.containsKey("department") && body.get("department") != null)
+            doc.setDepartment(body.get("department").trim());
         if (body.containsKey("specialization"))
             doc.setSpecialization(body.get("specialization"));
         if (body.containsKey("phoneNumber"))
@@ -643,16 +647,31 @@ public class DoctorPortalController {
         }
         doctorRepository.save(doc);
 
-        // Sync employee record
+        // Sync employee record safely
         if (doc.getEmployeeId() != null) {
-            employeeRepository.findById(doc.getEmployeeId()).ifPresent(emp -> {
-                if (body.containsKey("phoneNumber") && body.get("phoneNumber").matches("^[0-9]{10,15}$")) {
-                    emp.setPhoneNumber(body.get("phoneNumber"));
-                }
-                if (body.containsKey("email"))
-                    emp.setEmail(body.get("email"));
-                employeeRepository.save(emp);
-            });
+            try {
+                employeeRepository.findById(doc.getEmployeeId()).ifPresent(emp -> {
+                    if (body.containsKey("fullName") && body.get("fullName") != null) {
+                        String[] parts = body.get("fullName").trim().split("\s+", 2);
+                        emp.setFirstName(parts[0]);
+                        emp.setLastName(parts.length > 1 ? parts[1] : "");
+                    }
+                    if (body.containsKey("department") && body.get("department") != null) {
+                        emp.setDepartment(body.get("department").trim());
+                    }
+                    if (body.containsKey("phoneNumber") && body.get("phoneNumber") != null) {
+                        String phone = body.get("phoneNumber").replaceAll("[^0-9]", "");
+                        if (phone.length() >= 10 && phone.length() <= 15) {
+                            emp.setPhoneNumber(phone);
+                        }
+                    }
+                    if (body.containsKey("email"))
+                        emp.setEmail(body.get("email"));
+                    employeeRepository.save(emp);
+                });
+            } catch (Exception ex) {
+                // Non-fatal: ensure doctor profile update succeeds even if employee constraints differ
+            }
         }
 
         return ResponseEntity.ok(DanpheHttpResponse.ok("Profile updated successfully"));

@@ -265,6 +265,10 @@ public class DoctorController {
             doc.setFullName(updated.getFullName());
             doc.setDepartment(updated.getDepartment());
             doc.setSpecialization(updated.getSpecialization());
+            if (updated.getQualifications() != null)
+                doc.setQualifications(updated.getQualifications());
+            if (updated.getRegistrationNumber() != null)
+                doc.setRegistrationNumber(updated.getRegistrationNumber());
             doc.setPhoneNumber(updated.getPhoneNumber());
             doc.setEmail(updated.getEmail());
             doc.setStartTime(updated.getStartTime());

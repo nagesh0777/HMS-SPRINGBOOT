@@ -138,7 +138,7 @@ const PrescriptionManagement = () => {
     const [form, setForm] = useState(() => {
         const blank = {
             diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '',
-            medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '',
+            medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '', headCircumference: '',
         };
         if (searchParams.get('draft') !== '1') return blank;
         try {
@@ -319,7 +319,7 @@ const PrescriptionManagement = () => {
             const payload = {
                 patientId: selectedPatient.patientId,
                 diagnosis: form.diagnosis,
-                clinicalNotes: form.clinicalNotes,
+                clinicalNotes: form.headCircumference ? `${form.clinicalNotes ? form.clinicalNotes + ' ' : ''}[HC: ${form.headCircumference} cm]` : form.clinicalNotes,
                 allergyWarnings: form.allergyWarnings,
                 recommendedTests: form.recommendedTests,
                 advice: form.advice,
@@ -333,7 +333,7 @@ const PrescriptionManagement = () => {
             const res = await axios.post('/api/DoctorPortal/Prescriptions', payload);
             if (res.data.Status === 'OK') {
                 setShowForm(false);
-                setForm({ diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '', medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '' });
+                setForm({ diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '', medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '', headCircumference: '' });
                 setAppliedTemplates([]);
                 setSelectedPatient(null);
                 fetchPrescriptions();
@@ -428,6 +428,8 @@ const PrescriptionManagement = () => {
 
         const weightVal = (rx.patientWeight !== null && rx.patientWeight !== undefined && rx.patientWeight !== '') ? rx.patientWeight : (patient.weight || '');
         const heightVal = (rx.patientHeight !== null && rx.patientHeight !== undefined && rx.patientHeight !== '') ? rx.patientHeight : (patient.height || '');
+        const hcVal = rx.headCircumference || (rx.clinicalNotes?.match(/\[HC:\s*([\d.]+)\s*cm\]/i)?.[1]) || '';
+        const cleanNotes = (rx.clinicalNotes || '').replace(/\[HC:\s*[\d.]+\s*cm\]/i, '').trim();
 
         let bmi = null;
         let bmiCategory = '';
@@ -447,10 +449,10 @@ const PrescriptionManagement = () => {
         const sigUrl = settings.signatureImagePath ? window.location.origin + '/api/Files' + settings.signatureImagePath.replace('/uploads', '') : '';
         const qrUrl = doctor.consultationQrPath ? window.location.origin + doctor.consultationQrPath : '';
 
-        return { settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, bmi, bmiCategory, bmiBadgeColor };
+        return { settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, hcVal, bmi, bmiCategory, bmiBadgeColor, cleanNotes };
     };
 
-    const getPrescriptionHtml = (rx, settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, bmi, bmiCategory, bmiBadgeColor) => {
+    const getPrescriptionHtml = (rx, settings, patient, doctor, meds, logoUrl, sigUrl, qrUrl, weightVal, heightVal, hcVal, bmi, bmiCategory, bmiBadgeColor, cleanNotes) => {
         return `<!DOCTYPE html><html><head><title>Prescription - ${rx.patientName || ''}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
@@ -874,9 +876,11 @@ const PrescriptionManagement = () => {
         <!-- DOCTOR PANEL -->
         <div class="doctor-panel">
           <div>
-            <div class="doctor-name">Dr. ${doctor.fullName || 'Consulting Doctor'}</div>
-            ${doctor.qualifications ? `<div class="doctor-creds">${doctor.qualifications}</div>` : ''}
-            <div class="doctor-dept">${[doctor.specialization, doctor.department].filter(Boolean).join(' | ') || 'General Medicine'}</div>
+            <div class="doctor-name" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+              <span>Dr. ${doctor.fullName || 'Consulting Doctor'}</span>
+              ${doctor.qualifications ? `<span style="font-size:11.5px;font-weight:700;color:#0e7490;">${doctor.qualifications}</span>` : ''}
+            </div>
+            <div class="doctor-dept">${[doctor.specialization, doctor.department].filter(Boolean).join(' | ') || 'PAEDIATRICS'}</div>
           </div>
           ${doctor.registrationNumber ? `<div class="doctor-reg">Reg. No: ${doctor.registrationNumber}</div>` : ''}
         </div>
@@ -912,11 +916,10 @@ const PrescriptionManagement = () => {
             <div class="info-card-body">
               <div class="info-row"><span class="info-label">Weight</span><span class="info-value">${weightVal ? weightVal + ' kg' : '-'}</span></div>
               <div class="info-row"><span class="info-label">Height</span><span class="info-value">${heightVal ? heightVal + ' cm' : '-'}</span></div>
+              <div class="info-row"><span class="info-label">Head Circumference</span><span class="info-value">${hcVal ? hcVal + ' cm' : '-'}</span></div>
               <div class="info-row"><span class="info-label">BMI</span><span>${bmi ? `<span class="bmi-badge" style="background:${bmiBadgeColor}">${bmi} - ${bmiCategory}</span>` : '-'}</span></div>
               ${rx.bloodPressure ? `<div class="info-row"><span class="info-label">BP</span><span class="info-value">${rx.bloodPressure} mmHg</span></div>` : ''}
-              ${rx.pulseRate ? `<div class="info-row"><span class="info-label">Pulse</span><span class="info-value">${rx.pulseRate} bpm</span></div>` : ''}
               ${rx.temperature ? `<div class="info-row"><span class="info-label">Temp</span><span class="info-value">${rx.temperature}&deg;F</span></div>` : ''}
-              ${rx.oxygenSaturation ? `<div class="info-row"><span class="info-label">SpO2</span><span class="info-value">${rx.oxygenSaturation}%</span></div>` : ''}
             </div>
           </div>
 
@@ -927,17 +930,26 @@ const PrescriptionManagement = () => {
                 <span class="info-label">Visit Date</span>
                 <span class="info-value">${new Date(rx.createdOn).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
               </div>
-              <div class="info-row">
-                <span class="info-label">Visit Type</span>
-                <span class="info-value">${rx.visitType || 'OPD Consultation'}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Diagnosis</span>
-                <span class="info-value" style="color:#0f766e">${rx.diagnosis || 'General Consultation'}</span>
-              </div>
               ${rx.followUpDate ? `<div class="info-row"><span class="info-label">Follow-Up</span><span class="info-value">${new Date(rx.followUpDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>` : ''}
             </div>
           </div>
+        </div>
+
+        <hr class="section-divider"/>
+
+        <!-- CHIEF COMPLAINTS & DIAGNOSIS (Positioned before medications) -->
+        <div class="notes-section" style="margin: 12px 20px 0;">
+          <div class="notes-grid" style="display:grid;grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));gap:10px;">
+            ${cleanNotes ? `<div class="notes-box complaints"><div class="notes-box-title">Chief Complaints &amp; Findings</div><div class="notes-box-content">${cleanNotes}</div></div>` : ''}
+            <div class="notes-box" style="border-left: 3px solid #0f766e; background: #f0fdfa;">
+              <div class="notes-box-title" style="color:#0f766e">Diagnosis</div>
+              <div class="notes-box-content" style="font-weight:700;color:#0f766e;font-size:12px">${rx.diagnosis || 'General Assessment'}</div>
+            </div>
+            ${rx.recommendedTests ? `<div class="notes-box tests"><div class="notes-box-title">Recommended Investigations &amp; Tests</div><div class="notes-box-content">${rx.recommendedTests}</div></div>` : ''}
+            ${rx.advice ? `<div class="notes-box advice"><div class="notes-box-title">Doctor's Advice &amp; Instructions</div><div class="notes-box-content">${rx.advice}</div></div>` : ''}
+            ${rx.allergyWarnings ? `<div class="notes-box allergy"><div class="notes-box-title">Allergy &amp; Contraindication Alert</div><div class="notes-box-content">${rx.allergyWarnings}</div></div>` : ''}
+          </div>
+          ${rx.followUpDate ? `<div class="notes-box followup" style="margin-top:8px"><div class="notes-box-title">Follow-Up Appointment</div><div class="notes-box-content">Please visit on <strong>${new Date(rx.followUpDate).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}${rx.followUpNotes ? ' - ' + rx.followUpNotes : ''}</strong></div></div>` : ''}
         </div>
 
         <hr class="section-divider"/>
@@ -963,36 +975,24 @@ const PrescriptionManagement = () => {
           </table>
         </div>
 
-        <!-- NOTES -->
-        <div class="notes-section">
-          ${(rx.clinicalNotes || rx.advice || rx.recommendedTests || rx.allergyWarnings) ? `<div class="notes-grid">
-            ${rx.clinicalNotes ? `<div class="notes-box complaints"><div class="notes-box-title">Chief Complaints &amp; Findings</div><div class="notes-box-content">${rx.clinicalNotes}</div></div>` : ''}
-            ${rx.advice ? `<div class="notes-box advice"><div class="notes-box-title">Doctor's Advice &amp; Instructions</div><div class="notes-box-content">${rx.advice}</div></div>` : ''}
-            ${rx.recommendedTests ? `<div class="notes-box tests"><div class="notes-box-title">Recommended Investigations &amp; Tests</div><div class="notes-box-content">${rx.recommendedTests}</div></div>` : ''}
-            ${rx.allergyWarnings ? `<div class="notes-box allergy"><div class="notes-box-title">Allergy &amp; Contraindication Alert</div><div class="notes-box-content">${rx.allergyWarnings}</div></div>` : ''}
-          </div>` : ''}
-          ${rx.followUpDate ? `<div class="notes-box followup"><div class="notes-box-title">Follow-Up Appointment</div><div class="notes-box-content">Please visit on <strong>${new Date(rx.followUpDate).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>${rx.followUpNotes ? ' - ' + rx.followUpNotes : ''}</div></div>` : ''}
-        </div>
-
         <!-- SIGNATURE FOOTER -->
         <div class="footer-section">
-          <div class="sig-row">
-            <div class="sig-block">
-              <div style="height:40px;"></div>
-              <div class="sig-line">Patient / Attendant Signature</div>
-              <div class="sig-sub">Name &amp; Date</div>
-            </div>
+          <div class="sig-row" style="display:flex;justify-content:${qrUrl ? 'space-between' : 'flex-end'};align-items:flex-end;">
             ${qrUrl ? `<div class="qr-block"><img src="${qrUrl}" onerror="this.style.display='none'" /><div class="qr-label">Consultation QR</div></div>` : ''}
-            <div class="sig-block">
+            <div class="sig-block" style="text-align:right;">
               ${sigUrl ? `<img src="${sigUrl}" class="sig-img" onerror="this.style.display='none'" />` : '<div style="height:40px;"></div>'}
               <div class="sig-line">Dr. ${doctor.fullName || 'Authorized Clinician'}</div>
-              <div class="sig-sub">${[doctor.qualifications, doctor.specialization].filter(Boolean).join(' | ') || 'Authorized Signature'}</div>
+              <div class="sig-sub">${[doctor.qualifications, doctor.specialization || doctor.department].filter(Boolean).join(' | ') || 'Authorized Signature'}</div>
               ${doctor.registrationNumber ? `<div class="sig-sub">Reg. No: ${doctor.registrationNumber}</div>` : ''}
             </div>
           </div>
           <div class="disclaimer"><strong>Disclaimer:</strong> This prescription is computer-generated and valid only when authenticated by the treating physician. This document is confidential and intended solely for the named patient. Self-medication is strongly discouraged. Please adhere strictly to the prescribed dosage, frequency, and duration. Report any adverse reactions immediately.</div>
         </div>
         <div class="footer-bar">${settings.footerText || 'We care for your health. Thank you for choosing ' + (settings.hospitalName || 'our hospital') + '.'}</div>
+        <div class="trikaar-footer" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 0 2px;font-size:8.5px;color:#64748b;letter-spacing:0.3px;">
+          <img src="${window.location.origin}/trikaar-mark.png" style="height:11px;width:auto;vertical-align:middle;" onerror="this.style.display='none'" />
+          <span>Powered by <a href="https://trikaar.tech" target="_blank" style="color:#0f766e;text-decoration:none;font-weight:700;">trikaar.tech</a></span>
+        </div>
         <div class="bottom-accent"></div>
         </body></html>`;
     };
@@ -1005,7 +1005,7 @@ const PrescriptionManagement = () => {
             const html = getPrescriptionHtml(
                 rx, data.settings, data.patient, data.doctor, data.meds,
                 data.logoUrl, data.sigUrl, data.qrUrl,
-                data.weightVal, data.heightVal, data.bmi, data.bmiCategory, data.bmiBadgeColor,
+                data.weightVal, data.heightVal, data.hcVal, data.bmi, data.bmiCategory, data.bmiBadgeColor, data.cleanNotes,
             );
 
             const iframe = document.createElement('iframe');
@@ -1378,18 +1378,22 @@ const PrescriptionManagement = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                                <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
                                     <div>
                                         <Label className="mb-1 block">Weight (kg)</Label>
-                                        <Input type="number" step="0.1" value={form.patientWeight} onChange={e => setForm(prev => ({ ...prev, patientWeight: e.target.value }))} placeholder="e.g. 72" />
+                                        <Input type="number" step="0.1" value={form.patientWeight} onChange={e => setForm(prev => ({ ...prev, patientWeight: e.target.value }))} placeholder="e.g. 9.5" />
                                     </div>
                                     <div>
                                         <Label className="mb-1 block">Height (cm)</Label>
-                                        <Input type="number" step="0.1" value={form.patientHeight} onChange={e => setForm(prev => ({ ...prev, patientHeight: e.target.value }))} placeholder="e.g. 170" />
+                                        <Input type="number" step="0.1" value={form.patientHeight} onChange={e => setForm(prev => ({ ...prev, patientHeight: e.target.value }))} placeholder="e.g. 85" />
+                                    </div>
+                                    <div>
+                                        <Label className="mb-1 block">Head circum. (cm)</Label>
+                                        <Input type="number" step="0.1" value={form.headCircumference || ''} onChange={e => setForm(prev => ({ ...prev, headCircumference: e.target.value }))} placeholder="e.g. 45" />
                                     </div>
                                     <div className="col-span-2">
                                         <Label className="mb-1 block">Chief complaint (patient's words)</Label>
-                                        <Input value={form.clinicalNotes} onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))} placeholder="e.g. Headache since 3 days, mild fever…" />
+                                        <Input value={form.clinicalNotes} onChange={e => setForm(prev => ({ ...prev, clinicalNotes: e.target.value }))} placeholder="e.g. Fever since 2 days…" />
                                     </div>
                                 </div>
                                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
