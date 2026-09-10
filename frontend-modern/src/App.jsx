@@ -60,6 +60,7 @@ const NotificationsPage = lazy(() => import('./pages/notifications/Notifications
 const PortalGuide = lazy(() => import('./pages/PortalGuide'));
 const CareTeamsPage = lazy(() => import('./pages/teams/CareTeamsPage'));
 const BillingDashboard = lazy(() => import('./pages/billing/BillingDashboard'));
+const ChatbotPage = lazy(() => import('./pages/help/ChatbotPage'));
 
 /** Shown while a route chunk downloads. Deliberately quiet — a full-page spinner on every
  *  navigation reads as slower than it is. */
