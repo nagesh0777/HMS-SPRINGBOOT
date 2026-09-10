@@ -422,6 +422,10 @@ const PrescriptionManagement = () => {
                 const dRes = await axios.get(`/api/Doctor/${rx.doctorId}`);
                 if (dRes.data.Results) doctor = dRes.data.Results;
             }
+            if (!doctor.fullName) {
+                const dRes = await axios.get('/api/DoctorPortal/MyProfile');
+                if (dRes.data.Results) doctor = dRes.data.Results;
+            }
         } catch (e) {
             console.error('Failed to fetch doctor details:', e);
         }
@@ -880,7 +884,7 @@ const PrescriptionManagement = () => {
               <span>Dr. ${doctor.fullName || 'Consulting Doctor'}</span>
               ${doctor.qualifications ? `<span style="font-size:11.5px;font-weight:700;color:#0e7490;">${doctor.qualifications}</span>` : ''}
             </div>
-            <div class="doctor-dept">${[doctor.specialization, doctor.department].filter(Boolean).join(' | ') || 'PAEDIATRICS'}</div>
+            <div class="doctor-dept">${[doctor.specialization, doctor.department].filter(Boolean).join(' | ') || 'Consultation / OPD'}</div>
           </div>
           ${doctor.registrationNumber ? `<div class="doctor-reg">Reg. No: ${doctor.registrationNumber}</div>` : ''}
         </div>

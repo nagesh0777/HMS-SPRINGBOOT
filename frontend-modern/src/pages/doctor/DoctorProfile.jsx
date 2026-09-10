@@ -233,7 +233,7 @@ const DoctorProfile = () => {
                     <form onSubmit={handleSave} className="space-y-5">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <FIELD label="Doctor's full name" icon={User} editing={editing} value={p.fullName}>
-                                <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="e.g. Dr. MALLIKARJUN KOBAL" required />
+                                <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="e.g. Dr. Firstname Lastname" required />
                             </FIELD>
                             <FIELD label="Qualifications / Degree" editing={editing} value={p.qualifications}>
                                 <Input value={form.qualifications} onChange={e => setForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. MD PAEDIATRICS (JAIPUR)" />
