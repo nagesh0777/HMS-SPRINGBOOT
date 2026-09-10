@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
     Users, AlertTriangle, Send, Shield, Stethoscope,
     ClipboardList, RefreshCw, MessageSquare, Bell, BellOff,
-    CheckCircle2
+    CheckCheck, Check, Search, Smile
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,19 +14,22 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '../../components/Toast';
 import { cn } from '@/lib/utils';
 
-// Only 2 channels as requested
 const CHANNELS = [
     {
         id: 'general',
-        name: 'General',
-        desc: 'Hospital-wide coordination, handovers, and team updates',
+        name: 'General Team',
+        short: 'General',
+        desc: 'Hospital-wide updates, handovers, and coordination',
         icon: Users,
+        color: 'bg-emerald-600',
     },
     {
         id: 'urgent',
-        name: 'Urgent',
-        desc: 'High-priority clinical calls, code alerts, and emergency response',
+        name: 'Urgent Alerts',
+        short: 'Urgent',
+        desc: 'Critical patient calls, code alerts, and emergency response',
         icon: AlertTriangle,
+        color: 'bg-destructive',
         isUrgentChannel: true,
     },
 ];
@@ -70,48 +73,48 @@ const playNotificationChime = (urgent = false) => {
             osc.stop(now + 0.3);
         }
     } catch {
-        // AudioContext may be blocked before first user gesture
+        // AudioContext may be blocked before first user interaction
     }
 };
 
-const getRoleBadge = (role = '') => {
+const getRoleConfig = (role = '') => {
     const r = role.toLowerCase();
     if (r.includes('doctor') || r.includes('physician')) {
         return {
             label: 'Doctor',
-            tone: 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400',
-            dot: 'bg-blue-500',
+            color: 'text-blue-600 dark:text-blue-400',
+            badgeBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300',
             icon: Stethoscope,
         };
     }
     if (r.includes('nurse')) {
         return {
             label: 'Nurse',
-            tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-            dot: 'bg-emerald-500',
+            color: 'text-emerald-600 dark:text-emerald-400',
+            badgeBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300',
             icon: Shield,
         };
     }
     if (r.includes('admin') || r.includes('superadmin')) {
         return {
             label: 'Admin',
-            tone: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-            dot: 'bg-amber-500',
+            color: 'text-amber-600 dark:text-amber-400',
+            badgeBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300',
             icon: Shield,
         };
     }
     if (r.includes('reception') || r.includes('helpdesk')) {
         return {
             label: 'Front Desk',
-            tone: 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400',
-            dot: 'bg-purple-500',
+            color: 'text-purple-600 dark:text-purple-400',
+            badgeBg: 'bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300',
             icon: ClipboardList,
         };
     }
     return {
         label: role || 'Staff',
-        tone: 'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400',
-        dot: 'bg-slate-500',
+        color: 'text-slate-600 dark:text-slate-400',
+        badgeBg: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
         icon: Users,
     };
 };
@@ -196,7 +199,6 @@ const CareTeamsPage = () => {
                             playNotificationChime(latest.isUrgent);
                             toast.info(`New message from ${latest.senderName} (${latest.senderRole}): ${latest.message.slice(0, 60)}…`);
 
-                            // Browser desktop notification if permitted
                             if ('Notification' in window && Notification.permission === 'granted') {
                                 try {
                                     new Notification(`${latest.senderName} (${latest.senderRole})`, {
@@ -272,31 +274,31 @@ const CareTeamsPage = () => {
     const activeMeta = CHANNELS.find(c => c.id === activeChannel) || CHANNELS[0];
 
     return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-3">
+            {/* Top Bar */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                            <Users className="h-4 w-4" />
-                        </div>
-                        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-                            Teams
-                        </h1>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                        Real-time hospital communication for doctors, nurses, and staff.
+                    <h1 className="text-xl font-bold tracking-tight sm:text-2xl flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                            <MessageSquare className="h-4 w-4" />
+                        </span>
+                        Teams
+                    </h1>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                        Instant hospital messaging for doctors, nurses, and staff.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Notifications ON / OFF toggle */}
                     <Button
                         variant={notificationsEnabled ? 'default' : 'outline'}
                         size="sm"
                         onClick={toggleNotifications}
-                        className="gap-2 text-xs font-medium"
-                        title="Turn sound & alert notifications on or off"
+                        className={cn(
+                            'h-8 gap-1.5 text-xs font-medium transition-all',
+                            notificationsEnabled && 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        )}
+                        title="Toggle sound and desktop alert notifications"
                     >
                         {notificationsEnabled ? (
                             <>
@@ -324,145 +326,167 @@ const CareTeamsPage = () => {
                 </div>
             </div>
 
-            {/* Main Chat Layout */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-                {/* 2 Channels Sidebar */}
-                <Card className="p-3 lg:col-span-1">
-                    <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Channels
-                    </p>
-                    <div className="space-y-1.5">
-                        {CHANNELS.map(chan => {
-                            const Icon = chan.icon;
-                            const isActive = activeChannel === chan.id;
-                            return (
-                                <button
-                                    key={chan.id}
-                                    type="button"
-                                    onClick={() => setActiveChannel(chan.id)}
-                                    className={cn(
-                                        'flex w-full items-start gap-2.5 rounded-lg p-2.5 text-left transition-all',
-                                        isActive
-                                            ? chan.isUrgentChannel
-                                                ? 'bg-destructive text-destructive-foreground shadow-sm'
-                                                : 'bg-primary text-primary-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                                    )}
-                                >
-                                    <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isActive ? 'text-inherit' : chan.isUrgentChannel ? 'text-destructive' : 'text-muted-foreground')} />
-                                    <div className="min-w-0 flex-1">
-                                        <p className={cn('text-xs font-semibold', isActive ? 'text-inherit' : 'text-foreground')}>
-                                            #{chan.name}
-                                        </p>
-                                        <p className={cn('mt-0.5 line-clamp-1 text-[11px]', isActive ? 'opacity-85' : 'text-muted-foreground')}>
-                                            {chan.desc}
-                                        </p>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </Card>
+            {/* WhatsApp-Style Chat Container */}
+            <div className="grid grid-cols-1 overflow-hidden rounded-xl border bg-card shadow-sm lg:grid-cols-4 min-h-[640px]">
+                {/* Left Channels List (WhatsApp style chat sidebar) */}
+                <div className="border-b bg-muted/20 p-2.5 lg:border-b-0 lg:border-r lg:col-span-1 flex flex-col justify-between">
+                    <div>
+                        <div className="px-2 py-1.5 mb-2 flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Chats</span>
+                            <span className="text-[10px] rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 font-semibold px-2 py-0.5">
+                                2 Channels
+                            </span>
+                        </div>
 
-                {/* Messages & Composer */}
-                <Card className="flex h-[620px] flex-col overflow-hidden p-0 lg:col-span-3">
-                    {/* Active Channel Header */}
-                    <div className="flex items-center justify-between border-b px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                            <div className={cn('flex h-7 w-7 items-center justify-center rounded-md', activeMeta.isUrgentChannel ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-foreground')}>
-                                <activeMeta.icon className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-semibold">#{activeMeta.name}</h3>
-                                <p className="text-[11px] text-muted-foreground">{activeMeta.desc}</p>
-                            </div>
+                        <div className="space-y-1">
+                            {CHANNELS.map(chan => {
+                                const Icon = chan.icon;
+                                const isActive = activeChannel === chan.id;
+                                return (
+                                    <button
+                                        key={chan.id}
+                                        type="button"
+                                        onClick={() => setActiveChannel(chan.id)}
+                                        className={cn(
+                                            'flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all',
+                                            isActive
+                                                ? 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-500/20'
+                                                : 'hover:bg-accent/60 text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-xs',
+                                            chan.color
+                                        )}>
+                                            <Icon className="h-5 w-5" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className={cn('truncate text-sm font-semibold', isActive ? 'text-foreground font-bold' : 'text-foreground')}>
+                                                    {chan.name}
+                                                </p>
+                                            </div>
+                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                {chan.desc}
+                                            </p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Messages Scroll Area */}
-                    <div className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin">
+                    <div className="p-2 border-t mt-4 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Connected to hospital team</span>
+                    </div>
+                </div>
+
+                {/* Right Chat Window (WhatsApp chat area) */}
+                <div className="flex flex-col lg:col-span-3 h-[640px]">
+                    {/* Chat Header */}
+                    <div className="flex items-center justify-between border-b bg-card px-4 py-2.5 shadow-2xs">
+                        <div className="flex items-center gap-3">
+                            <div className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white', activeMeta.color)}>
+                                <activeMeta.icon className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-bold text-foreground">
+                                    {activeMeta.name}
+                                </h2>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {activeMeta.desc}
+                                </p>
+                            </div>
+                        </div>
+
+                        {activeMeta.isUrgentChannel && (
+                            <Badge variant="destructive" className="gap-1 text-[10px] uppercase font-bold">
+                                <AlertTriangle className="h-3 w-3" /> Priority Channel
+                            </Badge>
+                        )}
+                    </div>
+
+                    {/* Chat Messages Wallpaper / Body */}
+                    <div className="flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin bg-[#efeae2]/60 dark:bg-[#0b141a]/95">
                         {loading && messages.length === 0 ? (
                             <div className="space-y-4">
                                 {Array.from({ length: 4 }).map((_, i) => (
-                                    <div key={i} className="flex gap-3">
-                                        <Skeleton className="h-8 w-8 rounded-full" />
-                                        <div className="flex-1 space-y-1.5">
-                                            <Skeleton className="h-3 w-28" />
-                                            <Skeleton className="h-10 w-full rounded-md" />
-                                        </div>
+                                    <div key={i} className={cn('flex gap-2', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
+                                        <Skeleton className="h-14 w-64 rounded-2xl" />
                                     </div>
                                 ))}
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center text-center p-6 text-muted-foreground">
-                                <MessageSquare className="h-10 w-10 stroke-[1.25] text-muted-foreground/40 mb-2" />
-                                <p className="text-sm font-medium text-foreground">No messages in #{activeMeta.name}</p>
-                                <p className="text-xs text-muted-foreground max-w-sm mt-1">
-                                    Send a message to update doctors, nurses, and team members on duty.
+                                <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-2">
+                                    <MessageSquare className="h-6 w-6 text-muted-foreground/60" />
+                                </div>
+                                <p className="text-sm font-semibold text-foreground">No messages in {activeMeta.name}</p>
+                                <p className="text-xs text-muted-foreground max-w-xs mt-1">
+                                    Type a message below to update on-duty staff and physicians.
                                 </p>
                             </div>
                         ) : (
                             messages.map((msg, index) => {
-                                const roleCfg = getRoleBadge(msg.senderRole);
+                                const roleCfg = getRoleConfig(msg.senderRole);
                                 const isMe = msg.senderName === currentUserName || msg.senderUserId === Number(localStorage.getItem('userId'));
                                 const prevMsg = messages[index - 1];
                                 const showDate = !prevMsg || formatDate(prevMsg.createdAt) !== formatDate(msg.createdAt);
 
                                 return (
                                     <React.Fragment key={msg.id || index}>
+                                        {/* WhatsApp Style Date Badge */}
                                         {showDate && (
-                                            <div className="relative my-3 flex items-center justify-center">
-                                                <div className="absolute inset-0 flex items-center">
-                                                    <div className="w-full border-t border-border/60" />
-                                                </div>
-                                                <span className="relative rounded-full bg-card px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border">
+                                            <div className="my-2 flex justify-center">
+                                                <span className="rounded-md bg-card/90 px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-2xs border">
                                                     {formatDate(msg.createdAt)}
                                                 </span>
                                             </div>
                                         )}
 
-                                        <div
-                                            className={cn(
-                                                'group flex items-start gap-3 rounded-xl p-3 transition-colors',
-                                                msg.isUrgent
-                                                    ? 'border border-destructive/40 bg-destructive-subtle/50'
-                                                    : 'hover:bg-muted/30'
-                                            )}
-                                        >
-                                            <Avatar className="h-8 w-8 shrink-0">
-                                                <AvatarFallback className="text-xs font-semibold">
-                                                    {initials(msg.senderName || 'Staff')}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                        {/* WhatsApp Message Bubble */}
+                                        <div className={cn('flex w-full', isMe ? 'justify-end' : 'justify-start')}>
+                                            <div
+                                                className={cn(
+                                                    'relative max-w-[82%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-xs transition-all',
+                                                    isMe
+                                                        ? 'bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef] rounded-tr-xs'
+                                                        : 'bg-card text-foreground dark:bg-[#202c33] dark:text-[#e9edef] border border-border/40 rounded-tl-xs',
+                                                    msg.isUrgent && 'ring-2 ring-destructive ring-offset-1'
+                                                )}
+                                            >
+                                                {/* Header inside bubble: Sender Name & Role (shown for others) */}
+                                                {!isMe && (
+                                                    <div className="mb-1 flex items-center gap-1.5">
+                                                        <span className={cn('text-xs font-bold', roleCfg.color)}>
+                                                            {msg.senderName}
+                                                        </span>
+                                                        <span className={cn('rounded px-1.5 py-0.2 text-[9px] font-semibold', roleCfg.badgeBg)}>
+                                                            {msg.senderRole || 'Staff'}
+                                                            {msg.senderTitle && msg.senderTitle !== msg.senderRole && (
+                                                                <span> · {msg.senderTitle}</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                )}
 
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex flex-wrap items-center gap-1.5">
-                                                    <span className="text-xs font-semibold text-foreground">
-                                                        {msg.senderName}
-                                                    </span>
+                                                {/* Urgent Tag Banner inside bubble */}
+                                                {msg.isUrgent && (
+                                                    <div className="mb-1.5 flex items-center gap-1 text-[10px] font-bold text-destructive">
+                                                        <AlertTriangle className="h-3 w-3" />
+                                                        <span>URGENT CLINICAL ALERT</span>
+                                                    </div>
+                                                )}
 
-                                                    {/* Role with Title Badge */}
-                                                    <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium', roleCfg.tone)}>
-                                                        <span className={cn('h-1.5 w-1.5 rounded-full', roleCfg.dot)} />
-                                                        {msg.senderRole || 'Staff'}
-                                                        {msg.senderTitle && msg.senderTitle !== msg.senderRole && (
-                                                            <span className="opacity-75">· {msg.senderTitle}</span>
-                                                        )}
-                                                    </span>
-
-                                                    {msg.isUrgent && (
-                                                        <Badge variant="destructive" className="gap-1 px-1.5 py-0 text-[9px] uppercase tracking-wider font-bold">
-                                                            <AlertTriangle className="h-2.5 w-2.5" /> Urgent
-                                                        </Badge>
-                                                    )}
-
-                                                    <span className="tabular ml-auto text-[11px] text-muted-foreground">
-                                                        {formatTime(msg.createdAt)}
-                                                    </span>
-                                                </div>
-
-                                                <div className="mt-1 text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                                                {/* Message Text with inline timestamp */}
+                                                <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
                                                     {msg.message}
+                                                    {/* WhatsApp bottom-right time stamp & double checkmark */}
+                                                    <span className="float-right ml-2 mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground select-none">
+                                                        <span>{formatTime(msg.createdAt)}</span>
+                                                        {isMe && <CheckCheck className="h-3.5 w-3.5 text-sky-500" />}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -473,59 +497,64 @@ const CareTeamsPage = () => {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Quick Tags */}
-                    <div className="flex items-center gap-1.5 border-t bg-muted/20 px-4 py-2 overflow-x-auto scrollbar-none">
+                    {/* Quick Tags (WhatsApp-style quick chips) */}
+                    <div className="flex items-center gap-1.5 border-t bg-card px-4 py-1.5 overflow-x-auto scrollbar-none">
                         <span className="text-[10px] font-semibold uppercase text-muted-foreground shrink-0">Tags:</span>
                         {QUICK_TAGS.map(tag => (
                             <button
                                 key={tag}
                                 type="button"
                                 onClick={() => setInputText(p => p ? `${p} [${tag}]` : `[${tag}] `)}
-                                className="rounded-md border bg-background px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 transition-colors"
+                                className="rounded-full border bg-muted/30 px-2.5 py-0.5 text-[11px] text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:text-emerald-300 shrink-0 transition-colors"
                             >
                                 {tag}
                             </button>
                         ))}
                     </div>
 
-                    {/* Composer */}
+                    {/* WhatsApp-Style Pill Input Bar */}
                     <form onSubmit={handleSendMessage} className="border-t bg-card p-3">
                         <div className="flex items-center gap-2">
-                            <Input
-                                value={inputText}
-                                onChange={e => setInputText(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder={`Message #${activeMeta.name}… (Enter to send)`}
-                                className="h-10 text-xs"
-                                disabled={submitting}
-                            />
-
                             {activeChannel !== 'urgent' && (
-                                <Button
+                                <button
                                     type="button"
-                                    variant={isUrgent ? 'destructive' : 'outline'}
-                                    size="sm"
                                     onClick={() => setIsUrgent(v => !v)}
-                                    className="h-10 gap-1 text-xs shrink-0"
-                                    title="Flag this message as urgent"
+                                    className={cn(
+                                        'flex h-10 items-center gap-1 rounded-full px-3 text-xs font-semibold transition-colors shrink-0 border',
+                                        isUrgent
+                                            ? 'bg-destructive text-destructive-foreground border-destructive'
+                                            : 'bg-muted/40 text-muted-foreground hover:bg-muted border-input'
+                                    )}
+                                    title="Flag message as urgent alert"
                                 >
                                     <AlertTriangle className="h-3.5 w-3.5" />
                                     <span className="hidden sm:inline">{isUrgent ? 'Urgent' : 'Normal'}</span>
-                                </Button>
+                                </button>
                             )}
 
-                            <Button
+                            <div className="flex-1 relative flex items-center">
+                                <Input
+                                    value={inputText}
+                                    onChange={e => setInputText(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder={`Type a message in #${activeMeta.name}… (Enter to send)`}
+                                    className="h-10 text-xs rounded-full pl-4 pr-10 bg-muted/30 border-muted-foreground/20 focus-visible:ring-emerald-500"
+                                    disabled={submitting}
+                                />
+                            </div>
+
+                            {/* Circular WhatsApp Send Button */}
+                            <button
                                 type="submit"
-                                size="sm"
                                 disabled={submitting || !inputText.trim()}
-                                className="h-10 shrink-0 gap-1.5 px-4 text-xs font-semibold"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md hover:bg-emerald-700 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                                title="Send message"
                             >
-                                <Send className="h-3.5 w-3.5" />
-                                <span>Send</span>
-                            </Button>
+                                <Send className="h-4 w-4 ml-0.5" />
+                            </button>
                         </div>
                     </form>
-                </Card>
+                </div>
             </div>
         </div>
     );
