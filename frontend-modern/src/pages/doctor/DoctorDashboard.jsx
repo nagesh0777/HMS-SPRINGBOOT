@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Search, AlertTriangle, User, Pill, Plus, X, ChevronRight,
-    Stethoscope, RefreshCw, Calculator, Info,
-    ShieldCheck as VerifiedIcon, Send, Loader2, Maximize2,
+    Search, AlertTriangle, Pill, Stethoscope, Calculator,
+    Loader2,
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { Card } from '@/components/ui/card';
@@ -19,89 +17,12 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-const MEDICINE_DB = [
-    'Amoxicillin', 'Azithromycin', 'Paracetamol', 'Ibuprofen', 'Cetirizine',
-    'Metformin', 'Omeprazole', 'Amlodipine', 'Atorvastatin', 'Losartan',
-    'Ciprofloxacin', 'Levofloxacin', 'Doxycycline', 'Prednisone', 'Pantoprazole',
-    'Levothyroxine', 'Lisinopril', 'Hydrochlorothiazide', 'Clopidogrel',
-    'Aspirin', 'Diclofenac', 'Tramadol', 'Gabapentin', 'Sertraline', 'Fluoxetine',
-    'Ranitidine', 'Domperidone', 'Ondansetron', 'Salbutamol', 'Budesonide',
-    'Metronidazole', 'Acyclovir', 'Clindamycin', 'Rabeprazole', 'Montelukast',
-    'Fexofenadine', 'Loperamide', 'ORS', 'Vitamin D3', 'Vitamin B12',
-    'Iron Supplement', 'Calcium', 'Folic Acid', 'Warfarin', 'Digoxin',
-    'Amiodarone', 'Clarithromycin', 'Simvastatin', 'Antacid', 'Lithium', 'Methotrexate',
-];
-
-const FREQUENCIES = ['Once daily', 'Twice daily', 'Three times daily', 'As needed', 'Before meals', 'After meals', 'At bedtime', 'Every 8 hours', 'Every 12 hours'];
-const DURATIONS = ['1 day', '3 days', '5 days', '7 days', '10 days', '14 days', '30 days', 'Ongoing'];
-
-const QUICK_TEMPLATES = [
-    { id: 'cold', name: 'Common Cold / Flu', medicines: [
-        { name: 'Paracetamol', dosage: '500mg', frequency: 'Three times daily', duration: '3 days', instructions: 'After meals' },
-        { name: 'Cetirizine', dosage: '10mg', frequency: 'Once daily', duration: '5 days', instructions: 'At bedtime' },
-    ]},
-    { id: 'gastritis', name: 'Gastritis / GERD', medicines: [
-        { name: 'Pantoprazole', dosage: '40mg', frequency: 'Once daily', duration: '14 days', instructions: 'Before breakfast, empty stomach' },
-        { name: 'Domperidone', dosage: '10mg', frequency: 'Three times daily', duration: '7 days', instructions: 'Before meals' },
-    ]},
-    { id: 'uti', name: 'UTI', medicines: [
-        { name: 'Ciprofloxacin', dosage: '500mg', frequency: 'Twice daily', duration: '7 days', instructions: 'With water, avoid antacids' },
-        { name: 'Paracetamol', dosage: '500mg', frequency: 'As needed', duration: '3 days', instructions: 'For fever/pain' },
-    ]},
-    { id: 'diarrhea', name: 'Acute Diarrhea', medicines: [
-        { name: 'ORS', dosage: '1 packet', frequency: 'As needed', duration: '3 days', instructions: 'Dissolve in 1L boiled water' },
-        { name: 'Metronidazole', dosage: '400mg', frequency: 'Three times daily', duration: '5 days', instructions: 'After meals' },
-    ]},
-    { id: 'allergy', name: 'Allergy / Urticaria', medicines: [
-        { name: 'Fexofenadine', dosage: '120mg', frequency: 'Once daily', duration: '7 days', instructions: 'Before meals' },
-        { name: 'Montelukast', dosage: '10mg', frequency: 'Once daily', duration: '7 days', instructions: 'At bedtime' },
-    ]},
-];
-
 const DUTY_OPTIONS = [
     { value: 'Available', dot: 'bg-success' },
     { value: 'On Rounds', dot: 'bg-warning' },
     { value: 'In Surgery', dot: 'bg-destructive' },
     { value: 'Away', dot: 'bg-muted-foreground' },
 ];
-
-
-/** Free-text drug entry with suggestions — a full combobox is overkill for a field this
- *  narrow, and doctors are typing fast enough that suggestions must not steal focus. */
-const AutocompleteInput = ({ value, onChange, placeholder }) => {
-    const [open, setOpen] = useState(false);
-    const suggestions = value.length > 1
-        ? MEDICINE_DB.filter(m => m.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
-        : [];
-
-    return (
-        <div className="relative">
-            <Input
-                value={value}
-                onChange={e => { onChange(e.target.value); setOpen(true); }}
-                onFocus={() => setOpen(true)}
-                onBlur={() => setTimeout(() => setOpen(false), 150)}
-                placeholder={placeholder}
-                autoComplete="off"
-                className="h-8 text-xs"
-            />
-            {open && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-40 overflow-y-auto rounded-md border bg-popover shadow-md scrollbar-thin">
-                    {suggestions.map(s => (
-                        <button
-                            key={s}
-                            type="button"
-                            onMouseDown={() => { onChange(s); setOpen(false); }}
-                            className="w-full px-3 py-1.5 text-left text-xs font-medium transition-colors hover:bg-accent"
-                        >
-                            {s}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 const bmiCategory = (val) => {
     if (val < 18.5) return { label: 'Underweight', tone: 'info' };
@@ -134,7 +55,6 @@ const DoctorDashboard = () => {
     const [ptSearching, setPtSearching] = useState(false);
     const searchDebounce = useRef(null);
 
-
     const [calcTab, setCalcTab] = useState('bmi');
     const [height, setHeight] = useState(170);
     const [weight, setWeight] = useState(70);
@@ -144,16 +64,6 @@ const DoctorDashboard = () => {
     const [gfrGender, setGfrGender] = useState('Male');
     const [pedWeight, setPedWeight] = useState(12);
     const [pedDrug, setPedDrug] = useState('para');
-
-    const [rxOpen, setRxOpen] = useState(false);
-    const [rxPatientQuery, setRxPatientQuery] = useState('');
-    const [rxPatientResults, setRxPatientResults] = useState([]);
-    const [rxPatient, setRxPatient] = useState(null);
-    const [rxDiagnosis, setRxDiagnosis] = useState('');
-    const [rxMedicines, setRxMedicines] = useState([{ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }]);
-    const [rxNotes, setRxNotes] = useState('');
-    const [rxSubmitting, setRxSubmitting] = useState(false);
-    const rxDebounce = useRef(null);
 
     const loadWorkspace = async () => {
         try {
@@ -171,26 +81,6 @@ const DoctorDashboard = () => {
 
     useEffect(() => { loadWorkspace(); }, []);
 
-    // Auto-populate the calculators from whichever patient is loaded into Quick Rx, so
-    // rounds do not require re-keying height/weight/age that is already on file.
-    useEffect(() => {
-        if (!rxPatient) return;
-        const pHeight = rxPatient.height || 170;
-        const pWeight = rxPatient.weight || 70;
-        let pAge = 35;
-        if (rxPatient.age) {
-            const clean = String(rxPatient.age).toUpperCase().replace('Y', '').trim();
-            pAge = parseInt(clean) || 35;
-        }
-        const pGender = rxPatient.gender === 'Female' ? 'Female' : 'Male';
-
-        setHeight(pHeight); setWeight(pWeight);
-        setGfrAge(pAge); setGfrWeight(pWeight); setGfrGender(pGender);
-        setPedWeight(pWeight);
-        toast.info(`Rounds calculators synced for ${rxPatient.firstName} (${pGender}, ${pAge}y, ${pWeight}kg)`);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rxPatient]);
-
     const handlePatientSearch = useCallback((q) => {
         setPtQuery(q);
         clearTimeout(searchDebounce.current);
@@ -204,84 +94,6 @@ const DoctorDashboard = () => {
             finally { setPtSearching(false); }
         }, 350);
     }, []);
-
-    const handleRxPatientSearch = useCallback((q) => {
-        setRxPatientQuery(q);
-        setRxPatient(null);
-        clearTimeout(rxDebounce.current);
-        if (!q.trim()) { setRxPatientResults([]); return; }
-        rxDebounce.current = setTimeout(async () => {
-            try {
-                const res = await axios.get(`/api/DoctorPortal/SearchPatient?query=${encodeURIComponent(q)}`);
-                setRxPatientResults(res.data?.Results?.slice(0, 5) || []);
-            } catch { setRxPatientResults([]); }
-        }, 350);
-    }, []);
-
-    const openQuickRx = (p) => {
-        setRxPatient(p);
-        setRxPatientQuery('');
-        setRxOpen(true);
-        setRxDiagnosis('');
-        setRxNotes('');
-        setRxMedicines([{ name: '', dosage: '', frequency: 'Once daily', duration: '5 days', instructions: '' }]);
-        toast.success(`Loaded direct prescription pad for ${p.firstName}`);
-    };
-
-    const handleRxSubmit = async () => {
-        if (!rxPatient) { toast.error('Please select a patient.'); return; }
-        if (!rxDiagnosis.trim()) { toast.error('Please enter a diagnosis.'); return; }
-        const validMeds = rxMedicines.filter(m => m.name.trim());
-        if (validMeds.length === 0) { toast.error('Add at least one medicine.'); return; }
-
-        setRxSubmitting(true);
-        try {
-            await axios.post('/api/DoctorPortal/Prescriptions', {
-                patientId: rxPatient.patientId,
-                diagnosis: rxDiagnosis,
-                clinicalNotes: rxNotes,
-                medicines: JSON.stringify(validMeds),
-                // Same status the full composer writes. This pad used to save 'active', so an
-                // identical prescription carried a different status depending only on which
-                // screen the doctor happened to use, splitting the record for anything
-                // downstream that reads it.
-                status: 'finalized',
-            });
-            toast.success(`Prescription sent for ${rxPatient.firstName} ${rxPatient.lastName}`);
-            setRxPatient(null); setRxPatientQuery(''); setRxDiagnosis(''); setRxNotes('');
-            setRxMedicines([{ name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }]);
-            setRxOpen(false);
-            loadWorkspace();
-        } catch {
-            toast.error('Failed to send prescription. Please try again.');
-        } finally {
-            setRxSubmitting(false);
-        }
-    };
-
-    /**
-     * Hand the half-written pad over to the full composer. The draft travels through
-     * sessionStorage rather than the URL because medicines are a list, and it is cleared
-     * on read so a later visit doesn't resurrect someone else's consultation.
-     */
-    const continueInFullRx = () => {
-        if (!rxPatient) { toast.error('Please select a patient.'); return; }
-        sessionStorage.setItem('rx-draft', JSON.stringify({
-            patientId: rxPatient.patientId,
-            diagnosis: rxDiagnosis,
-            clinicalNotes: rxNotes,
-            medicines: rxMedicines.filter(m => m.name.trim()),
-        }));
-        navigate(`/dashboard/doctor/prescriptions?patientId=${rxPatient.patientId}`
-            + `&patientName=${encodeURIComponent(`${rxPatient.firstName} ${rxPatient.lastName}`)}&draft=1`);
-    };
-
-    const loadRxTemplate = (tpl) => {
-        setRxDiagnosis(tpl.name);
-        setRxMedicines(tpl.medicines.map(m => ({ ...m })));
-        toast.success(`Loaded "${tpl.name}" template`);
-    };
-
     const bmiVal = Number((weight / Math.pow(height / 100, 2)).toFixed(1));
     const bsaVal = Math.sqrt((height * weight) / 3600).toFixed(2);
 
@@ -324,20 +136,16 @@ const DoctorDashboard = () => {
                 </div>
                 {badge}
             </div>
-            <div className="grid grid-cols-3 gap-1.5 border-t pt-3">
+            <div className="grid grid-cols-2 gap-2 border-t pt-3">
                 <Button variant="outline" size="sm" className="text-xs" onClick={() => navigate(`/dashboard/doctor/patient/${p.patientId}`)}>
                     Profile
                 </Button>
                 <Button size="sm" className="text-xs" onClick={() => navigate(`/dashboard/doctor/prescriptions?patientId=${p.patientId}&patientName=${encodeURIComponent(patientName(p))}`)}>
-                    Prescribe
-                </Button>
-                <Button variant="secondary" size="sm" className="text-xs" onClick={() => openQuickRx(p)}>
-                    Quick Rx
+                    <Pill className="mr-1.5 h-3.5 w-3.5" /> Prescribe
                 </Button>
             </div>
         </Card>
     );
-
     return (
         <div className="space-y-6">
             {/* ── Greeting & duty status ── */}
@@ -393,10 +201,10 @@ const DoctorDashboard = () => {
                         <div className="mb-4 border-b pb-4">
                             <h3 className="flex items-center gap-2 text-sm font-semibold">
                                 <Search className="h-4 w-4 text-muted-foreground" />
-                                Patient registry &amp; direct Rx gateway
+                                Patient directory &amp; clinical gateway
                             </h3>
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                                Search the hospital directory to open a chart or start prescribing directly.
+                                Search patients to view their medical profile or write prescriptions.
                             </p>
                         </div>
 
@@ -451,151 +259,7 @@ const DoctorDashboard = () => {
                         </div>
                     </Card>
 
-                    {/* ── Quick Rx pad ── */}
-                    <Card className="overflow-hidden p-0">
-                        <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
-                            <button onClick={() => setRxOpen(v => !v)} className="flex flex-1 items-center gap-3 text-left">
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                    <Send className="h-4 w-4" />
-                                </span>
-                                <span>
-                                    <span className="block text-sm font-semibold">Quick prescription pad</span>
-                                    <span className="block text-xs text-muted-foreground">Write and send a prescription without leaving this page</span>
-                                </span>
-                                <ChevronRight className={cn('ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform', rxOpen && 'rotate-90')} />
-                            </button>
-
-                        </div>
-
-                        
-
-                        <AnimatePresence initial={false}>
-                            {rxOpen && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                                    <div className="space-y-4 p-5">
-                                        <div>
-                                            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step 1 — Patient</p>
-                                            {rxPatient ? (
-                                                <div className="flex items-center justify-between rounded-md border bg-muted/40 p-3">
-                                                    <div>
-                                                        <p className="text-sm font-medium">{rxPatient.firstName} {rxPatient.lastName}</p>
-                                                        <p className="tabular text-xs text-muted-foreground">
-                                                            {rxPatient.patientCode || `#${rxPatient.patientId}`} · Age {rxPatient.age} · {rxPatient.gender}{rxPatient.weight ? ` · ${rxPatient.weight}kg` : ''}
-                                                        </p>
-                                                    </div>
-                                                    <button onClick={() => { setRxPatient(null); setRxPatientQuery(''); }} className="p-1 text-muted-foreground hover:text-destructive">
-                                                        <X className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="relative">
-                                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                                    <Input value={rxPatientQuery} onChange={e => handleRxPatientSearch(e.target.value)}
-                                                           placeholder="Search registered patients…" className="h-9 pl-8 text-xs" />
-                                                    {rxPatientResults.length > 0 && (
-                                                        <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover shadow-md scrollbar-thin">
-                                                            {rxPatientResults.map(p => (
-                                                                <button key={p.patientId}
-                                                                        onClick={() => {
-                                                                            setRxPatient({
-                                                                                patientId: p.patientId, firstName: p.firstName, lastName: p.lastName,
-                                                                                patientCode: p.patientCode, age: p.age, gender: p.gender,
-                                                                                phoneNumber: p.phoneNumber, height: p.height, weight: p.weight,
-                                                                            });
-                                                                            setRxPatientQuery(''); setRxPatientResults([]);
-                                                                        }}
-                                                                        className="flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-0 hover:bg-accent">
-                                                                    <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                                    <div className="min-w-0">
-                                                                        <p className="truncate text-xs font-medium">{p.firstName} {p.lastName}</p>
-                                                                        <p className="tabular truncate text-[11px] text-muted-foreground">
-                                                                            {p.patientCode} · {p.gender} · Age {p.age} · {p.phoneNumber}
-                                                                        </p>
-                                                                    </div>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step 2 — Diagnosis</p>
-                                            <Input value={rxDiagnosis} onChange={e => setRxDiagnosis(e.target.value)}
-                                                   placeholder="e.g. Acute Viral URI, Essential Hypertension, GERD…" className="h-9 text-xs" />
-                                        </div>
-
-                                        <div>
-                                            <p className="mb-1.5 text-xs text-muted-foreground">Quick load template:</p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {QUICK_TEMPLATES.map(tpl => (
-                                                    <button key={tpl.id} onClick={() => loadRxTemplate(tpl)}
-                                                            className="rounded-md bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground transition-colors hover:bg-accent">
-                                                        {tpl.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <div className="mb-2 flex items-center justify-between">
-                                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step 3 — Medicines</p>
-                                                <button onClick={() => setRxMedicines(p => [...p, { name: '', dosage: '', frequency: 'Twice daily', duration: '5 days', instructions: '' }])}
-                                                        className="flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground hover:bg-accent">
-                                                    <Plus className="h-3 w-3" /> Add drug
-                                                </button>
-                                            </div>
-                                            <div className="max-h-48 space-y-2 overflow-y-auto pr-1 scrollbar-thin">
-                                                {rxMedicines.map((med, idx) => (
-                                                    <div key={idx} className="flex items-start gap-2 rounded-md border bg-muted/30 p-2.5">
-                                                        <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-4">
-                                                            <AutocompleteInput value={med.name} placeholder="Drug name"
-                                                                onChange={v => setRxMedicines(p => p.map((m, i) => i === idx ? { ...m, name: v } : m))} />
-                                                            <Input value={med.dosage} placeholder="Dosage" className="h-8 text-xs"
-                                                                onChange={e => setRxMedicines(p => p.map((m, i) => i === idx ? { ...m, dosage: e.target.value } : m))} />
-                                                            <select value={med.frequency}
-                                                                onChange={e => setRxMedicines(p => p.map((m, i) => i === idx ? { ...m, frequency: e.target.value } : m))}
-                                                                className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-                                                                {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
-                                                            </select>
-                                                            <select value={med.duration}
-                                                                onChange={e => setRxMedicines(p => p.map((m, i) => i === idx ? { ...m, duration: e.target.value } : m))}
-                                                                className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-                                                                {DURATIONS.map(d => <option key={d}>{d}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        {rxMedicines.length > 1 && (
-                                                            <button onClick={() => setRxMedicines(p => p.filter((_, i) => i !== idx))}
-                                                                    className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive">
-                                                                <X className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-start gap-3">
-                                            <Input value={rxNotes} onChange={e => setRxNotes(e.target.value)}
-                                                   placeholder="Clinical notes & warnings…" className="h-9 flex-1 text-xs" />
-                                            {/* This pad covers a simple OPD case. The moment one needs allergy
-                                                warnings, tests, advice or a follow-up date, the doctor had to
-                                                abandon it and retype everything in the full composer. */}
-                                            <Button variant="outline" onClick={continueInFullRx} disabled={rxSubmitting} className="shrink-0">
-                                                <Maximize2 /> Full prescription
-                                            </Button>
-                                            <Button onClick={handleRxSubmit} disabled={rxSubmitting} className="shrink-0">
-                                                {rxSubmitting ? <Loader2 className="animate-spin" /> : <Send />}
-                                                {rxSubmitting ? 'Sending…' : 'Send prescription'}
-                                            </Button>
-                                        </div>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </Card>
-                </div>
 
                 {/* ══ Right: clinical calculators ══ */}
                 <div className="space-y-6">
@@ -606,15 +270,9 @@ const DoctorDashboard = () => {
                             <h3 className="flex items-center gap-2 text-sm font-semibold">
                                 <Calculator className="h-4 w-4 text-muted-foreground" /> Rounds calculator suite
                             </h3>
-                            {rxPatient ? (
-                                <Badge variant="success" className="mt-2 gap-1.5">
-                                    <VerifiedIcon className="h-3 w-3" /> Synced: {rxPatient.firstName} {rxPatient.weight ? `(${rxPatient.weight}kg)` : ''}
-                                </Badge>
-                            ) : (
-                                <Badge variant="secondary" className="mt-2 gap-1.5 text-muted-foreground">
-                                    <Info className="h-3 w-3" /> Manual mode — select a patient to sync
-                                </Badge>
-                            )}
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                Bedside calculators for BMI / BSA, GFR renal dosing, and pediatric suspension.
+                            </p>
                         </div>
 
                         <Tabs value={calcTab} onValueChange={setCalcTab}>
