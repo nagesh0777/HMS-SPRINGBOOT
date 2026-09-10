@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, Check, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Check, X, UserPlus } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
@@ -14,8 +16,12 @@ import { cn } from '@/lib/utils';
  * combobox: arrow keys move the highlight, Enter selects, Escape closes, and clicking
  * away dismisses. The previous version was mouse-only and had no way to close the
  * dropdown at all, which left it covering the fields underneath.
+ *
+ * `registerThen` ('appointment' | 'admit') names the task to return to after registering
+ * someone who isn't on file yet, turning the empty result into a way forward.
  */
-const PatientSearch = ({ onSelect, selectedPatientId }) => {
+const PatientSearch = ({ onSelect, selectedPatientId, registerThen }) => {
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
@@ -176,8 +182,25 @@ const PatientSearch = ({ onSelect, selectedPatientId }) => {
                     )}
 
                     {noMatches && (
-                        <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-4 text-center text-sm text-muted-foreground shadow-md">
-                            No patients match “{searchTerm}”.
+                        <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-4 text-center shadow-md">
+                            <p className="text-sm text-muted-foreground">No patients match “{searchTerm}”.</p>
+                            {/* A walk-in who isn't on file used to dead-end here: reception had to
+                                abandon this form, register the patient elsewhere, come back and
+                                search again. Registering from here returns to the same task with
+                                the new patient already selected. */}
+                            {registerThen && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-3"
+                                    onClick={() => navigate(
+                                        `/dashboard/patients/new?then=${registerThen}&q=${encodeURIComponent(searchTerm)}`,
+                                    )}
+                                >
+                                    <UserPlus /> Register “{searchTerm}” as a new patient
+                                </Button>
+                            )}
                         </div>
                     )}
                 </div>

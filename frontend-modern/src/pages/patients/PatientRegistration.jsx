@@ -18,8 +18,15 @@ const PatientRegistration = () => {
     const { id } = useParams();
     const isEditMode = !!id;
 
+    // A search that found nobody hands over whatever reception already typed, so the name
+    // or number isn't entered twice. Digits arrive as a phone number, anything else as a name.
+    const prefill = searchParams.get('q')?.trim() || '';
+    const prefillIsPhone = /^[\d\s+-]{6,}$/.test(prefill);
+    const [prefillFirst = '', ...prefillRest] = prefillIsPhone ? [] : prefill.split(/\s+/);
+
     const [formData, setFormData] = useState({
-        firstName: '', lastName: '', gender: '', age: '', phoneNumber: '',
+        firstName: prefillFirst, lastName: prefillRest.join(' '), gender: '', age: '',
+        phoneNumber: prefillIsPhone ? prefill : '',
         address: '', email: '', status: 'Outpatient', photoPath: '',
         weight: '', height: '', bloodGroup: '',
     });

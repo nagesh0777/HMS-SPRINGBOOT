@@ -90,7 +90,11 @@ const NewAdmission = () => {
                     <h1 className="mb-6 text-xl font-semibold tracking-tight">Admit patient</h1>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        <PatientSearch onSelect={(id) => setFormData({ ...formData, patientId: id })} selectedPatientId={formData.patientId} />
+                        <PatientSearch
+                            onSelect={(id) => setFormData({ ...formData, patientId: id })}
+                            selectedPatientId={formData.patientId}
+                            registerThen="admit"
+                        />
 
                         <div>
                             <Label className="mb-1.5 block">Admitting doctor</Label>

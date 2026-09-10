@@ -105,6 +105,7 @@ const NewAppointment = () => {
                         <PatientSearch
                             onSelect={(id) => setFormData(f => ({ ...f, patientId: id }))}
                             selectedPatientId={formData.patientId}
+                            registerThen="appointment"
                         />
 
                         <div className="space-y-2">
