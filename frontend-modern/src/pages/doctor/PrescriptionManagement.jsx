@@ -459,14 +459,18 @@ const PrescriptionManagement = () => {
         return `<!DOCTYPE html><html><head><title>Prescription - ${rx.patientName || ''}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
-          @page { size: A4; margin: 12mm 14mm; }
+          @page { size: A4 portrait; margin: 0; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'Inter', 'Segoe UI', sans-serif;
             color: #1e293b;
             background: #fff;
-            font-size: 10.5px;
-            line-height: 1.55;
+            font-size: 10px;
+            line-height: 1.45;
+            margin: 0;
+            padding: 8mm 12mm;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           /* ── Top accent bar ── */
@@ -480,7 +484,7 @@ const PrescriptionManagement = () => {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            padding: 16px 20px 14px;
+            padding: 12px 16px 10px;
             border-bottom: 2px solid #0f766e;
             background: linear-gradient(135deg, #f0fdfa 0%, #f0f9ff 100%);
           }
@@ -561,7 +565,7 @@ const PrescriptionManagement = () => {
             border-left: 4px solid #0f766e;
             border-radius: 0 6px 6px 0;
             padding: 10px 16px;
-            margin: 14px 20px 0;
+            margin: 10px 16px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -597,7 +601,7 @@ const PrescriptionManagement = () => {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
-            margin: 14px 20px 0;
+            margin: 10px 16px 0;
           }
           .info-card {
             border: 1px solid #e2e8f0;
@@ -658,11 +662,11 @@ const PrescriptionManagement = () => {
           .section-divider {
             border: none;
             border-top: 1.5px solid #e2e8f0;
-            margin: 14px 20px;
+            margin: 10px 16px;
           }
 
           /* ── Medication Table ── */
-          .med-section { margin: 0 20px; }
+          .med-section { margin: 0 16px; }
           .section-title {
             font-size: 10px;
             font-weight: 800;
@@ -696,11 +700,11 @@ const PrescriptionManagement = () => {
             font-size: 8.5px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            padding: 8px 10px;
+            padding: 6px 8px;
             text-align: left;
           }
           .med-table td {
-            padding: 9px 10px;
+            padding: 5px 8px;
             border-bottom: 1px solid #f1f5f9;
             font-size: 10px;
             vertical-align: middle;
@@ -722,7 +726,7 @@ const PrescriptionManagement = () => {
           }
 
           /* ── Notes Boxes ── */
-          .notes-section { margin: 14px 20px 0; }
+          .notes-section { margin: 10px 16px 0; }
           .notes-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
