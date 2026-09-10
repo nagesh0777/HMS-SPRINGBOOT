@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-    Search, AlertTriangle, Pill, Stethoscope, Calculator,
+    Search, AlertTriangle, Pill, Stethoscope, Calculator, Info,
     Loader2,
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
