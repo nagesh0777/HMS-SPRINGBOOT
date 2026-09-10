@@ -4,7 +4,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard, Users, User, Calendar, MessageSquare, Bed, Shield, LogOut, Clock, Menu,
-    Building, Stethoscope, Pill, ClipboardList, Search, Activity, Bell, UserCog,
+    Building, Stethoscope, Pill, ClipboardList, Search, Activity, Bell, BellOff, UserCog,
     BookOpen, Check, CheckCheck, AlertTriangle, FlaskConical, Settings, Zap,
     Receipt, Settings2, Package, ChevronLeft, ChevronRight, History, X, Bot,
 } from 'lucide-react';

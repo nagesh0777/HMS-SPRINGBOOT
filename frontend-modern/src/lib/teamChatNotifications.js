@@ -95,21 +95,36 @@ export const setNotificationsEnabled = (enabled) => {
  * Request browser desktop notification permission
  */
 export const requestDesktopNotificationPermission = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    try {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+            return 'unsupported';
+        }
+        if (Notification.permission === 'granted') {
+            return 'granted';
+        }
+        if (Notification.permission !== 'denied') {
+            try {
+                const p = Notification.requestPermission();
+                if (p && typeof p.then === 'function') {
+                    return await p;
+                } else {
+                    return new Promise((resolve) => {
+                        try {
+                            Notification.requestPermission((perm) => resolve(perm));
+                        } catch {
+                            resolve(Notification.permission || 'denied');
+                        }
+                    });
+                }
+            } catch {
+                return Notification.permission || 'denied';
+            }
+        }
+        return Notification.permission;
+    } catch (e) {
+        console.warn('requestDesktopNotificationPermission failed:', e);
         return 'unsupported';
     }
-    if (Notification.permission === 'granted') {
-        return 'granted';
-    }
-    if (Notification.permission !== 'denied') {
-        try {
-            const res = await Notification.requestPermission();
-            return res;
-        } catch {
-            return Notification.permission;
-        }
-    }
-    return Notification.permission;
 };
 
 /**
