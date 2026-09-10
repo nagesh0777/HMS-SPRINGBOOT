@@ -393,16 +393,28 @@ const DashboardLayout = () => {
     );
 
     const SidebarFooter = ({ collapsed = false }) => (
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-2 space-y-0.5">
+            <Button
+                variant="ghost"
+                onClick={() => navigate('/dashboard/guide')}
+                className={cn(
+                    'w-full text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+                    collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2.5',
+                )}
+                title="Help & guide"
+            >
+                <BookOpen className="h-[18px] w-[18px] shrink-0" />
+                {!collapsed && <span>Help & guide</span>}
+            </Button>
             <Button
                 variant="ghost"
                 onClick={handleLogout}
                 className={cn(
                     'w-full text-muted-foreground hover:bg-destructive-subtle hover:text-destructive',
-                    collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2',
+                    collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2.5',
                 )}
             >
-                <LogOut className="h-[18px] w-[18px]" />
+                <LogOut className="h-[18px] w-[18px] shrink-0" />
                 {!collapsed && <span>Sign out</span>}
             </Button>
         </div>
@@ -599,7 +611,7 @@ const DashboardLayout = () => {
                                         <Settings2 className="h-4 w-4" /> Settings
                                     </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onSelect={() => navigate('/dashboard/guide')} className="gap-2">
+                                <DropdownMenuItem onClick={() => navigate('/dashboard/guide')} onSelect={() => navigate('/dashboard/guide')} className="gap-2 cursor-pointer">
                                     <BookOpen className="h-4 w-4" /> Help &amp; guide
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />

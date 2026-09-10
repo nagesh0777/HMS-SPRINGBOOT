@@ -94,9 +94,9 @@ const roles = [
             { icon: Activity, title: 'My workspace', desc: 'Your personal dashboard — today\'s patients, pending consultations, and follow-ups due.' },
             { icon: ClipboardList, title: 'Patient queue', desc: 'Today\'s appointments in order. Mark check-in → start consult → complete.' },
             { icon: Search, title: 'Search patient', desc: 'Find any patient by mobile number, name, or ID. View their full medical history and past prescriptions.' },
-            { icon: Pill, title: 'Prescriptions', desc: 'Write prescriptions using templates. Add medicines with dosage, timing, and duration. Download PDF.' },
+            { icon: Pill, title: 'Prescriptions & print', desc: 'Write prescriptions using templates or free text. Syrups auto-provide +/- ML steppers. Vitals include Weight, Height, and Head Circumference (HC). Export PDF or print on A4 letterhead.' },
             { icon: Heart, title: 'Follow-ups', desc: 'Schedule follow-up visits with priority. Track due, overdue, and completed follow-ups.' },
-            { icon: UserCog, title: 'My profile', desc: 'Update your specialization, phone, email, and upload a profile photo.' },
+            { icon: UserCog, title: 'Doctor profile & QR', desc: 'Customize your clinician name, qualifications (e.g. MD PAEDIATRICS), department, registration number, and consultation QR code.' },
         ],
         workflows: [
             {
@@ -110,6 +110,26 @@ const roles = [
                     'Add diagnosis, chief complaint, weight/height if needed.',
                     'Click "Save" or "Save & Send to Pharmacy".',
                     'Back in the queue, click "Complete" to finish.',
+                ],
+            },
+            {
+                title: 'Write & print a prescription',
+                steps: [
+                    'Open "Prescriptions" from sidebar or click "Prescribe" on a patient card.',
+                    'Enter vitals (Weight, Height, and Head Circumference HC for children).',
+                    'Add Chief Complaints and Diagnosis.',
+                    'Add medicines: typing "syrup" auto-fills 5ML with +/- buttons. Tablets/SOS can be freely typed.',
+                    'Click "Save prescription", then click "Print" or "PDF".',
+                    'In Chrome print preview: uncheck "Headers and footers" and check "Background graphics" for clean output.',
+                ],
+            },
+            {
+                title: 'Customize Doctor Profile & QR Code',
+                steps: [
+                    'Click "Doctor profile" in the left sidebar (or under your top-right avatar).',
+                    'Edit your Full Name, Qualifications / Degree (e.g. MD PAEDIATRICS), Department, and Registration No.',
+                    'Upload or replace your Consultation QR Code (printed at bottom left of prescriptions).',
+                    'Click "Save profile" — all changes reflect immediately across the hospital.',
                 ],
             },
             {
@@ -173,12 +193,12 @@ const roles = [
 ];
 
 const tips = [
-    { icon: Zap, text: 'F1/F2 let billing staff select patients, add matched services on Enter, and generate invoices without a mouse.' },
-    { icon: Search, text: 'Search works everywhere — look up patient profiles instantly by mobile number, code, or full name.' },
-    { icon: Pill, text: 'Doctor prescriptions and consultations are saved as detailed patient histories with date, time, and dosage schedules.' },
-    { icon: Calendar, text: 'Double-booking is prevented — the system won\'t allow overlapping appointment slots for the same doctor.' },
-    { icon: Shield, text: 'Admins can assign page permissions dynamically for each staff member in the permissions checklist.' },
-    { icon: UserCog, text: 'Doctor profile creation suggests non-overlapping unique usernames to avoid duplicates.' },
+    { icon: Clock, text: 'Day & Night Auto-Theme: HMS automatically switches to dark mode during evening/night and light mode during daytime, with manual toggle override anytime.' },
+    { icon: Pill, text: 'Syrup +/- Stepper: Syrups automatically provide quick +/- dosage adjustments in ML for paediatric accuracy.' },
+    { icon: Zap, text: 'F1/F2 shortcuts let billing staff select patients, add matched services on Enter, and generate invoices in seconds without a mouse.' },
+    { icon: Search, text: 'Search works everywhere — press ⌘K or use the top search bar to look up patient profiles instantly by mobile number or name.' },
+    { icon: Stethoscope, text: 'Head Circumference (HC): Paediatric prescriptions support HC measurement in cm alongside weight, height, and BMI.' },
+    { icon: Shield, text: 'Print Perfection: In Chrome print preview, uncheck "Headers and footers" and check "Background graphics" for clean letterhead printing.' },
 ];
 
 const Accordion = ({ title, children, defaultOpen = false }) => {
