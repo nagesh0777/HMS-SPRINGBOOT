@@ -97,7 +97,7 @@ const ServiceCatalogPage = () => {
     return (
         <div className="space-y-5">
             <PageHeader
-                title="Service catalog"
+                title="Services & rates"
                 description="Manage hospital service rates used across the billing module."
                 icon={Package}
                 actions={

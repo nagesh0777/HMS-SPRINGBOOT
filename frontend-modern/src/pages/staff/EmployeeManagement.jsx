@@ -66,7 +66,7 @@ const EmployeeManagement = () => {
     return (
         <div className="space-y-5">
             <PageHeader
-                title="Workforce hub"
+                title="Staff"
                 description="Manage staff, track attendance and monitor activity across all departments."
                 icon={Users}
                 actions={

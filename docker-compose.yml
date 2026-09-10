@@ -38,8 +38,17 @@ services:
       # (or its git history) mint a valid session token for any user in any hospital tenant.
       APP_JWT_SECRET: ${APP_JWT_SECRET:?set APP_JWT_SECRET in .env}
       APP_JWT_EXPIRATION_MS: 86400000
+      # .env.example documents this as controlling CORS, but it was never actually passed
+      # through to the container here, so it silently did nothing — WebSecurityConfig always
+      # fell back to its hardcoded default list. Falls back to that same default when unset,
+      # so production behavior is unchanged; now it's genuinely configurable.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,https://hms.trikaar.tech}
       SMTP_USERNAME: croctechconnect@gmail.com
       APP_MAIL_FROM: croctechconnect@gmail.com
+      # Same gap as ALLOWED_ORIGINS above: DanpheEmrApplication's CommandLineRunner reads this
+      # to seed the "admin" account on first boot, but nothing here ever passed it through.
+      # Empty by default (matches prior behavior: no admin seeded).
+      ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
     volumes:
       - uploads_data:/app/uploads

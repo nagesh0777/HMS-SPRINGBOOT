@@ -277,7 +277,7 @@ const DoctorManagementPage = () => {
     return (
         <div className="space-y-5">
             <PageHeader
-                title="Doctor management"
+                title="Doctors"
                 description="Manage doctor profiles, credentials and availability."
                 icon={Stethoscope}
                 actions={

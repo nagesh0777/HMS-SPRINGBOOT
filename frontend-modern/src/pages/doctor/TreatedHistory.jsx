@@ -76,7 +76,7 @@ const TreatedHistory = () => {
     return (
         <div className="space-y-5">
             <PageHeader
-                title="Treated patient history"
+                title="Consultation log"
                 description="Every consultation recorded under your profile — filter by patient, date or status."
                 icon={History}
                 actions={

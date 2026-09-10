@@ -53,8 +53,8 @@ const AdtDashboard = () => {
     return (
         <div className="space-y-6">
             <PageHeader
-                title="Admission, discharge & transfer"
-                description="Manage inpatient occupancy and bed allocations."
+                title="Inpatients"
+                description="Admissions, discharges, transfers and bed occupancy."
                 icon={Activity}
                 actions={
                     <>

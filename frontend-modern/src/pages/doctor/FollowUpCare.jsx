@@ -129,7 +129,7 @@ const FollowUpCare = () => {
     return (
         <div className="space-y-5">
             <PageHeader
-                title="Follow-up & care planning"
+                title="Follow-ups"
                 description="Schedule follow-ups and manage treatment plans."
                 icon={Calendar}
                 actions={

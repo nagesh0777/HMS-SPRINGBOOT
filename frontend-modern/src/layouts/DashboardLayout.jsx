@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,6 +35,94 @@ const notifTypeConfig = {
     default: { icon: Bell, tone: 'text-muted-foreground' },
 };
 
+/* ------------------------------------------------------------------ *
+ * Navigation model
+ *
+ * One registry of destinations, composed into a menu per role. This replaces two
+ * near-duplicate menu builders — the non-doctor one carried a whole "Doctor Workspace"
+ * group that no role's permissions could ever reveal, so it rendered for nobody.
+ *
+ * Order is deliberate: what a role does most sits nearest the top. Notifications,
+ * settings, help and profile are intentionally absent — they are account chrome and
+ * live in the header, where they were already duplicated.
+ * ------------------------------------------------------------------ */
+const ITEM = {
+    overview:      { id: 'overview',      label: 'Overview',         short: 'Home',     icon: LayoutDashboard, path: '/dashboard' },
+    patients:      { id: 'patients',      label: 'Patients',         short: 'Patients', icon: Users,           path: '/dashboard/patients',     module: 'patients' },
+    appointments:  { id: 'appointments',  label: 'Appointments',     short: 'Appts',    icon: Calendar,        path: '/dashboard/appointments', module: 'appointments' },
+    inpatients:    { id: 'inpatients',    label: 'Inpatients',       short: 'Beds',     icon: Bed,             path: '/dashboard/adt',          module: 'adt' },
+    billing:       { id: 'billing',       label: 'Billing',          short: 'Billing',  icon: Receipt,         path: '/dashboard/billing',      module: 'billing' },
+    services:      { id: 'services',      label: 'Services & rates', short: 'Services', icon: Package,         path: '/dashboard/services',     module: 'services' },
+    doctors:       { id: 'doctors',       label: 'Doctors',          short: 'Doctors',  icon: Stethoscope,     path: '/dashboard/doctors' },
+    staff:         { id: 'staff',         label: 'Staff',            short: 'Staff',    icon: Shield,          path: '/dashboard/staff',        module: 'staff' },
+    consultDesk:   { id: 'consult-desk',  label: 'Consult desk',     short: 'Desk',     icon: Activity,        path: '/dashboard/doctor' },
+    queue:         { id: 'queue',         label: 'Patient queue',    short: 'Queue',    icon: ClipboardList,   path: '/dashboard/doctor/queue' },
+    prescriptions: { id: 'prescriptions', label: 'Prescriptions',    short: 'Rx',       icon: Pill,            path: '/dashboard/doctor/prescriptions' },
+    followups:     { id: 'followups',     label: 'Follow-ups',       short: 'Follow',   icon: UserCog,         path: '/dashboard/doctor/followups' },
+    history:       { id: 'history',       label: 'Consultation log', short: 'Log',      icon: History,         path: '/dashboard/doctor/history' },
+    hospitals:     { id: 'hospitals',     label: 'Hospitals',        short: 'Fleet',    icon: Building,        path: '/dashboard/hospitals' },
+};
+
+/**
+ * Shared by every assignment-driven role. `doctors` is gated here but deliberately not on
+ * the Admin menu: a hospital admin always administers their own doctors, whereas a
+ * front-desk account only sees the directory if someone ticked it on their staff record.
+ */
+const ASSIGNED_MENU = [
+    { title: 'Workspace', items: [
+        ITEM.overview,
+        ITEM.patients,
+        ITEM.appointments,
+        ITEM.inpatients,
+        ITEM.billing,
+        { ...ITEM.doctors, module: 'doctors' },
+        ITEM.staff,
+        ITEM.services,
+    ]},
+];
+
+const MENUS = {
+    // The platform owner administers tenants, not a ward. One destination is the job.
+    SuperAdmin: [
+        { title: 'Platform', items: [ITEM.hospitals] },
+    ],
+    Admin: [
+        { title: 'Overview', items: [ITEM.overview] },
+        { title: 'Clinical', items: [ITEM.patients, ITEM.appointments, ITEM.inpatients] },
+        { title: 'Business', items: [ITEM.billing, ITEM.services] },
+        { title: 'Team',     items: [ITEM.doctors, ITEM.staff] },
+    ],
+    // Prescribing is the reason a doctor opens this app, so it sits third — directly
+    // under the two screens that lead into it — instead of below ward admin.
+    Doctor: [
+        { title: 'Consult', items: [ITEM.consultDesk, ITEM.queue, ITEM.prescriptions, ITEM.followups, ITEM.history] },
+        { title: 'Ward',    items: [ITEM.inpatients] },
+    ],
+    // Front desk and general staff are defined by their employee record, not by a fixed
+    // list: every entry is module-gated, so the permission checklist on the staff form is
+    // what actually decides this menu. Anyone granted nothing still gets Overview.
+    Helpdesk: ASSIGNED_MENU,
+    Staff: ASSIGNED_MENU,
+};
+
+/**
+ * Plan and per-employee module names as the API spells them, folded onto nav ids.
+ * Supersedes three separate maps that disagreed with one another — 'beds' resolved to
+ * ADT in one and nowhere in the others, so the same plan showed different menus
+ * depending on which branch happened to run.
+ */
+const MODULE_ALIASES = {
+    patients: 'patients', patient: 'patients',
+    appointments: 'appointments', appointment: 'appointments',
+    adt: 'adt', beds: 'adt', ward: 'adt', admissions: 'adt',
+    billing: 'billing', invoicing: 'billing',
+    services: 'services', 'service catalog': 'services', 'service rates': 'services',
+    staff: 'staff', employees: 'staff', attendance: 'staff',
+    doctors: 'doctors', doctor: 'doctors',
+    // No nav item of its own — settings lives in the account menu — but still a grant.
+    settings: 'settings',
+};
+
 const DashboardLayout = () => {
     const navigate = useNavigate();
     // Previously this was a useState seeded from window.location.pathname and updated only
@@ -61,10 +149,10 @@ const DashboardLayout = () => {
 
     const userRole = localStorage.getItem('role') || 'Staff';
     const userName = localStorage.getItem('userName') || 'System User';
-    const isOwnerAdmin = userName.trim().toLowerCase() === 'nagesh';
-    const effectiveRole = isOwnerAdmin ? 'SuperAdmin' : userRole;
-    const subscriptionModules = (localStorage.getItem('subscriptionModules') || '')
-        .split(',').map(m => m.trim()).filter(Boolean);
+    // Was: any account literally named "nagesh" got promoted to SuperAdmin client-side.
+    // The server already issues that role in the token, so the hardcoded name was both
+    // redundant and a standing privilege grant to whoever registered the username.
+    const effectiveRole = userRole;
 
     // ---- Appointment popup (Doctor only) ----
     const [apptPopup, setApptPopup] = useState(null);
@@ -121,9 +209,14 @@ const DashboardLayout = () => {
 
     const hasAiAccess = () => {
         if (effectiveRole === 'SuperAdmin') return true;
-        if (subscriptionModules.includes('AI Copilot')) return true;
-        const modules = localStorage.getItem('assignedModules') || '';
-        return modules.split(',').map(m => m.trim()).includes('AICopilot');
+        // The plan spells it "AI Copilot"; a per-employee assignment spells it "AICopilot".
+        return [
+            localStorage.getItem('subscriptionModules'),
+            localStorage.getItem('assignedModules'),
+        ]
+            .filter(Boolean)
+            .flatMap(v => v.split(','))
+            .some(m => ['ai copilot', 'aicopilot'].includes(m.trim().toLowerCase()));
     };
 
     // ---- Notifications ----
@@ -181,128 +274,58 @@ const DashboardLayout = () => {
         return new Date(dateStr).toLocaleDateString();
     };
 
-    // ---- Navigation model (unchanged) ----
-    const getMenuGroups = () => {
-        if (effectiveRole === 'Doctor') {
-            return [
-                { title: 'Clinical Workspace', items: [
-                    { id: 'doctor-dashboard', label: 'My Workspace', icon: Activity, path: '/dashboard/doctor' },
-                    { id: 'doctor-queue', label: 'Patient Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
-                    { id: 'doctor-history', label: 'Treated History', icon: History, path: '/dashboard/doctor/history' },
-                    { id: 'doctor-prescriptions', label: 'Prescriptions', icon: Pill, path: '/dashboard/doctor/prescriptions' },
-                    { id: 'doctor-followups', label: 'Follow-Ups', icon: UserCog, path: '/dashboard/doctor/followups' },
-                ]},
-                { title: 'Ward Management', items: [
-                    { id: 'adt', label: 'ADT & Ward', icon: Bed, path: '/dashboard/adt' },
-                ]},
-                { title: 'Reference & Profile', items: [
-                    { id: 'doctor-profile', label: 'My Profile', icon: User, path: '/dashboard/doctor/profile' },
-                    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/dashboard/notifications' },
-                    { id: 'portal-guide', label: 'Help & Guide', icon: BookOpen, path: '/dashboard/guide' },
-                ]},
-            ];
-        }
-        return [
-            { title: 'Core Workflow', items: [
-                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-                { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
-                { id: 'appointments', label: 'Appointments', icon: Calendar, path: '/dashboard/appointments' },
-                { id: 'adt', label: 'ADT & Ward', icon: Bed, path: '/dashboard/adt' },
-            ]},
-            { title: 'Finance & Services', items: [
-                { id: 'billing', label: 'Billing', icon: Receipt, path: '/dashboard/billing' },
-                { id: 'service-catalog', label: 'Service Rates', icon: Package, path: '/dashboard/services' },
-            ]},
-            { title: 'Workforce', items: [
-                { id: 'doctors', label: 'Doctor Roster', icon: Stethoscope, path: '/dashboard/doctors' },
-                { id: 'employee-management', label: 'Employee Management', icon: Shield, path: '/dashboard/staff' },
-            ]},
-            { title: 'Doctor Workspace', items: [
-                { id: 'doctor-dashboard', label: 'My Workspace', icon: Activity, path: '/dashboard/doctor' },
-                { id: 'doctor-queue', label: 'Patient Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
-                { id: 'doctor-history', label: 'Treated History', icon: History, path: '/dashboard/doctor/history' },
-                { id: 'doctor-prescriptions', label: 'Prescriptions', icon: Pill, path: '/dashboard/doctor/prescriptions' },
-                { id: 'doctor-followups', label: 'Follow-Ups', icon: UserCog, path: '/dashboard/doctor/followups' },
-            ]},
-            { title: 'Administration', items: [
-                { id: 'notifications', label: 'Notifications', icon: Bell, path: '/dashboard/notifications' },
-                { id: 'hospital-settings', label: 'Settings', icon: Settings2, path: '/dashboard/settings' },
-                { id: 'hospitals', label: 'Hospital Network', icon: Building, path: '/dashboard/hospitals' },
-                { id: 'portal-guide', label: 'Help & Guide', icon: BookOpen, path: '/dashboard/guide' },
-            ]},
-        ];
-    };
+    // ---- Navigation ----
+    /** Every module the plan or this employee's assignment grants, as canonical nav ids. */
+    const grants = useMemo(() => {
+        const set = new Set();
+        [localStorage.getItem('subscriptionModules'), localStorage.getItem('assignedModules')]
+            .filter(Boolean)
+            .flatMap(v => v.split(','))
+            .forEach(m => {
+                const canonical = MODULE_ALIASES[m.trim().toLowerCase()];
+                if (canonical) set.add(canonical);
+            });
+        return set;
+    }, []);
 
-    const menuGroups = getMenuGroups();
+    // An owner, admin or doctor with nothing recorded is simply on an unmetered plan.
+    // A staff or front-desk account with nothing assigned really does have nothing yet.
+    const unrestricted = grants.size === 0
+        && ['SuperAdmin', 'Admin', 'Doctor'].includes(effectiveRole);
 
-    const rolePermissions = {
-        SuperAdmin: ['dashboard', 'hospitals', 'portal-guide'],
-        Admin: ['dashboard', 'patients', 'appointments', 'doctors', 'adt', 'billing', 'service-catalog', 'employee-management', 'notifications', 'hospital-settings', 'portal-guide'],
-        Doctor: ['doctor-dashboard', 'doctor-queue', 'doctor-history', 'doctor-prescriptions', 'doctor-followups', 'adt', 'notifications', 'portal-guide', 'doctor-profile'],
-        Helpdesk: ['dashboard', 'patients', 'appointments', 'billing', 'employee-management', 'notifications', 'portal-guide'],
-        Staff: ['dashboard', 'patients', 'notifications', 'portal-guide'],
-    };
+    const menuGroups = useMemo(() => (
+        (MENUS[effectiveRole] || MENUS.Staff)
+            .map(group => ({
+                ...group,
+                items: group.items.filter(i => !i.module || unrestricted || grants.has(i.module)),
+            }))
+            .filter(group => group.items.length > 0)
+    ), [effectiveRole, grants, unrestricted]);
 
-    const getEffectivePermissions = () => {
-        const basePerms = rolePermissions[effectiveRole] || rolePermissions.Staff;
-        if (effectiveRole === 'SuperAdmin') return basePerms;
+    const flatItems = useMemo(() => menuGroups.flatMap(g => g.items), [menuGroups]);
 
-        if ((effectiveRole === 'Admin' || effectiveRole === 'Doctor') && subscriptionModules.length > 0) {
-            const planAllowed = subscriptionModules.map(m => m.toLowerCase());
-            const moduleMap = {
-                dashboard: 'dashboard', patients: 'patients', appointments: 'appointments',
-                'doctor queue': 'doctor-queue', prescriptions: 'doctor-prescriptions',
-                billing: 'billing', 'service catalog': 'service-catalog', staff: 'employee-management',
-                adt: 'adt', beds: 'adt', notifications: 'notifications',
-            };
-            const result = ['dashboard', 'portal-guide', 'notifications', 'hospital-settings', 'doctors', 'doctor-profile', 'doctor-history'];
-            planAllowed.forEach(mod => { if (moduleMap[mod]) result.push(moduleMap[mod]); });
-            if (planAllowed.includes('doctor queue')) result.push('doctor-dashboard');
-            return basePerms.filter(perm => [...new Set(result)].includes(perm));
-        }
+    /**
+     * Longest matching path wins. A plain startsWith lit up both "Consult desk"
+     * (/dashboard/doctor) and "Patient queue" (/dashboard/doctor/queue) at once, so the
+     * sidebar showed two current pages.
+     */
+    const activeId = useMemo(() => {
+        let best = null;
+        flatItems.forEach(i => {
+            if (activePath === i.path || activePath.startsWith(`${i.path}/`)) {
+                if (!best || i.path.length > best.path.length) best = i;
+            }
+        });
+        return best?.id ?? null;
+    }, [activePath, flatItems]);
 
-        if (effectiveRole === 'Admin' || effectiveRole === 'Doctor') return basePerms;
-        const modules = localStorage.getItem('assignedModules');
-        if (!modules || !modules.trim()) return ['dashboard', 'portal-guide'];
-        const allowed = modules.split(',').map(m => m.trim().toLowerCase());
-        const moduleMap = {
-            patients: 'patients', appointments: 'appointments', adt: 'adt',
-            doctors: 'doctors', staff: 'employee-management', attendance: 'employee-management',
-            billing: 'billing', 'service catalog': 'service-catalog', services: 'service-catalog',
-            notifications: 'notifications', settings: 'hospital-settings',
-        };
-        const result = ['dashboard', 'portal-guide'];
-        allowed.forEach(mod => { if (moduleMap[mod]) result.push(moduleMap[mod]); });
-        return result;
-    };
+    // The mobile bar takes the role's first four destinations, then More — derived from
+    // the same menu, so the two navigations cannot drift apart the way hand-kept lists did.
+    const bottomNavItems = flatItems.slice(0, 4);
 
-    const effectivePerms = getEffectivePermissions();
-
-    const getBottomNavItems = () => {
-        if (effectiveRole === 'Doctor') return [
-            { id: 'doctor-dashboard', label: 'Home', icon: Activity, path: '/dashboard/doctor' },
-            { id: 'doctor-queue', label: 'Queue', icon: ClipboardList, path: '/dashboard/doctor/queue' },
-            { id: 'doctor-prescriptions', label: 'Rx', icon: Pill, path: '/dashboard/doctor/prescriptions' },
-            { id: 'doctor-followups', label: 'Follow-Up', icon: UserCog, path: '/dashboard/doctor/followups' },
-            { id: 'doctor-profile', label: 'Profile', icon: User, path: '/dashboard/doctor/profile' },
-        ];
-        if (effectiveRole === 'Admin' || effectiveRole === 'SuperAdmin') return [
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-            { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
-            { id: 'appointments', label: 'Appts', icon: Calendar, path: '/dashboard/appointments' },
-            { id: 'billing', label: 'Billing', icon: Receipt, path: '/dashboard/billing' },
-            { id: 'hospital-settings', label: 'Settings', icon: Settings2, path: '/dashboard/settings' },
-        ];
-        return [
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-            { id: 'patients', label: 'Patients', icon: Users, path: '/dashboard/patients' },
-            { id: 'appointments', label: 'Appts', icon: Calendar, path: '/dashboard/appointments' },
-            { id: 'notifications', label: 'Alerts', icon: Bell, path: '/dashboard/notifications' },
-            { id: 'portal-guide', label: 'Help', icon: BookOpen, path: '/dashboard/guide' },
-        ];
-    };
-
-    const bottomNavItems = getBottomNavItems();
+    // Hospital settings belong to the hospital's own admin, or to any employee explicitly
+    // granted it. The platform owner administers tenants from the fleet console instead.
+    const canSeeSettings = effectiveRole === 'Admin' || grants.has('settings');
 
     const handleLogout = () => {
         ['token', 'role', 'userName', 'doctorId', 'employeeId', 'hospitalId',
@@ -311,9 +334,6 @@ const DashboardLayout = () => {
         navigate('/login');
     };
 
-    const isItemActive = (path) =>
-        activePath === path || (path !== '/dashboard' && activePath.startsWith(path));
-
     const panelNotifications = notifications.slice(0, 8);
     const panelUnread = notifications.filter(n => !n.isRead).length;
 
@@ -321,8 +341,7 @@ const DashboardLayout = () => {
     const SidebarNav = ({ collapsed = false, onNavigate }) => (
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4 scrollbar-thin">
             {menuGroups.map((group, idx) => {
-                const visibleItems = group.items.filter(item => effectivePerms.includes(item.id));
-                if (visibleItems.length === 0) return null;
+                const visibleItems = group.items;
 
                 return (
                     <div key={idx}>
@@ -336,8 +355,7 @@ const DashboardLayout = () => {
                         <div className="space-y-0.5">
                             {visibleItems.map((item) => {
                                 const Icon = item.icon;
-                                const active = isItemActive(item.path);
-                                const showDot = item.id === 'notifications' && unreadCount > 0;
+                                const active = activeId === item.id;
 
                                 const button = (
                                     <button
@@ -352,22 +370,8 @@ const DashboardLayout = () => {
                                                 : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
                                         )}
                                     >
-                                        <span className="relative flex items-center justify-center">
-                                            <Icon className="h-[18px] w-[18px] shrink-0" />
-                                            {collapsed && showDot && (
-                                                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar" />
-                                            )}
-                                        </span>
-                                        {!collapsed && (
-                                            <>
-                                                <span className="truncate">{item.label}</span>
-                                                {showDot && (
-                                                    <span className="tabular ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
-                                                        {unreadCount > 99 ? '99+' : unreadCount}
-                                                    </span>
-                                                )}
-                                            </>
-                                        )}
+                                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                                        {!collapsed && <span className="truncate">{item.label}</span>}
                                     </button>
                                 );
 
@@ -588,7 +592,7 @@ const DashboardLayout = () => {
                                         <User className="h-4 w-4" /> My profile
                                     </DropdownMenuItem>
                                 )}
-                                {effectivePerms.includes('hospital-settings') && (
+                                {canSeeSettings && (
                                     <DropdownMenuItem onSelect={() => navigate('/dashboard/settings')} className="gap-2">
                                         <Settings2 className="h-4 w-4" /> Settings
                                     </DropdownMenuItem>
@@ -615,9 +619,9 @@ const DashboardLayout = () => {
             {/* Mobile bottom navigation */}
             <nav className="fixed inset-x-0 bottom-0 z-30 border-t bg-background pb-safe md:hidden">
                 <div className="flex h-16 items-stretch">
-                    {bottomNavItems.filter(i => effectivePerms.includes(i.id)).map((item) => {
+                    {bottomNavItems.map((item) => {
                         const Icon = item.icon;
-                        const active = isItemActive(item.path);
+                        const active = activeId === item.id;
                         return (
                             <button
                                 key={item.path}
@@ -629,13 +633,8 @@ const DashboardLayout = () => {
                                 )}
                             >
                                 {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-foreground" />}
-                                <span className="relative">
-                                    <Icon className="h-[22px] w-[22px]" />
-                                    {item.id === 'notifications' && unreadCount > 0 && (
-                                        <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
-                                    )}
-                                </span>
-                                <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                                <Icon className="h-[22px] w-[22px]" />
+                                <span className="text-[10px] font-medium leading-none">{item.short}</span>
                             </button>
                         );
                     })}
