@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Logo } from "@/components/app/logo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -194,7 +194,13 @@ const Login = () => {
                     </form>
                 </Card>
 
-                <p className="mt-6 text-center text-xs text-muted-foreground">
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                    New hospital or clinic?{' '}
+                    <Link to="/subscribe" className="font-medium text-foreground underline-offset-4 hover:underline">
+                        Subscribe to Trikaar HMS
+                    </Link>
+                </p>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
                     Trikaar HMS · Hospital Management System
                 </p>
             </div>

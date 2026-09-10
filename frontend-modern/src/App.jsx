@@ -19,6 +19,7 @@ import DashboardLayout from './layouts/DashboardLayout';
  * paint, and splitting them would only add a round trip before anything renders.
  */
 const DashboardHome = lazy(() => import('./pages/DashboardHome'));
+const SubscriptionRegister = lazy(() => import('./pages/SubscriptionRegister'));
 
 // Patients
 const PatientList = lazy(() => import('./pages/patients/PatientList'));
@@ -106,8 +107,13 @@ function App() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Navigate to="/login" />} />
-          <Route path="/pricing" element={<Navigate to="/login" />} />
+          {/* The self-signup checkout flow. /register and /pricing both used to bounce
+              straight to /login — SubscriptionRegister was fully built (plan picker,
+              Razorpay checkout, email OTP, demo request) but had no route pointing at it
+              anywhere, so nobody could ever reach it. */}
+          <Route path="/subscribe" element={<SubscriptionRegister />} />
+          <Route path="/register" element={<Navigate to="/subscribe" />} />
+          <Route path="/pricing" element={<Navigate to="/subscribe" />} />
 
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />}>
