@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus, Pill, Search, Send, Edit3, X, Check,
+    Plus, Minus, Pill, Search, Send, Edit3, X, Check,
     AlertTriangle, FileText, Trash2, RefreshCw,
     User, Settings, Copy, Printer, Loader2,
 } from 'lucide-react';
@@ -98,6 +98,12 @@ const TONE_BADGE = {
     success: 'bg-success-subtle text-success',
     warning: 'bg-warning-subtle text-warning',
     destructive: 'bg-destructive-subtle text-destructive',
+};
+
+const isSyrupMedicine = (med) => {
+    const name = (med?.name || '').toLowerCase();
+    const dosage = (med?.dosage || '').toLowerCase();
+    return name.includes('syrup') || name.includes('syp') || name.includes('susp') || dosage.includes('ml');
 };
 
 const PrescriptionManagement = () => {
@@ -251,6 +257,35 @@ const PrescriptionManagement = () => {
     const updateMedicine = (index, field, value) => setForm(prev => ({
         ...prev, medicines: prev.medicines.map((m, i) => i === index ? { ...m, [field]: value } : m),
     }));
+
+    const adjustSyrupDosage = (index, delta) => {
+        const current = form.medicines[index]?.dosage || '';
+        const match = String(current).trim().match(/^([\d.]+)\s*(.*)$/);
+        let num = match ? parseFloat(match[1]) : 0;
+        let unit = 'ML';
+        let hasSpace = false;
+        if (match && match[2]) {
+            unit = match[2];
+            hasSpace = current.includes(' ');
+        }
+
+        let nextNum;
+        if (!match || isNaN(num) || num <= 0) {
+            nextNum = delta > 0 ? 5 : 2.5;
+        } else if (num < 1) {
+            nextNum = delta > 0 ? 1 : 0.5;
+        } else if (num % 1 !== 0) {
+            nextNum = delta > 0 ? Math.floor(num + 1) : Math.ceil(num - 1);
+        } else {
+            nextNum = num + delta;
+        }
+
+        if (nextNum < 0.5) nextNum = 0.5;
+        if (nextNum > 100) nextNum = 100;
+
+        const formatted = hasSpace ? `${nextNum} ${unit}` : `${nextNum}${unit}`;
+        updateMedicine(index, 'dosage', formatted);
+    };
 
     const applyTemplate = (template) => {
         const isAlreadyApplied = appliedTemplates.includes(template.id);
@@ -1382,7 +1417,41 @@ const PrescriptionManagement = () => {
                                                 <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-secondary text-xs font-semibold">{i + 1}</div>
                                                 <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 md:grid-cols-6">
                                                     <Input className="col-span-2 h-8 text-xs md:col-span-1" value={med.name} onChange={e => updateMedicine(i, 'name', e.target.value)} placeholder="Name" />
-                                                    <Input className="h-8 text-xs" value={med.dosage} onChange={e => updateMedicine(i, 'dosage', e.target.value)} placeholder="Dosage" />
+                                                    {isSyrupMedicine(med) ? (
+                                                        <div className="flex h-8 items-center rounded-md border border-input bg-background shadow-xs overflow-hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => adjustSyrupDosage(i, -1)}
+                                                                className="flex h-full w-7 shrink-0 items-center justify-center border-r border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                                title="Decrease dose"
+                                                            >
+                                                                <Minus className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <input
+                                                                type="text"
+                                                                className="h-full min-w-0 flex-1 bg-transparent px-1 text-center text-xs font-semibold tabular-nums focus:outline-hidden"
+                                                                value={med.dosage}
+                                                                onChange={e => updateMedicine(i, 'dosage', e.target.value)}
+                                                                onBlur={e => {
+                                                                    const val = e.target.value.trim();
+                                                                    if (val && /^\d+(\.\d+)?$/.test(val)) {
+                                                                        updateMedicine(i, 'dosage', `${val}ML`);
+                                                                    }
+                                                                }}
+                                                                placeholder="ML"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => adjustSyrupDosage(i, 1)}
+                                                                className="flex h-full w-7 shrink-0 items-center justify-center border-l border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                                title="Increase dose"
+                                                            >
+                                                                <Plus className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <Input className="h-8 text-xs" value={med.dosage} onChange={e => updateMedicine(i, 'dosage', e.target.value)} placeholder="Dosage" />
+                                                    )}
                                                     <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={med.frequency} onChange={e => updateMedicine(i, 'frequency', e.target.value)}>
                                                         {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
                                                     </select>
