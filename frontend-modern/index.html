@@ -27,12 +27,24 @@
     <meta property="og:image" content="/trikaar-og.png" />
     <meta property="og:type" content="website" />
 
-    <!-- Applied before first paint so a dark-mode reload never flashes white. -->
+    <!-- Applied before first paint so a dark-mode reload never flashes white.
+         Follows time automatically: evening/night (18:00 to 06:00) -> dark, daytime -> light.
+         Manual selection in localStorage overrides automatic time. -->
     <script>
       (function () {
         try {
           var s = localStorage.getItem('theme');
-          var dark = s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches);
+          var hour = new Date().getHours();
+          var isNight = hour < 6 || hour >= 18;
+          var dark;
+          if (s === 'dark') {
+            dark = true;
+          } else if (s === 'light') {
+            dark = false;
+          } else {
+            // Default or 'auto': follows time of day
+            dark = isNight;
+          }
           if (dark) document.documentElement.classList.add('dark');
         } catch (e) {}
       })();

@@ -3,16 +3,25 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 /**
  * Theme state for the app.
  *
- * Three values, not two: 'system' is a real choice and stays live — if the OS flips to
- * dark at sunset the app follows, which a plain boolean cannot express.
+ * Supports automatic day/night switching based on local time:
+ * - Day (06:00 to 18:00 / 6:00 AM to 6:00 PM): Light mode
+ * - Evening & Night (18:00 to 06:00 / 6:00 PM to 6:00 AM): Dark mode
+ *
+ * Users can also manually switch to 'light' or 'dark' at any time,
+ * or choose 'auto' to follow the time-of-day schedule.
  *
  * The initial class is applied by an inline script in index.html, before React mounts,
- * so a dark-mode reload never flashes a white screen. This provider mirrors that logic;
- * the two must agree on the storage key.
+ * preventing any white flash on reload during evening/night hours.
  */
 
 const STORAGE_KEY = 'theme';
 const ThemeContext = createContext(null);
+
+export const isNightTime = () => {
+    if (typeof window === 'undefined') return false;
+    const hour = new Date().getHours();
+    return hour < 6 || hour >= 18;
+};
 
 const prefersDark = () =>
     typeof window !== 'undefined' &&
@@ -21,37 +30,63 @@ const prefersDark = () =>
 function readStored() {
     try {
         const v = localStorage.getItem(STORAGE_KEY);
-        return v === 'light' || v === 'dark' || v === 'system' ? v : 'system';
+        if (v === 'light' || v === 'dark' || v === 'auto') return v;
+        if (v === 'system') return 'auto';
+        return 'auto';
     } catch {
-        // Private mode / blocked storage. Fall back to following the OS.
-        return 'system';
+        return 'auto';
     }
 }
 
 export function ThemeProvider({ children }) {
     const [theme, setThemeState] = useState(readStored);
+    const [isNight, setIsNight] = useState(isNightTime);
 
-    // Resolve 'system' to a concrete value and paint it on <html>.
+    // Keep time-based check updated for 'auto'
     useEffect(() => {
-        const root = document.documentElement;
+        if (theme !== 'auto' && theme !== 'system') return;
 
-        const apply = () => {
-            const dark = theme === 'dark' || (theme === 'system' && prefersDark());
-            root.classList.toggle('dark', dark);
+        const checkTime = () => {
+            const night = isNightTime();
+            setIsNight(night);
         };
 
-        apply();
+        // Re-check every 30 seconds for clock boundary transitions (e.g. 18:00)
+        const timer = setInterval(checkTime, 30000);
 
-        if (theme !== 'system') return;
-        // Only 'system' needs to keep listening.
-        const mq = window.matchMedia('(prefers-color-scheme: dark)');
-        mq.addEventListener('change', apply);
-        return () => mq.removeEventListener('change', apply);
+        // Also re-check when the user returns to the tab/window
+        const onVisibilityChange = () => {
+            if (!document.hidden) checkTime();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('focus', onVisibilityChange);
+
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.removeEventListener('focus', onVisibilityChange);
+        };
     }, [theme]);
 
+    // Calculate resolved theme
+    const resolved = (theme === 'auto' || theme === 'system')
+        ? (isNight ? 'dark' : 'light')
+        : theme;
+
+    // Apply dark class to <html> and update meta theme-color
+    useEffect(() => {
+        const root = document.documentElement;
+        const dark = resolved === 'dark';
+        root.classList.toggle('dark', dark);
+
+        const metaThemeColor = document.querySelector('meta[name="theme-color"]:not([media])');
+        if (metaThemeColor) {
+            metaThemeColor.setAttribute('content', dark ? '#101828' : '#ffffff');
+        }
+    }, [resolved]);
+
     const setTheme = useCallback((next) => {
-        // Kill transitions for one frame, otherwise every element with a colour
-        // transition animates on its own schedule and the flip looks like a wipe.
+        // Kill transitions for one frame during theme flip
         const root = document.documentElement;
         root.classList.add('theme-switching');
         window.setTimeout(() => root.classList.remove('theme-switching'), 0);
@@ -59,15 +94,16 @@ export function ThemeProvider({ children }) {
         try {
             localStorage.setItem(STORAGE_KEY, next);
         } catch {
-            // Non-fatal: the theme still applies for this session.
+            // Non-fatal: session still works
         }
         setThemeState(next);
+        if (next === 'auto' || next === 'system') {
+            setIsNight(isNightTime());
+        }
     }, []);
 
-    const resolved = theme === 'system' ? (prefersDark() ? 'dark' : 'light') : theme;
-
     return (
-        <ThemeContext.Provider value={{ theme, resolved, setTheme }}>
+        <ThemeContext.Provider value={{ theme, resolved, setTheme, isNight }}>
             {children}
         </ThemeContext.Provider>
     );
