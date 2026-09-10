@@ -6,10 +6,10 @@ import {
     LayoutDashboard, Users, User, Calendar, MessageSquare, Bed, Shield, LogOut, Clock, Menu,
     Building, Stethoscope, Pill, ClipboardList, Search, Activity, Bell, UserCog,
     BookOpen, Check, CheckCheck, AlertTriangle, FlaskConical, Settings, Zap,
-    Receipt, Settings2, Package, ChevronLeft, ChevronRight, History, X,
+    Receipt, Settings2, Package, ChevronLeft, ChevronRight, History, X, Bot,
 } from 'lucide-react';
 
-import AICopilotPanel from '../components/AICopilotPanel';
+// import AICopilotPanel from '../components/AICopilotPanel';
 import { CommandDialog, CommandInput, CommandList, CommandEmpty } from '@/components/ui/command-dialog';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -487,14 +487,35 @@ const DashboardLayout = () => {
         </nav>
     );
 
-    const SidebarFooter = ({ collapsed = false }) => (
+    const SidebarFooter = ({ collapsed = false, onNavigate }) => (
         <div className="border-t border-sidebar-border p-2 space-y-0.5">
             <Button
                 variant="ghost"
-                onClick={() => navigate('/dashboard/guide')}
+                onClick={() => { navigate('/dashboard/chatbot'); onNavigate?.(); }}
                 className={cn(
                     'w-full text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
                     collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2.5',
+                    activePath === '/dashboard/chatbot' && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground text-blue-600 dark:text-blue-400'
+                )}
+                title="Software Chatbot & Caching Help"
+            >
+                <Bot className="h-[18px] w-[18px] shrink-0 text-blue-600 dark:text-blue-400" />
+                {!collapsed && (
+                    <div className="flex items-center justify-between w-full">
+                        <span>Chatbot</span>
+                        <span className="rounded bg-blue-500/10 px-1.5 py-0.2 text-[9px] font-bold text-blue-600 dark:text-blue-400">
+                            AI
+                        </span>
+                    </div>
+                )}
+            </Button>
+            <Button
+                variant="ghost"
+                onClick={() => { navigate('/dashboard/guide'); onNavigate?.(); }}
+                className={cn(
+                    'w-full text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+                    collapsed ? 'justify-center px-0' : 'justify-start gap-2.5 px-2.5',
+                    activePath === '/dashboard/guide' && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
                 )}
                 title="Help & guide"
             >
@@ -556,7 +577,7 @@ const DashboardLayout = () => {
                         </Button>
                     </div>
                     <SidebarNav onNavigate={() => setIsSidebarOpen(false)} />
-                    <SidebarFooter />
+                    <SidebarFooter onNavigate={() => setIsSidebarOpen(false)} />
                 </SheetContent>
             </Sheet>
 
@@ -798,7 +819,7 @@ const DashboardLayout = () => {
                 </div>
             </nav>
 
-            {hasAiAccess() && <AICopilotPanel />}
+            {/* Floating chatbot removed in favor of dedicated /dashboard/chatbot page */}
 
             {/* Patient command palette */}
             <CommandDialog

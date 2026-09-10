@@ -164,6 +164,9 @@ function App() {
 
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="guide" element={<PortalGuide />} />
+            <Route path="chatbot" element={<ChatbotPage />} />
+            <Route path="copilot" element={<ChatbotPage />} />
+            <Route path="ai-copilot" element={<ChatbotPage />} />
 
             {/* Billing Module */}
             <Route path="billing" element={<BillingDashboard />} />

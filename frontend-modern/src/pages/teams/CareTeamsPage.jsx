@@ -167,9 +167,18 @@ const CareTeamsPage = () => {
 
     // Check if message belongs to current user
     const isFromMe = useCallback((msg) => {
+        if (!msg) return false;
         if (sentMessageIds.current.has(msg.id)) return true;
+        try {
+            const sessionSent = JSON.parse(sessionStorage.getItem("teams_sent_ids") || "[]");
+            if (sessionSent.includes(msg.id)) return true;
+        } catch {}
         if (currentEmpId && msg.senderEmployeeId && String(msg.senderEmployeeId) === String(currentEmpId)) return true;
-        if (msg.senderName && msg.senderName.trim().toLowerCase() === currentUserName) return true;
+        if (msg.senderName) {
+            const sName = msg.senderName.trim().toLowerCase();
+            if (sName === currentUserName) return true;
+            if (currentUserName === "admin" && sName.includes("admin")) return true;
+        }
         return false;
     }, [currentEmpId, currentUserName]);
 
@@ -320,6 +329,10 @@ const CareTeamsPage = () => {
                 const saved = res.data.Results;
                 sentMessageIds.current.add(saved.id);
                 knownMessageIds.current.add(saved.id);
+                try {
+                    const prev = JSON.parse(sessionStorage.getItem("teams_sent_ids") || "[]");
+                    sessionStorage.setItem("teams_sent_ids", JSON.stringify([...prev, saved.id]));
+                } catch {}
                 setAllMessages(prev => [...prev, saved]);
             }
             setInputText('');
@@ -340,7 +353,7 @@ const CareTeamsPage = () => {
     };
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-3 pb-16 lg:pb-0">
             {/* Top Header Bar */}
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
