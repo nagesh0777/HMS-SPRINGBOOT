@@ -28,7 +28,7 @@ public class TeamChatController {
     public ResponseEntity<?> getMessages(@RequestParam(required = false, defaultValue = "general") String channel) {
         Integer hospitalId = SecurityUtil.getCurrentHospitalId();
         if (hospitalId == null) {
-            return ResponseEntity.status(401).body(DanpheHttpResponse.failed("Hospital ID not found in session"));
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Hospital ID not found in session"));
         }
         List<TeamChatMessage> messages = teamChatService.getMessages(hospitalId, channel);
         return ResponseEntity.ok(DanpheHttpResponse.ok(messages));
@@ -38,10 +38,10 @@ public class TeamChatController {
     public ResponseEntity<?> postMessage(@RequestBody MessageRequest request) {
         Integer hospitalId = SecurityUtil.getCurrentHospitalId();
         if (hospitalId == null) {
-            return ResponseEntity.status(401).body(DanpheHttpResponse.failed("Hospital ID not found in session"));
+            return ResponseEntity.status(401).body(DanpheHttpResponse.error("Hospital ID not found in session"));
         }
         if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(DanpheHttpResponse.failed("Message cannot be empty"));
+            return ResponseEntity.badRequest().body(DanpheHttpResponse.error("Message cannot be empty"));
         }
 
         try {
@@ -53,7 +53,7 @@ public class TeamChatController {
             );
             return ResponseEntity.ok(DanpheHttpResponse.ok(saved));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(DanpheHttpResponse.failed(e.getMessage()));
+            return ResponseEntity.badRequest().body(DanpheHttpResponse.error(e.getMessage()));
         }
     }
 
