@@ -20,7 +20,9 @@ const NewAdmission = () => {
     const [formData, setFormData] = useState({
         patientId: searchParams.get('patientId') || '',
         admittingDoctorId: '',
-        bedId: '',
+        // Arriving from a free bed on the ward board preselects it, so picking a bed on the
+        // board and picking one again in this form aren't two separate decisions.
+        bedId: searchParams.get('bedId') || '',
         admissionNotes: '',
     });
     const [beds, setBeds] = useState([]);
@@ -39,7 +41,18 @@ const NewAdmission = () => {
     const fetchBeds = async () => {
         try {
             const response = await axios.get('/api/Adt/Beds?status=available');
-            if (response.data.Results) setBeds(response.data.Results);
+            const list = response.data.Results;
+            if (!list) return;
+            setBeds(list);
+
+            // A bed carried in from the ward board can be claimed by someone else before this
+            // form loads. Drop the stale choice and say so, rather than leaving a bed
+            // selected that the server will reject on submit.
+            setFormData(prev => {
+                if (!prev.bedId || list.some(b => String(b.bedId) === String(prev.bedId))) return prev;
+                toast.error('That bed was just taken — pick another.');
+                return { ...prev, bedId: '' };
+            });
         } catch (error) { console.error(error); }
     };
 
