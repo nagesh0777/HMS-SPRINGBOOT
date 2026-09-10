@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { DosageInput, parseDosage, formatDosage } from '@/components/ui/dosage-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1199,26 +1198,62 @@ const PrescriptionManagement = () => {
                                             placeholder="Name" value={m.name}
                                             onChange={e => { const meds = [...editingTemplate.medicines]; meds[i] = { ...meds[i], name: e.target.value }; setEditingTemplate(p => ({ ...p, medicines: meds })); }}
                                         />
-                                        {/* Stepper rather than a text box: adjusting a template
-                                            dose (5ml → 7.5ml for a child) is a nudge, not a
-                                            retype. Stored back as the same "7.5 ml" string the
-                                            rest of the app already reads. */}
-                                        <div className="col-span-8 sm:col-span-3">
-                                            <DosageInput
-                                                amount={parseDosage(m.dosage).amount}
-                                                unit={parseDosage(m.dosage).unit}
-                                                onAmountChange={(amount) => {
+                                        {((m.name || '').toUpperCase().includes('SYRUP') || (m.dosage || '').toUpperCase().includes('ML')) ? (
+                                            <div className="col-span-8 flex h-8 items-center rounded-md border border-input bg-background overflow-hidden sm:col-span-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = m.dosage || '5ML';
+                                                        const match = String(cur).trim().match(/^([\d.]+)\s*(.*)$/);
+                                                        let num = match ? parseFloat(match[1]) : 5;
+                                                        let next = Math.max(0.5, num - 1);
+                                                        const meds = [...editingTemplate.medicines];
+                                                        meds[i] = { ...meds[i], dosage: `${next}ML` };
+                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                    }}
+                                                    className="flex h-full w-7 shrink-0 items-center justify-center border-r border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                >
+                                                    <Minus className="h-3 w-3" />
+                                                </button>
+                                                <input
+                                                    type="text"
+                                                    className="h-full min-w-0 flex-1 bg-transparent px-1 text-center text-xs font-semibold tabular-nums focus:outline-hidden"
+                                                    value={m.dosage}
+                                                    onChange={e => {
+                                                        const meds = [...editingTemplate.medicines];
+                                                        meds[i] = { ...meds[i], dosage: e.target.value };
+                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                    }}
+                                                    placeholder="ML"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = m.dosage || '0ML';
+                                                        const match = String(cur).trim().match(/^([\d.]+)\s*(.*)$/);
+                                                        let num = match ? parseFloat(match[1]) : 0;
+                                                        let next = num + 1;
+                                                        const meds = [...editingTemplate.medicines];
+                                                        meds[i] = { ...meds[i], dosage: `${next}ML` };
+                                                        setEditingTemplate(p => ({ ...p, medicines: meds }));
+                                                    }}
+                                                    className="flex h-full w-7 shrink-0 items-center justify-center border-l border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <Input
+                                                className="col-span-8 h-8 text-xs sm:col-span-3"
+                                                placeholder="Dosage (e.g. 500mg)"
+                                                value={m.dosage}
+                                                onChange={e => {
                                                     const meds = [...editingTemplate.medicines];
-                                                    meds[i] = { ...meds[i], dosage: formatDosage(amount, parseDosage(meds[i].dosage).unit) };
-                                                    setEditingTemplate(p => ({ ...p, medicines: meds }));
-                                                }}
-                                                onUnitChange={(unit) => {
-                                                    const meds = [...editingTemplate.medicines];
-                                                    meds[i] = { ...meds[i], dosage: formatDosage(parseDosage(meds[i].dosage).amount, unit) };
+                                                    meds[i] = { ...meds[i], dosage: e.target.value };
                                                     setEditingTemplate(p => ({ ...p, medicines: meds }));
                                                 }}
                                             />
-                                        </div>
+                                        )}
                                         <select
                                             className="col-span-4 h-8 rounded-md border border-input bg-background px-2 text-xs sm:col-span-3"
                                             value={m.frequency}
@@ -1484,7 +1519,17 @@ const PrescriptionManagement = () => {
                                         <div className="relative md:col-span-2">
                                             <Input
                                                 value={currentMed.name || medSearch}
-                                                onChange={e => { setMedSearch(e.target.value); setCurrentMed(prev => ({ ...prev, name: e.target.value })); setShowMedSuggestions(true); }}
+                                                onChange={e => {
+                                                const val = e.target.value;
+                                                setMedSearch(val);
+                                                const isS = val.toUpperCase().includes('SYRUP');
+                                                setCurrentMed(prev => ({
+                                                    ...prev,
+                                                    name: val,
+                                                    dosage: (isS && !prev.dosage) ? '5ML' : prev.dosage,
+                                                }));
+                                                setShowMedSuggestions(true);
+                                            }}
                                                 onFocus={() => setShowMedSuggestions(true)}
                                                 onBlur={() => setTimeout(() => setShowMedSuggestions(false), 200)}
                                                 placeholder="Medicine name…"
@@ -1492,7 +1537,16 @@ const PrescriptionManagement = () => {
                                             {showMedSuggestions && medSearch && (
                                                 <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-md border bg-popover shadow-md scrollbar-thin">
                                                     {filteredMeds.slice(0, 8).map(m => (
-                                                        <button key={m} onMouseDown={() => { setCurrentMed(prev => ({ ...prev, name: m })); setMedSearch(m); setShowMedSuggestions(false); }}
+                                                        <button key={m} onMouseDown={() => {
+                                                                const isS = m.toUpperCase().includes('SYRUP');
+                                                                setCurrentMed(prev => ({
+                                                                    ...prev,
+                                                                    name: m,
+                                                                    dosage: (isS && !prev.dosage) ? '5ML' : prev.dosage,
+                                                                }));
+                                                                setMedSearch(m);
+                                                                setShowMedSuggestions(false);
+                                                            }}
                                                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent">
                                                             <Pill className="h-3 w-3 text-muted-foreground" /> {m}
                                                         </button>
@@ -1500,15 +1554,59 @@ const PrescriptionManagement = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        {/* Dose is entered as amount + unit and stored back as the
-                                            same string the API and printed prescription expect, so
-                                            nothing downstream had to change. */}
-                                        <DosageInput
-                                            amount={parseDosage(currentMed.dosage).amount}
-                                            unit={parseDosage(currentMed.dosage).unit}
-                                            onAmountChange={(amount) => setCurrentMed(prev => ({ ...prev, dosage: formatDosage(amount, parseDosage(prev.dosage).unit) }))}
-                                            onUnitChange={(unit) => setCurrentMed(prev => ({ ...prev, dosage: formatDosage(parseDosage(prev.dosage).amount, unit) }))}
-                                        />
+                                        {/* Dose input: Syrups get +/- stepper controls, non-syrups get standard text input */}
+                                        {((currentMed.name || '').toUpperCase().includes('SYRUP') || (currentMed.dosage || '').toUpperCase().includes('ML')) ? (
+                                            <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = currentMed.dosage || '5ML';
+                                                        const match = String(cur).trim().match(/^([\d.]+)\s*(.*)$/);
+                                                        let num = match ? parseFloat(match[1]) : 5;
+                                                        let next = Math.max(0.5, num - 1);
+                                                        setCurrentMed(prev => ({ ...prev, dosage: `${next}ML` }));
+                                                    }}
+                                                    className="flex h-full w-9 shrink-0 items-center justify-center border-r border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                    title="Decrease dose"
+                                                >
+                                                    <Minus className="h-4 w-4" />
+                                                </button>
+                                                <input
+                                                    type="text"
+                                                    className="h-full min-w-0 flex-1 bg-transparent px-2 text-center text-sm font-semibold tabular-nums focus:outline-hidden"
+                                                    value={currentMed.dosage}
+                                                    onChange={e => setCurrentMed(prev => ({ ...prev, dosage: e.target.value }))}
+                                                    onBlur={e => {
+                                                        const val = e.target.value.trim();
+                                                        if (val && /^\d+(\.\d+)?$/.test(val)) {
+                                                            setCurrentMed(prev => ({ ...prev, dosage: `${val}ML` }));
+                                                        }
+                                                    }}
+                                                    placeholder="e.g. 5ML"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = currentMed.dosage || '0ML';
+                                                        const match = String(cur).trim().match(/^([\d.]+)\s*(.*)$/);
+                                                        let num = match ? parseFloat(match[1]) : 0;
+                                                        let next = num + 1;
+                                                        setCurrentMed(prev => ({ ...prev, dosage: `${next}ML` }));
+                                                    }}
+                                                    className="flex h-full w-9 shrink-0 items-center justify-center border-l border-input bg-muted/40 hover:bg-accent text-muted-foreground hover:text-foreground active:bg-muted transition-colors"
+                                                    title="Increase dose"
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <Input
+                                                value={currentMed.dosage}
+                                                placeholder="Dosage (e.g. 500mg, 1 tab, 5ml, SOS)"
+                                                onChange={e => setCurrentMed(prev => ({ ...prev, dosage: e.target.value }))}
+                                                className="h-10"
+                                            />
+                                        )}
                                         <select value={currentMed.frequency} onChange={e => setCurrentMed(prev => ({ ...prev, frequency: e.target.value }))} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
                                             {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
                                         </select>
