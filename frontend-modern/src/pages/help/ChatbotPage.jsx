@@ -202,7 +202,7 @@ const ChatbotPage = () => {
         if (!query) return;
 
         const userMsg = {
-            id: Date.now(),
+            id: Math.random(),
             sender: 'user',
             text: query,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -215,7 +215,7 @@ const ChatbotPage = () => {
         setTimeout(() => {
             const result = findAnswer(query);
             const botMsg = {
-                id: Date.now() + 1,
+                id: Math.random(),
                 sender: 'bot',
                 text: `${result.title ? `### ${result.title}\n\n` : ''}${result.answer}`,
                 action: result.action,
@@ -473,6 +473,10 @@ const ChatbotPage = () => {
                                     <div>
                                         <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Hospital ID</span>
                                         <span className="font-medium text-foreground">Facility #{currentHospId}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Staff ID</span>
+                                        <span className="font-medium text-foreground">{currentEmpId !== "N/A" ? `EMP #${currentEmpId}` : (currentDocId !== "N/A" ? `DOC #${currentDocId}` : "Admin / System")}</span>
                                     </div>
                                     <div>
                                         <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Session Token</span>

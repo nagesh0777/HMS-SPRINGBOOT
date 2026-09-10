@@ -172,7 +172,7 @@ const CareTeamsPage = () => {
         try {
             const sessionSent = JSON.parse(sessionStorage.getItem("teams_sent_ids") || "[]");
             if (sessionSent.includes(msg.id)) return true;
-        } catch {}
+        } catch (e) { /* ignore */ }
         if (currentEmpId && msg.senderEmployeeId && String(msg.senderEmployeeId) === String(currentEmpId)) return true;
         if (msg.senderName) {
             const sName = msg.senderName.trim().toLowerCase();
@@ -332,7 +332,7 @@ const CareTeamsPage = () => {
                 try {
                     const prev = JSON.parse(sessionStorage.getItem("teams_sent_ids") || "[]");
                     sessionStorage.setItem("teams_sent_ids", JSON.stringify([...prev, saved.id]));
-                } catch {}
+                } catch (e) { /* ignore */ }
                 setAllMessages(prev => [...prev, saved]);
             }
             setInputText('');
@@ -522,7 +522,7 @@ const CareTeamsPage = () => {
                             <span>Online</span>
                         </div>
                         <span className="text-[10px] text-muted-foreground font-medium">
-                            {notifsEnabled ? '🔔 Audible' : '🔕 Muted'}
+                            {notifsEnabled ? (browserPerm === 'granted' ? '🔔 Desktop Active' : '🔔 Audible') : '🔕 Muted'}
                         </span>
                     </div>
                 </div>
