@@ -1,5 +1,5 @@
-# Build stage — eclipse-temurin:17 (slim) supports linux/arm64
-FROM maven:3.9.6-eclipse-temurin-17 AS build
+# Build stage — eclipse-temurin:21 (slim) supports linux/arm64
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
 # Copy pom and download dependencies (cache layer)
@@ -10,8 +10,8 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
-# Run stage — eclipse-temurin:17-jre supports linux/arm64
-FROM eclipse-temurin:17-jre
+# Run stage — eclipse-temurin:21-jre supports linux/arm64
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Create a non-root user for security
