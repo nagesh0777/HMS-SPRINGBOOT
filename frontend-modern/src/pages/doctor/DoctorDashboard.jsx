@@ -4,7 +4,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, AlertTriangle, User, Pill, Plus, X, ChevronRight,
-    Stethoscope, RefreshCw, UserCheck, Calculator, Mic, Info,
+    Stethoscope, RefreshCw, Calculator, Info,
     ShieldCheck as VerifiedIcon, Send, Loader2, Maximize2,
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
@@ -12,7 +12,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -66,7 +65,6 @@ const DUTY_OPTIONS = [
     { value: 'Away', dot: 'bg-muted-foreground' },
 ];
 
-const PRIORITY_BADGE = { HIGH: 'destructive', MEDIUM: 'warning', LOW: 'success' };
 
 /** Free-text drug entry with suggestions — a full combobox is overkill for a field this
  *  narrow, and doctors are typing fast enough that suggestions must not steal focus. */
@@ -136,8 +134,6 @@ const DoctorDashboard = () => {
     const [ptSearching, setPtSearching] = useState(false);
     const searchDebounce = useRef(null);
 
-    const [scribeOpen, setScribeOpen] = useState(false);
-    const [scribeRecording, setScribeRecording] = useState(false);
 
     const [calcTab, setCalcTab] = useState('bmi');
     const [height, setHeight] = useState(170);
@@ -159,19 +155,6 @@ const DoctorDashboard = () => {
     const [rxSubmitting, setRxSubmitting] = useState(false);
     const rxDebounce = useRef(null);
 
-    const [reminders, setReminders] = useState(() => {
-        try {
-            const s = localStorage.getItem(`dr_notes_${userName}`);
-            return s ? JSON.parse(s) : [
-                { id: 1, text: 'Perform clinical round reviews in ICU ward', checked: false, priority: 'HIGH' },
-                { id: 2, text: 'Sign off pending lab reports for Aarav Patel', checked: false, priority: 'MEDIUM' },
-                { id: 3, text: 'Finalize prescription for inpatient discharge', checked: false, priority: 'LOW' },
-            ];
-        } catch { return []; }
-    });
-    const [newReminder, setNewReminder] = useState('');
-    const [reminderPriority, setReminderPriority] = useState('MEDIUM');
-
     const loadWorkspace = async () => {
         try {
             const [dashRes, queueRes] = await Promise.all([
@@ -187,7 +170,6 @@ const DoctorDashboard = () => {
     };
 
     useEffect(() => { loadWorkspace(); }, []);
-    useEffect(() => { localStorage.setItem(`dr_notes_${userName}`, JSON.stringify(reminders)); }, [reminders, userName]);
 
     // Auto-populate the calculators from whichever patient is loaded into Quick Rx, so
     // rounds do not require re-keying height/weight/age that is already on file.
@@ -298,43 +280,6 @@ const DoctorDashboard = () => {
         setRxDiagnosis(tpl.name);
         setRxMedicines(tpl.medicines.map(m => ({ ...m })));
         toast.success(`Loaded "${tpl.name}" template`);
-    };
-
-    /** Simulated voice-to-text: fills the pad from a canned transcript rather than a real
-     *  ASR round trip, so this is clearly a demo aid, not a claim of live dictation. */
-    const runScribeTemplate = (type) => {
-        setScribeRecording(true);
-        toast.info('AI Scribe listening... compiling speech transcript');
-
-        setTimeout(() => {
-            setScribeRecording(false);
-            setScribeOpen(false);
-            if (type === 'cardio') {
-                setRxDiagnosis('Essential Hypertension');
-                setRxNotes('62yo male presented for standard cardiology review. Blood pressure recorded at 154/96 mmHg, pulse 88 bpm. Reports mild morning headaches. Kidney/renal panel is clear.');
-                setRxMedicines([
-                    { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: 'Ongoing', instructions: 'In the morning, check BP twice weekly' },
-                    { name: 'Atorvastatin', dosage: '10mg', frequency: 'Once daily', duration: '30 days', instructions: 'At bedtime, lipid control' },
-                ]);
-                toast.success('AI Scribe populated: Cardiology Consultation Report');
-            } else if (type === 'cough') {
-                setRxDiagnosis('Pediatric Allergic Bronchitis');
-                setRxNotes('5yo female with recurring dry allergic cough, worse during nocturnal hours. SpO2 98% on room air, mild bilateral wheeze. Chest clear of infection.');
-                setRxMedicines([
-                    { name: 'Montelukast', dosage: '5mg', frequency: 'Once daily', duration: '10 days', instructions: 'Chewable tablet at bedtime' },
-                    { name: 'Cetirizine', dosage: '5mg/5mL Syrup', frequency: 'Once daily', duration: '5 days', instructions: '2.5mL at bedtime for cough' },
-                ]);
-                toast.success('AI Scribe populated: Pediatric Allergic Cough Report');
-            } else if (type === 'gastric') {
-                setRxDiagnosis('Acid Peptic Disease / GERD');
-                setRxNotes('34yo female complains of burning epigastric discomfort, exacerbated by empty stomach and spicy foods. Relieved transiently by antacids.');
-                setRxMedicines([
-                    { name: 'Pantoprazole', dosage: '40mg', frequency: 'Once daily', duration: '14 days', instructions: 'Before breakfast, empty stomach' },
-                    { name: 'Domperidone', dosage: '10mg', frequency: 'Three times daily', duration: '7 days', instructions: '15 minutes before meals' },
-                ]);
-                toast.success('AI Scribe populated: Adult Gastritis Report');
-            }
-        }, 1500);
     };
 
     const bmiVal = Number((weight / Math.pow(height / 100, 2)).toFixed(1));
@@ -519,49 +464,10 @@ const DoctorDashboard = () => {
                                 </span>
                                 <ChevronRight className={cn('ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform', rxOpen && 'rotate-90')} />
                             </button>
-                            <Button variant="outline" size="sm" onClick={() => setScribeOpen(v => !v)} className="shrink-0 gap-1.5">
-                                <Mic className="h-3.5 w-3.5" /> AI scribe
-                            </Button>
+
                         </div>
 
-                        <AnimatePresence initial={false}>
-                            {scribeOpen && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-b bg-muted/30">
-                                    <div className="space-y-3 p-5">
-                                        <div className="flex items-center justify-between">
-                                            <p className="flex items-center gap-2 text-xs font-semibold">
-                                                <Mic className="h-3.5 w-3.5" /> AI clinical scribe (demo)
-                                            </p>
-                                            <button onClick={() => setScribeOpen(false)} className="text-muted-foreground hover:text-foreground">
-                                                <X className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                        <p className="text-xs leading-relaxed text-muted-foreground">
-                                            Choose a sample transcript to simulate voice dictation — it fills the diagnosis, notes and medicine grid below.
-                                        </p>
-                                        {scribeRecording ? (
-                                            <div className="flex items-center justify-center gap-2.5 py-4 text-xs font-medium text-muted-foreground">
-                                                <Loader2 className="h-4 w-4 animate-spin" /> Transcribing consult notes…
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                                {[
-                                                    ['cardio', 'Cardiology report', 'Adult hypertension review'],
-                                                    ['cough', 'Allergic cough', 'Pediatric asthma/cough'],
-                                                    ['gastric', 'Gastritis report', 'GERD & empty stomach'],
-                                                ].map(([key, title, sub]) => (
-                                                    <button key={key} type="button" onClick={() => runScribeTemplate(key)}
-                                                            className="rounded-md border bg-card p-2.5 text-left transition-colors hover:border-foreground/30 hover:bg-accent">
-                                                        <p className="text-xs font-semibold">{title}</p>
-                                                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{sub}</p>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        
 
                         <AnimatePresence initial={false}>
                             {rxOpen && (
@@ -691,77 +597,9 @@ const DoctorDashboard = () => {
                     </Card>
                 </div>
 
-                {/* ══ Right: reminders + calculators ══ */}
+                {/* ══ Right: clinical calculators ══ */}
                 <div className="space-y-6">
-                    <Card className="p-5">
-                        <h3 className="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-semibold">
-                            <UserCheck className="h-4 w-4 text-muted-foreground" /> My shift reminders
-                        </h3>
-
-                        <div className="max-h-52 space-y-2 overflow-y-auto pr-1 scrollbar-thin">
-                            {reminders.map(rem => (
-                                <div key={rem.id} className={cn(
-                                    'flex items-center gap-2.5 rounded-md border p-2.5',
-                                    rem.checked && 'opacity-50',
-                                )}>
-                                    <Checkbox
-                                        checked={rem.checked}
-                                        onCheckedChange={() => {
-                                            setReminders(reminders.map(r => r.id === rem.id ? { ...r, checked: !r.checked } : r));
-                                            if (!rem.checked) toast.success(`Completed: ${rem.text}`);
-                                        }}
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className={cn('truncate text-[13px] font-medium', rem.checked && 'text-muted-foreground line-through')}>
-                                            {rem.text}
-                                        </p>
-                                        {!rem.checked && (
-                                            <Badge variant={PRIORITY_BADGE[rem.priority]} className="mt-1 text-[9px]">
-                                                {rem.priority}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <button onClick={() => { setReminders(p => p.filter(r => r.id !== rem.id)); toast.warning('Task removed from shift notes.'); }}
-                                            className="shrink-0 p-1 text-muted-foreground hover:text-destructive">
-                                        <X className="h-3 w-3" />
-                                    </button>
-                                </div>
-                            ))}
-                            {reminders.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">No reminders yet.</p>}
-                        </div>
-
-                        <form onSubmit={e => {
-                            e.preventDefault();
-                            if (!newReminder.trim()) return;
-                            setReminders(p => [...p, { id: Date.now(), text: newReminder.trim(), checked: false, priority: reminderPriority }]);
-                            toast.success(`Reminder added: ${newReminder.trim()}`);
-                            setNewReminder(''); setReminderPriority('MEDIUM');
-                        }} className="mt-4 space-y-2 border-t pt-4">
-                            <div className="flex gap-2">
-                                <Input value={newReminder} onChange={e => setNewReminder(e.target.value)}
-                                       placeholder="Add clinical shift task…" className="h-9 flex-1 text-xs" />
-                                <Button type="submit" size="icon" className="h-9 w-9 shrink-0"><Plus className="h-4 w-4" /></Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Priority:</span>
-                                <div className="flex flex-1 gap-1.5">
-                                    {['HIGH', 'MEDIUM', 'LOW'].map(prio => (
-                                        <button key={prio} type="button" onClick={() => setReminderPriority(prio)}
-                                                className={cn(
-                                                    'flex-1 rounded-md border py-1 text-[9px] font-semibold uppercase tracking-wider transition-colors',
-                                                    reminderPriority === prio
-                                                        ? prio === 'HIGH' ? 'border-destructive bg-destructive text-destructive-foreground'
-                                                        : prio === 'MEDIUM' ? 'border-warning bg-warning text-warning-foreground'
-                                                        : 'border-success bg-success text-success-foreground'
-                                                        : 'border-input bg-secondary text-muted-foreground',
-                                                )}>
-                                            {prio}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </form>
-                    </Card>
+                    
 
                     <Card className="p-5">
                         <div className="mb-4 border-b pb-3">
