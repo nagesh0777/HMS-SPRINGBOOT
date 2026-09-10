@@ -127,9 +127,30 @@ const PrescriptionManagement = () => {
     const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
     const [editingTemplate, setEditingTemplate] = useState(null);
 
-    const [form, setForm] = useState({
-        diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '',
-        medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '',
+    // A consultation started on the quick pad arrives here rather than being retyped.
+    // Read once and cleared, so re-opening this page later starts blank.
+    const [form, setForm] = useState(() => {
+        const blank = {
+            diagnosis: '', clinicalNotes: '', allergyWarnings: '', recommendedTests: '', advice: '',
+            medicines: [], followUpDate: '', followUpNotes: '', patientWeight: '', patientHeight: '',
+        };
+        if (searchParams.get('draft') !== '1') return blank;
+        try {
+            const raw = sessionStorage.getItem('rx-draft');
+            sessionStorage.removeItem('rx-draft');
+            if (!raw) return blank;
+            const draft = JSON.parse(raw);
+            // Only adopt a draft written for the patient this page was opened for.
+            if (String(draft.patientId) !== String(prePatientId)) return blank;
+            return {
+                ...blank,
+                diagnosis: draft.diagnosis || '',
+                clinicalNotes: draft.clinicalNotes || '',
+                medicines: Array.isArray(draft.medicines) ? draft.medicines : [],
+            };
+        } catch {
+            return blank;
+        }
     });
     const [appliedTemplates, setAppliedTemplates] = useState([]);
 

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, AlertTriangle, User, Pill, Plus, X, ChevronRight,
     Stethoscope, RefreshCw, UserCheck, Calculator, Mic, Info,
-    ShieldCheck as VerifiedIcon, Send, Loader2,
+    ShieldCheck as VerifiedIcon, Send, Loader2, Maximize2,
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { Card } from '@/components/ui/card';
@@ -259,7 +259,11 @@ const DoctorDashboard = () => {
                 diagnosis: rxDiagnosis,
                 clinicalNotes: rxNotes,
                 medicines: JSON.stringify(validMeds),
-                status: 'active',
+                // Same status the full composer writes. This pad used to save 'active', so an
+                // identical prescription carried a different status depending only on which
+                // screen the doctor happened to use, splitting the record for anything
+                // downstream that reads it.
+                status: 'finalized',
             });
             toast.success(`Prescription sent for ${rxPatient.firstName} ${rxPatient.lastName}`);
             setRxPatient(null); setRxPatientQuery(''); setRxDiagnosis(''); setRxNotes('');
@@ -271,6 +275,23 @@ const DoctorDashboard = () => {
         } finally {
             setRxSubmitting(false);
         }
+    };
+
+    /**
+     * Hand the half-written pad over to the full composer. The draft travels through
+     * sessionStorage rather than the URL because medicines are a list, and it is cleared
+     * on read so a later visit doesn't resurrect someone else's consultation.
+     */
+    const continueInFullRx = () => {
+        if (!rxPatient) { toast.error('Please select a patient.'); return; }
+        sessionStorage.setItem('rx-draft', JSON.stringify({
+            patientId: rxPatient.patientId,
+            diagnosis: rxDiagnosis,
+            clinicalNotes: rxNotes,
+            medicines: rxMedicines.filter(m => m.name.trim()),
+        }));
+        navigate(`/dashboard/doctor/prescriptions?patientId=${rxPatient.patientId}`
+            + `&patientName=${encodeURIComponent(`${rxPatient.firstName} ${rxPatient.lastName}`)}&draft=1`);
     };
 
     const loadRxTemplate = (tpl) => {
@@ -652,6 +673,12 @@ const DoctorDashboard = () => {
                                         <div className="flex items-start gap-3">
                                             <Input value={rxNotes} onChange={e => setRxNotes(e.target.value)}
                                                    placeholder="Clinical notes & warnings…" className="h-9 flex-1 text-xs" />
+                                            {/* This pad covers a simple OPD case. The moment one needs allergy
+                                                warnings, tests, advice or a follow-up date, the doctor had to
+                                                abandon it and retype everything in the full composer. */}
+                                            <Button variant="outline" onClick={continueInFullRx} disabled={rxSubmitting} className="shrink-0">
+                                                <Maximize2 /> Full prescription
+                                            </Button>
                                             <Button onClick={handleRxSubmit} disabled={rxSubmitting} className="shrink-0">
                                                 {rxSubmitting ? <Loader2 className="animate-spin" /> : <Send />}
                                                 {rxSubmitting ? 'Sending…' : 'Send prescription'}
