@@ -1,8 +1,10 @@
 package com.danphe.emr.service;
 
 import com.danphe.emr.model.Employee;
+import com.danphe.emr.model.Notification;
 import com.danphe.emr.model.TeamChatMessage;
 import com.danphe.emr.repository.EmployeeRepository;
+import com.danphe.emr.repository.NotificationRepository;
 import com.danphe.emr.repository.TeamChatRepository;
 import com.danphe.emr.security.SecurityUtil;
 import com.danphe.emr.security.UserDetailsImpl;
@@ -14,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,13 +26,11 @@ public class TeamChatService {
 
     private final TeamChatRepository teamChatRepository;
     private final EmployeeRepository employeeRepository;
+    private final NotificationRepository notificationRepository;
 
     public static final List<Map<String, String>> DEFAULT_CHANNELS = List.of(
-            Map.of("id", "general", "name", "General Huddle", "desc", "Hospital-wide handovers, shifts, and coordination announcements"),
-            Map.of("id", "doctors-lounge", "name", "Doctors Lounge", "desc", "Physician-to-physician clinical consultations and case discussions"),
-            Map.of("id", "urgent-calls", "name", "Urgent & Code Alerts", "desc", "High priority alerts, rapid response, emergency notifications"),
-            Map.of("id", "ipd-nursing", "name", "IPD & Nursing Ward", "desc", "Inpatient bed transfers, medication checks, and nursing handovers"),
-            Map.of("id", "opd-reception", "name", "OPD & Front Desk", "desc", "Patient arrivals, schedule delays, token status, registration queries")
+            Map.of("id", "general", "name", "General", "desc", "Hospital-wide updates, handovers, and staff coordination"),
+            Map.of("id", "urgent", "name", "Urgent", "desc", "Emergency alerts, critical patient calls, and rapid response")
     );
 
     public List<Map<String, String>> getAvailableChannels() {
@@ -57,9 +56,9 @@ public class TeamChatService {
         String targetChannel = (channel == null || channel.trim().isEmpty()) ? "general" : channel.trim().toLowerCase();
         UserDetailsImpl currentUser = SecurityUtil.getCurrentUser();
 
-        String senderName = "Care Team Member";
+        String senderName = "Team Member";
         String senderRole = "Staff";
-        String senderTitle = "Hospital Care Team";
+        String senderTitle = "Staff";
         Integer senderUserId = null;
         Integer senderEmpId = null;
 
@@ -100,13 +99,31 @@ public class TeamChatService {
         msg.setIsUrgent(Boolean.TRUE.equals(isUrgent));
         msg.setCreatedAt(LocalDateTime.now());
 
-        return teamChatRepository.save(msg);
+        TeamChatMessage saved = teamChatRepository.save(msg);
+
+        // If urgent, broadcast as an emergency notification so everyone gets alerted in top bar
+        if (Boolean.TRUE.equals(isUrgent)) {
+            try {
+                Notification notif = new Notification();
+                notif.setHospitalId(hospitalId);
+                notif.setType("emergency");
+                notif.setPriority("urgent");
+                notif.setTitle("Urgent Team Alert from " + senderName + " (" + senderRole + ")");
+                notif.setMessage(messageText.trim());
+                notif.setRelatedModule("teams");
+                notif.setRelatedEntityId(targetChannel);
+                notificationRepository.save(notif);
+            } catch (Exception e) {
+                log.warn("Failed to broadcast urgent team alert notification", e);
+            }
+        }
+
+        return saved;
     }
 
     /**
-     * Automated pruning routine:
-     * Runs on startup and every 4 hours to purge any chat message older than 7 days,
-     * permanently releasing disk and database space.
+     * Automated background pruning:
+     * Deletes chat messages older than 7 days permanently to keep disk storage lean.
      */
     @PostConstruct
     public void initPurge() {
@@ -119,7 +136,7 @@ public class TeamChatService {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(7);
         int deleted = teamChatRepository.deleteExpiredMessages(cutoff);
         if (deleted > 0) {
-            log.info("CareTeams: Successfully purged {} ephemeral messages older than 7 days (before {}) to save disk space.", deleted, cutoff);
+            log.info("Team messages purge: removed {} records older than 7 days.", deleted);
         }
         return deleted;
     }

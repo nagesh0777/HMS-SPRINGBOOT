@@ -62,7 +62,7 @@ const ITEM = {
     history:       { id: 'history',       label: 'Consultation log', short: 'Log',      icon: History,         path: '/dashboard/doctor/history' },
     doctorProfile: { id: 'doctor-profile', label: 'Doctor profile',   short: 'Profile',  icon: User,            path: '/dashboard/doctor/profile' },
     hospitals:     { id: 'hospitals',     label: 'Hospitals',        short: 'Fleet',    icon: Building,        path: '/dashboard/hospitals' },
-    careTeams:     { id: 'care-teams',     label: 'Care Teams',       short: 'Teams',    icon: MessageSquare,   path: '/dashboard/care-teams' },
+    careTeams:     { id: 'teams',          label: 'Teams',            short: 'Teams',    icon: MessageSquare,   path: '/dashboard/teams' },
 };
 
 /**
