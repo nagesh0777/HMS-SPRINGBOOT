@@ -23,6 +23,14 @@ import {
 import { Logo, LogoLockup } from '@/components/app/logo';
 import { ThemeToggle } from '@/components/app/theme-toggle';
 import { EmptyState } from '@/components/app/empty-state';
+import { useToast } from '../components/Toast';
+import {
+    playNotificationChime,
+    isNotificationsEnabled,
+    setNotificationsEnabled,
+    showDesktopNotification,
+    unlockAudio,
+} from '@/lib/teamChatNotifications';
 import { cn } from '@/lib/utils';
 
 /** Notification kinds carry clinical weight, so each gets a tone rather than a raw colour. */
@@ -144,6 +152,82 @@ const DashboardLayout = () => {
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [notifLoading, setNotifLoading] = useState(false);
+    const toast = useToast();
+    const [teamsUnreadCount, setTeamsUnreadCount] = useState(0);
+    const [chatNotifsEnabled, setChatNotifsEnabled] = useState(isNotificationsEnabled);
+    const lastKnownChatId = useRef(0);
+    const isFirstChatPoll = useRef(true);
+
+    useEffect(() => {
+        const handleNotifChanged = (e) => {
+            setChatNotifsEnabled(e.detail?.enabled ?? isNotificationsEnabled());
+        };
+        window.addEventListener("teams_notif_changed", handleNotifChanged);
+        return () => window.removeEventListener("teams_notif_changed", handleNotifChanged);
+    }, []);
+
+    useEffect(() => {
+        if (activePath === "/dashboard/teams" || activePath === "/dashboard/care-teams") {
+            setTeamsUnreadCount(0);
+        }
+    }, [activePath]);
+
+    useEffect(() => {
+        const pollTeamsChat = async () => {
+            const isCurrentlyOnTeams = window.location.pathname.includes("/dashboard/teams") || window.location.pathname.includes("/dashboard/care-teams");
+            try {
+                const res = await axios.get("/api/TeamChat/Messages?channel=all");
+                const msgs = res.data?.Results || [];
+                if (msgs.length === 0) return;
+
+                const myName = (localStorage.getItem("userName") || "").trim().toLowerCase();
+                const myEmpId = localStorage.getItem("employeeId");
+
+                if (isFirstChatPoll.current) {
+                    lastKnownChatId.current = msgs[msgs.length - 1]?.id || 0;
+                    isFirstChatPoll.current = false;
+                    return;
+                }
+
+                const fresh = msgs.filter(m => m.id > lastKnownChatId.current);
+                if (fresh.length > 0) {
+                    lastKnownChatId.current = msgs[msgs.length - 1].id;
+
+                    const others = fresh.filter(m => {
+                        if (myEmpId && m.senderEmployeeId && String(m.senderEmployeeId) === String(myEmpId)) return false;
+                        if (m.senderName && m.senderName.trim().toLowerCase() === myName) return false;
+                        return true;
+                    });
+
+                    if (others.length > 0) {
+                        if (!isCurrentlyOnTeams) {
+                            setTeamsUnreadCount(c => c + others.length);
+                        }
+
+                        if (isNotificationsEnabled() && !isCurrentlyOnTeams) {
+                            const latest = others[others.length - 1];
+                            playNotificationChime(Boolean(latest.isUrgent));
+
+                            const prefix = latest.isUrgent ? "🚨 URGENT ALERT" : "💬 Team Chat";
+                            toast.info(`${prefix} from ${latest.senderName} (${latest.senderRole}): ${latest.message.slice(0, 70)}…`);
+
+                            showDesktopNotification(
+                                `${latest.isUrgent ? "🚨 URGENT TEAM ALERT" : "Team Message"} - ${latest.senderName}`,
+                                latest.message,
+                                () => navigate("/dashboard/teams")
+                            );
+                        }
+                    }
+                }
+            } catch {
+                // silent
+            }
+        };
+
+        pollTeamsChat();
+        const interval = setInterval(pollTeamsChat, 8000);
+        return () => clearInterval(interval);
+    }, [navigate, toast]);
 
     useEffect(() => {
         localStorage.setItem('sidebar-collapsed', isCollapsed);
@@ -377,6 +461,14 @@ const DashboardLayout = () => {
                                     >
                                         <Icon className="h-[18px] w-[18px] shrink-0" />
                                         {!collapsed && <span className="truncate">{item.label}</span>}
+                                        {item.id === "teams" && teamsUnreadCount > 0 && (
+                                            <span className={cn(
+                                                "flex items-center justify-center rounded-full bg-emerald-600 font-bold text-white text-[10px]",
+                                                collapsed ? "absolute -top-1 -right-1 h-4 min-w-4 px-1" : "ml-auto h-4 min-w-4 px-1.5"
+                                            )}>
+                                                {teamsUnreadCount > 9 ? "9+" : teamsUnreadCount}
+                                            </span>
+                                        )}
                                     </button>
                                 );
 
@@ -567,6 +659,47 @@ const DashboardLayout = () => {
                                             );
                                         })
                                     )}
+                                </div>
+
+                                {/* Teams Chat Alert Toggle */}
+                                <div className="flex items-center justify-between border-t bg-muted/20 px-3.5 py-2 text-xs">
+                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                        <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        <span className="font-medium text-foreground">Chat Sound:</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            unlockAudio();
+                                            const next = !chatNotifsEnabled;
+                                            setChatNotifsEnabled(next);
+                                            setNotificationsEnabled(next);
+                                            if (next) {
+                                                playNotificationChime(false);
+                                                toast.success("Team chat sound turned ON");
+                                            } else {
+                                                toast.info("Team chat notifications turned OFF (Muted)");
+                                            }
+                                        }}
+                                        className={cn(
+                                            "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border transition-colors shadow-2xs",
+                                            chatNotifsEnabled
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
+                                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800"
+                                        )}
+                                    >
+                                        {chatNotifsEnabled ? (
+                                            <>
+                                                <Bell className="h-3 w-3 text-emerald-600" />
+                                                <span>ON</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BellOff className="h-3 w-3 text-rose-600" />
+                                                <span>OFF (Muted)</span>
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
 
                                 {panelNotifications.length > 0 && (

@@ -39,8 +39,11 @@ public class TeamChatService {
 
     public List<TeamChatMessage> getMessages(Integer hospitalId, String channel) {
         if (hospitalId == null) return List.of();
-        String targetChannel = (channel == null || channel.trim().isEmpty()) ? "general" : channel.trim().toLowerCase();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(7);
+        if (channel != null && channel.trim().equalsIgnoreCase("all")) {
+            return teamChatRepository.findByHospitalIdAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(hospitalId, cutoff);
+        }
+        String targetChannel = (channel == null || channel.trim().isEmpty()) ? "general" : channel.trim().toLowerCase();
         return teamChatRepository.findByHospitalIdAndChannelAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(hospitalId, targetChannel, cutoff);
     }
 

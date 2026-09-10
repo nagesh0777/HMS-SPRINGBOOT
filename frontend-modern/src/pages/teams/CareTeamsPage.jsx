@@ -1,18 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import {
     Users, AlertTriangle, Send, Shield, Stethoscope,
     ClipboardList, RefreshCw, MessageSquare, Bell, BellOff,
-    CheckCheck, Check, Search, Smile
+    CheckCheck, Volume2, X
 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, initials } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '../../components/Toast';
 import { cn } from '@/lib/utils';
+import {
+    playNotificationChime,
+    isNotificationsEnabled,
+    setNotificationsEnabled,
+    requestDesktopNotificationPermission,
+    showDesktopNotification,
+    unlockAudio,
+} from '@/lib/teamChatNotifications';
 
 const CHANNELS = [
     {
@@ -42,43 +48,8 @@ const QUICK_TAGS = [
     'Patient Arrival',
 ];
 
-// Play a pleasant Web Audio notification chime
-const playNotificationChime = (urgent = false) => {
-    try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        const now = ctx.currentTime;
-        if (urgent) {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(880, now);
-            osc.frequency.setValueAtTime(440, now + 0.15);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-            osc.start(now);
-            osc.stop(now + 0.35);
-        } else {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, now); // D5
-            osc.frequency.setValueAtTime(880, now + 0.1); // A5
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        }
-    } catch {
-        // AudioContext may be blocked before first user interaction
-    }
-};
-
 const getRoleConfig = (role = '') => {
-    const r = role.toLowerCase();
+    const r = (role || '').toLowerCase();
     if (r.includes('doctor') || r.includes('physician')) {
         return {
             label: 'Doctor',
@@ -148,70 +119,156 @@ const formatDate = (dateStr) => {
 const CareTeamsPage = () => {
     const toast = useToast();
     const [activeChannel, setActiveChannel] = useState('general');
-    const [messages, setMessages] = useState([]);
+    const [allMessages, setAllMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [inputText, setInputText] = useState('');
     const [isUrgent, setIsUrgent] = useState(false);
 
-    // Notification toggle with localStorage persistence
-    const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-        const saved = localStorage.getItem('teams_notif_enabled');
-        return saved === null ? true : saved === 'true';
-    });
+    // Notification states
+    const [notifsEnabled, setNotifsEnabled] = useState(isNotificationsEnabled);
+    const [browserPerm, setBrowserPerm] = useState(() => (
+        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+    ));
+    const [showPermBanner, setShowPermBanner] = useState(false);
 
     const messagesEndRef = useRef(null);
-    const previousMessageIds = useRef(new Set());
+    const knownMessageIds = useRef(new Set());
+    const sentMessageIds = useRef(new Set());
     const isFirstLoad = useRef(true);
-    const currentUserName = localStorage.getItem('userName') || 'You';
 
-    const toggleNotifications = () => {
-        const next = !notificationsEnabled;
+    const currentUserName = (localStorage.getItem('userName') || '').trim().toLowerCase();
+    const currentEmpId = localStorage.getItem('employeeId');
+
+    // Unread count in the channel the user is NOT currently watching
+    const otherChannel = activeChannel === 'general' ? 'urgent' : 'general';
+    const [channelLastReadTime, setChannelLastReadTime] = useState({
+        general: Date.now(),
+        urgent: Date.now(),
+    });
+
+    const activeMeta = CHANNELS.find(c => c.id === activeChannel) || CHANNELS[0];
+
+    // Filter messages for currently active channel
+    const currentMessages = useMemo(() => {
+        return allMessages.filter(m => (m.channel || 'general').toLowerCase() === activeChannel);
+    }, [allMessages, activeChannel]);
+
+    // Calculate unread badge count for the inactive channel
+    const otherUnreadCount = useMemo(() => {
+        const lastRead = channelLastReadTime[otherChannel] || 0;
+        return allMessages.filter(m => {
+            const chan = (m.channel || 'general').toLowerCase();
+            if (chan !== otherChannel) return false;
+            const time = new Date(m.createdAt).getTime();
+            return time > lastRead;
+        }).length;
+    }, [allMessages, otherChannel, channelLastReadTime]);
+
+    // Check if message belongs to current user
+    const isFromMe = useCallback((msg) => {
+        if (sentMessageIds.current.has(msg.id)) return true;
+        if (currentEmpId && msg.senderEmployeeId && String(msg.senderEmployeeId) === String(currentEmpId)) return true;
+        if (msg.senderName && msg.senderName.trim().toLowerCase() === currentUserName) return true;
+        return false;
+    }, [currentEmpId, currentUserName]);
+
+    // Check browser notification permission status on mount
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            const perm = Notification.permission;
+            setBrowserPerm(perm);
+            if (perm === 'default' && notifsEnabled) {
+                setShowPermBanner(true);
+            }
+        }
+    }, [notifsEnabled]);
+
+    // Turn notifications ON or OFF
+    const handleToggleNotifications = async (turnOn) => {
+        unlockAudio();
+        const next = turnOn !== undefined ? turnOn : !notifsEnabled;
+        setNotifsEnabled(next);
         setNotificationsEnabled(next);
-        localStorage.setItem('teams_notif_enabled', String(next));
 
         if (next) {
-            toast.success('Team notifications turned ON');
+            toast.success('Team Chat notifications turned ON');
             playNotificationChime(false);
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
+
+            // Request browser desktop permission if needed
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                const result = await requestDesktopNotificationPermission();
+                setBrowserPerm(result);
+                setShowPermBanner(false);
+                if (result === 'granted') {
+                    showDesktopNotification('Team Chat Notifications Active', 'You will now receive sound and desktop alerts for new messages.');
+                }
             }
         } else {
-            toast.info('Team notifications turned OFF');
+            toast.info('Team Chat notifications turned OFF (Muted)');
+            setShowPermBanner(false);
         }
     };
 
-    const fetchMessages = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
+    // Test sound button
+    const handleTestSound = () => {
+        unlockAudio();
+        playNotificationChime(false);
+        toast.info('Playing notification sound test...');
+    };
+
+    // Request desktop permission from banner
+    const handleAllowDesktopAlerts = async () => {
+        unlockAudio();
+        const res = await requestDesktopNotificationPermission();
+        setBrowserPerm(res);
+        setShowPermBanner(false);
+        if (res === 'granted') {
+            playNotificationChime(false);
+            toast.success('Desktop notifications enabled!');
+            showDesktopNotification('Notifications Enabled', 'Desktop alerts are ready for team messages.');
+        } else if (res === 'denied') {
+            toast.info('Notifications are blocked by your browser settings.');
+        }
+    };
+
+    // Poll messages across all channels
+    const fetchAllMessages = useCallback(async (silent = false) => {
+        if (!silent && isFirstLoad.current) setLoading(true);
         try {
-            const res = await axios.get(`/api/TeamChat/Messages?channel=${activeChannel}`);
+            const res = await axios.get('/api/TeamChat/Messages?channel=all');
             if (res.data?.Results) {
-                const newMsgs = res.data.Results;
-                setMessages(newMsgs);
+                const freshList = res.data.Results;
+                setAllMessages(freshList);
 
-                // Detect new incoming messages for audio/toast alert
-                if (!isFirstLoad.current && notificationsEnabled) {
-                    const fresh = newMsgs.filter(m => !previousMessageIds.current.has(m.id));
-                    if (fresh.length > 0) {
-                        const latest = fresh[fresh.length - 1];
-                        const isFromMe = latest.senderName === currentUserName || latest.senderUserId === Number(localStorage.getItem('userId'));
-                        if (!isFromMe) {
-                            playNotificationChime(latest.isUrgent);
-                            toast.info(`New message from ${latest.senderName} (${latest.senderRole}): ${latest.message.slice(0, 60)}…`);
+                // Check for new incoming messages for audio/toast/desktop alert
+                if (!isFirstLoad.current && notifsEnabled) {
+                    const brandNew = freshList.filter(m => !knownMessageIds.current.has(m.id));
+                    if (brandNew.length > 0) {
+                        // Filter out my own messages
+                        const incoming = brandNew.filter(m => !isFromMe(m));
+                        if (incoming.length > 0) {
+                            const latest = incoming[incoming.length - 1];
+                            const isUrgentMsg = Boolean(latest.isUrgent);
 
-                            if ('Notification' in window && Notification.permission === 'granted') {
-                                try {
-                                    new Notification(`${latest.senderName} (${latest.senderRole})`, {
-                                        body: latest.message,
-                                        icon: '/favicon.ico',
-                                    });
-                                } catch {}
-                            }
+                            // Play Audio Chime
+                            playNotificationChime(isUrgentMsg);
+
+                            // In-App Toast
+                            const chanLabel = latest.channel === 'urgent' ? '🚨 URGENT ALERT' : '💬 General';
+                            toast.info(`${chanLabel} from ${latest.senderName} (${latest.senderRole}): ${latest.message.slice(0, 70)}…`);
+
+                            // Browser Desktop Notification
+                            showDesktopNotification(
+                                `${latest.isUrgent ? '🚨 URGENT CLINICAL ALERT' : 'Team Message'} - ${latest.senderName}`,
+                                latest.message
+                            );
                         }
                     }
                 }
 
-                previousMessageIds.current = new Set(newMsgs.map(m => m.id));
+                // Update known IDs
+                knownMessageIds.current = new Set(freshList.map(m => m.id));
                 isFirstLoad.current = false;
             }
         } catch (e) {
@@ -220,45 +277,56 @@ const CareTeamsPage = () => {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [activeChannel, currentUserName, notificationsEnabled, toast]);
+    }, [isFromMe, notifsEnabled, toast]);
 
+    // Initial load + 4 second polling loop
     useEffect(() => {
-        isFirstLoad.current = true;
-        fetchMessages(false);
-        const interval = setInterval(() => {
-            fetchMessages(true);
-        }, 4000);
+        fetchAllMessages(false);
+        const interval = setInterval(() => fetchAllMessages(true), 4000);
         return () => clearInterval(interval);
-    }, [fetchMessages]);
+    }, [fetchAllMessages]);
 
+    // Channel switch handler
+    const handleSwitchChannel = (channelId) => {
+        setActiveChannel(channelId);
+        setChannelLastReadTime(prev => ({
+            ...prev,
+            [channelId]: Date.now(),
+        }));
+    };
+
+    // Auto-scroll on new message
     useEffect(() => {
-        if (!loading) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages, loading]);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [currentMessages.length, activeChannel]);
 
+    // Send Message
     const handleSendMessage = async (e) => {
-        e?.preventDefault();
-        const text = inputText.trim();
-        if (!text || submitting) return;
+        e.preventDefault();
+        unlockAudio();
+        const trimmed = inputText.trim();
+        if (!trimmed) return;
 
         setSubmitting(true);
         try {
-            const res = await axios.post('/api/TeamChat/Messages', {
+            const payload = {
                 channel: activeChannel,
-                message: text,
-                isUrgent: activeChannel === 'urgent' || isUrgent,
-            });
+                message: trimmed,
+                isUrgent: activeChannel === 'urgent' ? true : isUrgent,
+            };
+
+            const res = await axios.post('/api/TeamChat/Messages', payload);
             if (res.data?.Results) {
                 const saved = res.data.Results;
-                setMessages(prev => [...prev, saved]);
-                previousMessageIds.current.add(saved.id);
-                setInputText('');
-                setIsUrgent(false);
+                sentMessageIds.current.add(saved.id);
+                knownMessageIds.current.add(saved.id);
+                setAllMessages(prev => [...prev, saved]);
             }
-        } catch (e) {
-            console.error('Teams send error', e);
-            toast.error('Failed to send message.');
+            setInputText('');
+            setIsUrgent(false);
+        } catch (err) {
+            console.error('Failed to send message', err);
+            toast.error(err.response?.data?.ErrorMessage || 'Could not send message.');
         } finally {
             setSubmitting(false);
         }
@@ -267,15 +335,13 @@ const CareTeamsPage = () => {
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSendMessage();
+            handleSendMessage(e);
         }
     };
 
-    const activeMeta = CHANNELS.find(c => c.id === activeChannel) || CHANNELS[0];
-
     return (
         <div className="space-y-3">
-            {/* Top Bar */}
+            {/* Top Header Bar */}
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-xl font-bold tracking-tight sm:text-2xl flex items-center gap-2">
@@ -289,34 +355,51 @@ const CareTeamsPage = () => {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Test Sound Button */}
                     <Button
-                        variant={notificationsEnabled ? 'default' : 'outline'}
+                        type="button"
+                        variant="ghost"
                         size="sm"
-                        onClick={toggleNotifications}
-                        className={cn(
-                            'h-8 gap-1.5 text-xs font-medium transition-all',
-                            notificationsEnabled && 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        )}
-                        title="Toggle sound and desktop alert notifications"
+                        onClick={handleTestSound}
+                        className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+                        title="Click to test your speaker chime"
                     >
-                        {notificationsEnabled ? (
-                            <>
-                                <Bell className="h-3.5 w-3.5" />
-                                <span>Notifications: ON</span>
-                            </>
-                        ) : (
-                            <>
-                                <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span>Notifications: OFF</span>
-                            </>
-                        )}
+                        <Volume2 className="h-3.5 w-3.5" />
+                        <span className="hidden xs:inline">Test Sound</span>
                     </Button>
+
+                    {/* Notification ON/OFF Toggle Button */}
+                    {notifsEnabled ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleNotifications(false)}
+                            className="h-8 gap-1.5 px-3 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 hover:text-emerald-800 transition-all shadow-2xs"
+                            title="Notifications are active. Click to turn OFF (Mute)."
+                        >
+                            <Bell className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Notifications: ON</span>
+                        </Button>
+                    ) : (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleNotifications(true)}
+                            className="h-8 gap-1.5 px-3 text-xs font-semibold bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 hover:bg-rose-100 transition-all shadow-2xs"
+                            title="Notifications are muted. Click to turn ON."
+                        >
+                            <BellOff className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                            <span>Notifications: OFF (Muted)</span>
+                        </Button>
+                    )}
 
                     <Button
                         variant="outline"
                         size="icon-sm"
-                        onClick={() => fetchMessages(false)}
+                        onClick={() => fetchAllMessages(false)}
                         disabled={loading}
                         aria-label="Refresh messages"
                         title="Refresh messages"
@@ -326,13 +409,49 @@ const CareTeamsPage = () => {
                 </div>
             </div>
 
+            {/* Browser Permission Prompt Banner */}
+            {showPermBanner && (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 text-xs">
+                    <div className="flex items-center gap-2 text-foreground">
+                        <Bell className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>
+                            Allow browser notifications to receive sound and popup alerts when colleagues send messages.
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            type="button"
+                            onClick={handleAllowDesktopAlerts}
+                            className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-2xs"
+                        >
+                            Allow Alerts
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleToggleNotifications(false)}
+                            className="rounded-full border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                        >
+                            Turn Off
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowPermBanner(false)}
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Dismiss banner"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* WhatsApp-Style Chat Container */}
             <div className="grid grid-cols-1 overflow-hidden rounded-xl border bg-card shadow-sm lg:grid-cols-4 min-h-[640px]">
                 {/* Left Channels List (WhatsApp style chat sidebar) */}
                 <div className="border-b bg-muted/20 p-2.5 lg:border-b-0 lg:border-r lg:col-span-1 flex flex-col justify-between">
                     <div>
                         <div className="px-2 py-1.5 mb-2 flex items-center justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Chats</span>
+                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Channels</span>
                             <span className="text-[10px] rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 font-semibold px-2 py-0.5">
                                 2 Channels
                             </span>
@@ -342,13 +461,16 @@ const CareTeamsPage = () => {
                             {CHANNELS.map(chan => {
                                 const Icon = chan.icon;
                                 const isActive = activeChannel === chan.id;
+                                const isOther = chan.id === otherChannel;
+                                const unread = isOther ? otherUnreadCount : 0;
+
                                 return (
                                     <button
                                         key={chan.id}
                                         type="button"
-                                        onClick={() => setActiveChannel(chan.id)}
+                                        onClick={() => handleSwitchChannel(chan.id)}
                                         className={cn(
-                                            'flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all',
+                                            'flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all relative',
                                             isActive
                                                 ? 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-500/20'
                                                 : 'hover:bg-accent/60 text-muted-foreground hover:text-foreground'
@@ -365,6 +487,11 @@ const CareTeamsPage = () => {
                                                 <p className={cn('truncate text-sm font-semibold', isActive ? 'text-foreground font-bold' : 'text-foreground')}>
                                                     {chan.name}
                                                 </p>
+                                                {unread > 0 && (
+                                                    <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                                                        {unread}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                                 {chan.desc}
@@ -376,9 +503,14 @@ const CareTeamsPage = () => {
                         </div>
                     </div>
 
-                    <div className="p-2 border-t mt-4 text-[11px] text-muted-foreground flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>Connected to hospital team</span>
+                    <div className="p-2 border-t mt-4 text-[11px] text-muted-foreground flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Online</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                            {notifsEnabled ? '🔔 Audible' : '🔕 Muted'}
+                        </span>
                     </div>
                 </div>
 
@@ -409,7 +541,7 @@ const CareTeamsPage = () => {
 
                     {/* Chat Messages Wallpaper / Body */}
                     <div className="flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin bg-[#efeae2]/60 dark:bg-[#0b141a]/95">
-                        {loading && messages.length === 0 ? (
+                        {loading && currentMessages.length === 0 ? (
                             <div className="space-y-4">
                                 {Array.from({ length: 4 }).map((_, i) => (
                                     <div key={i} className={cn('flex gap-2', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
@@ -417,21 +549,21 @@ const CareTeamsPage = () => {
                                     </div>
                                 ))}
                             </div>
-                        ) : messages.length === 0 ? (
+                        ) : currentMessages.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center text-center p-6 text-muted-foreground">
                                 <div className="h-12 w-12 rounded-full bg-muted/60 flex items-center justify-center mb-2">
                                     <MessageSquare className="h-6 w-6 text-muted-foreground/60" />
                                 </div>
                                 <p className="text-sm font-semibold text-foreground">No messages in {activeMeta.name}</p>
                                 <p className="text-xs text-muted-foreground max-w-xs mt-1">
-                                    Type a message below to update on-duty staff and physicians.
+                                    Type a message below to coordinate with on-duty staff.
                                 </p>
                             </div>
                         ) : (
-                            messages.map((msg, index) => {
+                            currentMessages.map((msg, index) => {
                                 const roleCfg = getRoleConfig(msg.senderRole);
-                                const isMe = msg.senderName === currentUserName || msg.senderUserId === Number(localStorage.getItem('userId'));
-                                const prevMsg = messages[index - 1];
+                                const isSelf = isFromMe(msg);
+                                const prevMsg = currentMessages[index - 1];
                                 const showDate = !prevMsg || formatDate(prevMsg.createdAt) !== formatDate(msg.createdAt);
 
                                 return (
@@ -446,18 +578,18 @@ const CareTeamsPage = () => {
                                         )}
 
                                         {/* WhatsApp Message Bubble */}
-                                        <div className={cn('flex w-full', isMe ? 'justify-end' : 'justify-start')}>
+                                        <div className={cn('flex w-full', isSelf ? 'justify-end' : 'justify-start')}>
                                             <div
                                                 className={cn(
                                                     'relative max-w-[82%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-xs transition-all',
-                                                    isMe
+                                                    isSelf
                                                         ? 'bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef] rounded-tr-xs'
                                                         : 'bg-card text-foreground dark:bg-[#202c33] dark:text-[#e9edef] border border-border/40 rounded-tl-xs',
                                                     msg.isUrgent && 'ring-2 ring-destructive ring-offset-1'
                                                 )}
                                             >
-                                                {/* Header inside bubble: Sender Name & Role (shown for others) */}
-                                                {!isMe && (
+                                                {/* Header inside bubble: Sender Name & Role (for other staff) */}
+                                                {!isSelf && (
                                                     <div className="mb-1 flex items-center gap-1.5">
                                                         <span className={cn('text-xs font-bold', roleCfg.color)}>
                                                             {msg.senderName}
@@ -485,7 +617,7 @@ const CareTeamsPage = () => {
                                                     {/* WhatsApp bottom-right time stamp & double checkmark */}
                                                     <span className="float-right ml-2 mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground select-none">
                                                         <span>{formatTime(msg.createdAt)}</span>
-                                                        {isMe && <CheckCheck className="h-3.5 w-3.5 text-sky-500" />}
+                                                        {isSelf && <CheckCheck className="h-3.5 w-3.5 text-sky-500" />}
                                                     </span>
                                                 </div>
                                             </div>
