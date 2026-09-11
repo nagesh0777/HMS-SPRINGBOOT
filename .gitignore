@@ -29,6 +29,11 @@ frontend-modern/yarn-error.log*
 mysql_data/
 uploads_data/
 database-backup/
-*.sql
-*.sql.gz
 data-snapshot/
+
+# NOTE: deliberately not ignoring *.sql / *.sql.gz here anymore. That blanket rule also
+# hid backend-java/src/main/resources/db/migration/*.sql from git -- meaning the Flyway
+# schema-of-record was never actually committed, only present on whichever machine
+# happened to have it locally. Dump files are still excluded via the directory rules
+# above (database-backup/, data-snapshot/); a real one-off .sql dump elsewhere should be
+# git-ignored at the specific path it lands in, not blocked repo-wide.
