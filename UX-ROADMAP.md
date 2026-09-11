@@ -10,14 +10,23 @@ Effort is rough: **S** ≈ under a day, **M** ≈ a few days, **L** ≈ a week o
 
 ## 0. What changed already
 
-Shipped locally this session, not yet deployed:
+Shipped this session, not yet deployed to the VPS:
 
 - Navigation rebuilt per role; a dead menu group and a hardcoded username-to-SuperAdmin
   grant removed.
 - Ward board now reads the real bed register instead of inventing eight beds.
 - Walk-in patients can be registered without abandoning the booking/admission form.
-- Quick Rx and the full composer now agree on prescription status, and the quick pad can
-  hand its draft to the composer instead of forcing a retype.
+- Quick Rx and the full composer briefly agreed on prescription status; the pad was then
+  removed outright in later work (see below), which settles §4.7 more decisively than a
+  status fix could.
+
+Landed independently after that, in a separate pass over the doctor and patient flows —
+kept here as fact, not attributed as this session's work: the Quick Rx pad and AI scribe
+demo removed from the consult desk, doctor profile fields made directly editable, syrup
+dosing given a proper +/- stepper, patient list paginated, appointment booking given a
+real date/time picker, an automatic day/night theme, and two new modules — **Care Teams**
+(internal staff messaging, `/dashboard/teams`) and a **Chatbot** help page
+(`/dashboard/chatbot`). None of those are audited below; this pass predates them.
 
 The rest of this document is what I would do next.
 
@@ -137,14 +146,10 @@ so they arrive with the patient and trend over time.
 Currently discharge writes a one-line remark. A proper summary — diagnosis, course, meds on
 discharge, follow-up date — is the document patients actually carry to the next doctor.
 
-### 4.7 Decide on the AI scribe — **S**
-> **Evidence:** `DoctorDashboard.jsx` — `runScribeTemplate` fills the pad from canned
-> transcripts on a timer. The code comment is explicit that it is a demo, and the UI is
-> labelled "(demo)".
-
-It is honestly labelled in the product but reads as a shipped feature in a screenshot or a
-sales call. Either wire it to real dictation, or move it behind a flag. It should not be
-demoed to a prospective hospital as-is.
+### 4.7 AI scribe — **resolved**
+Flagged here as a demo that reads like a shipped feature; it and the Quick Rx pad it lived
+in were removed from the consult desk in the work that landed after this audit. No action
+needed — noted so the decision doesn't look skipped.
 
 ---
 
