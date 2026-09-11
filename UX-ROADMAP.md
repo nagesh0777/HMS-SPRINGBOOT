@@ -294,8 +294,8 @@ The web manifest already exists. A doctor's phone should be able to keep it on t
 §9.2 session timeout · §9.3 password policy
 
 **Second — decide, then act**
-§1.1 pharmacy and §1.2 lab: build or stop selling. §4.7 AI scribe: wire up or hide.
-These are positioning decisions, not engineering ones, and they should not drift.
+§1.1 pharmacy and §1.2 lab: build or stop selling. This is a positioning decision, not an
+engineering one, and it should not drift.
 
 **Third — the daily grind**
 §5.1 today screen · §4.2 recent medicines · §4.3 keyboard queue · §6.1 bed transfer ·
