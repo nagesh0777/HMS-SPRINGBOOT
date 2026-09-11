@@ -76,6 +76,12 @@ public class SubscriptionController {
     @Value("${app.demo.recipient:croctechconnect@gmail.com}")
     private String demoRecipient;
 
+    // Launch offer: every new signup gets one free month, no payment step. A single flag
+    // rather than deleting the Razorpay path, so switching back to paid is one property --
+    // set app.subscriptions.free-launch=false when pricing goes live -- not a rewrite.
+    @Value("${app.subscriptions.free-launch:true}")
+    private boolean freeLaunch;
+
     private record Plan(String code, String name, int monthlyPaise, int yearlyPaise, List<String> modules,
             String description, String bestFor, boolean aiIncluded, List<String> limits, List<String> sellingPoints) {
     }
@@ -188,7 +194,8 @@ public class SubscriptionController {
 
         Plan plan = getPlan(request.planCode);
         String cycle = normalizeCycle(request.billingCycle);
-        boolean freeMonth = FREE_MONTH_PROMO.equalsIgnoreCase(nullToBlank(request.promoCode).trim());
+        boolean promoMatched = FREE_MONTH_PROMO.equalsIgnoreCase(nullToBlank(request.promoCode).trim());
+        boolean freeMonth = freeLaunch || promoMatched;
         int amount = freeMonth ? 0 : amountFor(plan, cycle);
 
         Hospital hospital = new Hospital();
@@ -233,7 +240,10 @@ public class SubscriptionController {
         subscription.setPlanCode(plan.code());
         subscription.setBillingCycle(cycle);
         subscription.setAmountInPaise(amount);
-        subscription.setPromoCode(freeMonth ? FREE_MONTH_PROMO : null);
+        // Record the real reason it's free -- was: always stamped "WELCOME" whenever
+        // freeMonth was true, which would have misattributed every launch-offer signup to
+        // a promo code nobody typed.
+        subscription.setPromoCode(promoMatched ? FREE_MONTH_PROMO : (freeMonth ? "LAUNCH_FREE" : null));
         subscription.setStatus(freeMonth ? "active" : "payment_pending");
 
         if (freeMonth) {
@@ -247,7 +257,9 @@ public class SubscriptionController {
 
             Map<String, Object> response = baseRegistrationResponse(hospital, subscription, plan);
             response.put("promoApplied", true);
-            response.put("message", "WELCOME applied. Your first month is active free.");
+            response.put("message", promoMatched
+                    ? "WELCOME applied. Your first month is active free."
+                    : "Launch offer applied - your first month is free, no payment required.");
             return ResponseEntity.ok(DanpheHttpResponse.ok(response));
         }
 
@@ -411,6 +423,10 @@ public class SubscriptionController {
         data.put("aiIncluded", plan.aiIncluded());
         data.put("limits", plan.limits());
         data.put("sellingPoints", plan.sellingPoints());
+        // Lets the signup page hide pricing and show the launch offer without hardcoding
+        // the assumption on the frontend -- flip app.subscriptions.free-launch and both
+        // sides pick it up.
+        data.put("freeLaunch", freeLaunch);
         return data;
     }
 

@@ -104,6 +104,11 @@ const SubscriptionRegister = () => {
     const activePlan = useMemo(() => plans.find((p) => p.code === selectedPlan) || plans[0], [plans, selectedPlan]);
     const price = activePlan ? (billingCycle === 'yearly' ? activePlan.yearlyPrice : activePlan.monthlyPrice) : 0;
     const monthlyEquivalent = activePlan?.yearlyPrice ? Math.round(activePlan.yearlyPrice / 12) : 0;
+    // Server-driven so the launch offer can end (app.subscriptions.free-launch=false) without
+    // a frontend redeploy -- both sides read the same flag instead of this page assuming it.
+    // Defaults true before the plans fetch resolves (matching the backend's own default) so
+    // the page never flashes priced copy while loading.
+    const freeLaunch = plans.length === 0 ? true : Boolean(plans[0]?.freeLaunch);
 
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -163,7 +168,7 @@ const SubscriptionRegister = () => {
 
             const result = res.data.Results;
             if (result.promoApplied) {
-                setMessage(result.message || 'WELCOME applied. Your admin login is ready.');
+                setMessage(result.message || 'Your first month is free. Your admin login is ready.');
                 localStorage.removeItem(FORM_CACHE_KEY);
                 setTimeout(() => navigate('/login'), 1600);
                 return;
@@ -267,20 +272,25 @@ const SubscriptionRegister = () => {
                     <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 lg:grid-cols-[1fr_440px]">
                         <div>
                             <Badge variant="secondary" className="mb-5 gap-1.5 py-1.5">
-                                <Sparkles className="h-3 w-3" /> First-launch pricing for Indian clinics
+                                <Sparkles className="h-3 w-3" /> {freeLaunch ? 'Free for your first month' : 'First-launch pricing for Indian clinics'}
                             </Badge>
                             <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
-                                Next-gen AI-powered all-in-one HMS, starting at ₹1,999/month.
+                                {freeLaunch
+                                    ? 'Next-gen AI-powered all-in-one HMS. Free for your first month.'
+                                    : 'Next-gen AI-powered all-in-one HMS, starting at ₹1,999/month.'}
                             </h1>
                             <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground">
                                 Trikaar HMS is built for clinics, nursing homes and hospitals that want patients, doctors, billing, employees, reports and AI in one connected system. Standard runs daily operations; Premium adds beds, analytics, priority support and owner intelligence.
                             </p>
 
                             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                                <Button size="lg" onClick={scrollToCheckout}><CreditCard /> Buy and create login</Button>
+                                <Button size="lg" onClick={scrollToCheckout}>
+                                    <CreditCard /> {freeLaunch ? 'Start free month' : 'Buy and create login'}
+                                </Button>
                                 <Button size="lg" variant="outline" onClick={scrollToDemo}><PhoneCall /> Request demo</Button>
                                 <Badge variant="warning" className="justify-center gap-1.5 py-2.5 text-xs">
-                                    <Zap className="h-3.5 w-3.5" /> Launch offer: WELCOME gives 1 month free
+                                    <Zap className="h-3.5 w-3.5" />
+                                    {freeLaunch ? 'No card required for your first month' : 'Launch offer: WELCOME gives 1 month free'}
                                 </Badge>
                             </div>
 
@@ -365,22 +375,36 @@ const SubscriptionRegister = () => {
                         <div>
                             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Simple launch pricing</p>
-                                    <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">Two plans. Billed monthly or yearly.</h2>
+                                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                                        {freeLaunch ? 'Launch offer' : 'Simple launch pricing'}
+                                    </p>
+                                    <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">
+                                        {freeLaunch ? 'Two plans. Free for your first month.' : 'Two plans. Billed monthly or yearly.'}
+                                    </h2>
                                 </div>
-                                <div className="inline-flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
-                                    {[['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([key, label]) => (
-                                        <button key={key} type="button" onClick={() => setBillingCycle(key)} aria-pressed={billingCycle === key}
-                                                className={cn('rounded-md px-4 py-2 text-xs font-semibold transition-colors', billingCycle === key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
+                                {/* Billing cycle only means something once a price is shown. */}
+                                {!freeLaunch && (
+                                    <div className="inline-flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
+                                        {[['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([key, label]) => (
+                                            <button key={key} type="button" onClick={() => setBillingCycle(key)} aria-pressed={billingCycle === key}
+                                                    className={cn('rounded-md px-4 py-2 text-xs font-semibold transition-colors', billingCycle === key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            <Badge variant="secondary" className="mb-6 gap-1.5 py-2">
-                                <ClipboardCheck className="h-3.5 w-3.5" /> Drafts are auto-saved on this device
-                            </Badge>
+                            <div className="mb-6 flex flex-wrap gap-2">
+                                <Badge variant="secondary" className="gap-1.5 py-2">
+                                    <ClipboardCheck className="h-3.5 w-3.5" /> Drafts are auto-saved on this device
+                                </Badge>
+                                {freeLaunch && (
+                                    <Badge variant="success" className="gap-1.5 py-2">
+                                        <Sparkles className="h-3.5 w-3.5" /> No card required for your first month
+                                    </Badge>
+                                )}
+                            </div>
 
                             <div className="grid gap-5 sm:grid-cols-2">
                                 {plans.map((plan) => {
@@ -398,11 +422,20 @@ const SubscriptionRegister = () => {
                                                         </div>
                                                         {selected && <Badge variant="secondary">Selected</Badge>}
                                                     </div>
-                                                    <div className="mt-5 flex items-end gap-1 border-b pb-4">
-                                                        <span className="tabular text-3xl font-semibold tracking-tight">₹{planPrice}</span>
-                                                        <span className="pb-1 text-xs text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
+                                                    <div className="mt-5 border-b pb-4">
+                                                        {freeLaunch ? (
+                                                            <div className="flex items-end gap-2">
+                                                                <span className="tabular text-3xl font-semibold tracking-tight text-success">Free</span>
+                                                                <span className="pb-1 text-xs text-muted-foreground">for your first month</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-end gap-1">
+                                                                <span className="tabular text-3xl font-semibold tracking-tight">₹{planPrice}</span>
+                                                                <span className="pb-1 text-xs text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {billingCycle === 'yearly' && (
+                                                    {!freeLaunch && billingCycle === 'yearly' && (
                                                         <Badge variant="success" className="mt-2.5">≈ ₹{planMonthlyEquivalent}/month</Badge>
                                                     )}
                                                     <div className="mt-4">
@@ -446,12 +479,21 @@ const SubscriptionRegister = () => {
                                 })}
                             </div>
 
-                            <Card className="mt-6 border-warning/25 bg-warning-subtle/40 p-5">
-                                <p className="flex items-center gap-2 text-sm font-semibold text-warning"><Sparkles className="h-4 w-4" /> Launch customer discount</p>
-                                <p className="mt-2 text-xs leading-relaxed text-warning/90">
-                                    Apply the coupon code <span className="rounded bg-card px-1.5 py-0.5 font-mono font-semibold">WELCOME</span> during registration to activate any selected plan free for one month.
-                                </p>
-                            </Card>
+                            {freeLaunch ? (
+                                <Card className="mt-6 border-success/25 bg-success-subtle/40 p-5">
+                                    <p className="flex items-center gap-2 text-sm font-semibold text-success"><Sparkles className="h-4 w-4" /> Every new clinic gets a free first month</p>
+                                    <p className="mt-2 text-xs leading-relaxed text-success/90">
+                                        No coupon, no card. Register below and your workspace is active immediately for 30 days.
+                                    </p>
+                                </Card>
+                            ) : (
+                                <Card className="mt-6 border-warning/25 bg-warning-subtle/40 p-5">
+                                    <p className="flex items-center gap-2 text-sm font-semibold text-warning"><Sparkles className="h-4 w-4" /> Launch customer discount</p>
+                                    <p className="mt-2 text-xs leading-relaxed text-warning/90">
+                                        Apply the coupon code <span className="rounded bg-card px-1.5 py-0.5 font-mono font-semibold">WELCOME</span> during registration to activate any selected plan free for one month.
+                                    </p>
+                                </Card>
+                            )}
                         </div>
 
                         {/* Checkout form */}
@@ -468,12 +510,21 @@ const SubscriptionRegister = () => {
                                     </div>
 
                                     <div className="rounded-lg border bg-muted/30 p-4">
-                                        <div className="flex items-end gap-1">
-                                            <span className="tabular text-3xl font-semibold tracking-tight">₹{price}</span>
-                                            <span className="pb-1 text-xs text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
-                                        </div>
+                                        {freeLaunch ? (
+                                            <div className="flex items-end gap-2">
+                                                <span className="tabular text-3xl font-semibold tracking-tight text-success">Free</span>
+                                                <span className="pb-1 text-xs text-muted-foreground">for 30 days</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-end gap-1">
+                                                <span className="tabular text-3xl font-semibold tracking-tight">₹{price}</span>
+                                                <span className="pb-1 text-xs text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
+                                            </div>
+                                        )}
                                         <p className="mt-1.5 text-xs text-muted-foreground">
-                                            {billingCycle === 'yearly' ? `About ₹${monthlyEquivalent}/month, billed annually.` : 'Instantly set up your clinic workspace.'}
+                                            {freeLaunch
+                                                ? 'No card required. Your admin login is ready right away.'
+                                                : billingCycle === 'yearly' ? `About ₹${monthlyEquivalent}/month, billed annually.` : 'Instantly set up your clinic workspace.'}
                                         </p>
                                         {activePlan?.limits?.length > 0 && (
                                             <div className="mt-3 space-y-1.5 border-t pt-3">
@@ -539,7 +590,11 @@ const SubscriptionRegister = () => {
                                         <InputField value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Clinic address / city" />
                                         <InputField required value={form.adminUsername} onChange={(e) => handleChange('adminUsername', e.target.value)} placeholder="Create admin username" />
                                         <InputField required type="password" value={form.adminPassword} onChange={(e) => handleChange('adminPassword', e.target.value)} placeholder="Create admin password" />
-                                        <InputField value={form.promoCode} onChange={(e) => handleChange('promoCode', e.target.value.toUpperCase())} placeholder="Promo code (e.g. WELCOME)" className="uppercase" />
+                                        {/* Every signup is free during the launch offer, so there is nothing to redeem --
+                                            asking for a code here would only raise the question of why one is needed. */}
+                                        {!freeLaunch && (
+                                            <InputField value={form.promoCode} onChange={(e) => handleChange('promoCode', e.target.value.toUpperCase())} placeholder="Promo code (e.g. WELCOME)" className="uppercase" />
+                                        )}
                                     </div>
 
                                     {error && (
@@ -555,7 +610,11 @@ const SubscriptionRegister = () => {
 
                                     <Button type="submit" size="lg" className="w-full" disabled={loading || !otpStatus.verified}>
                                         {loading ? <Loader2 className="animate-spin" /> : <CreditCard />}
-                                        {loading ? 'Processing…' : form.promoCode === 'WELCOME' ? 'Activate free month' : `Pay ₹${price} and create login`}
+                                        {loading
+                                            ? 'Processing…'
+                                            : freeLaunch || form.promoCode === 'WELCOME'
+                                                ? 'Start free month'
+                                                : `Pay ₹${price} and create login`}
                                     </Button>
 
                                     {checkout?.mockMode && (
@@ -624,7 +683,9 @@ const SubscriptionRegister = () => {
                                     </select>
                                     <select value={demoForm.preferredPlan} onChange={(e) => handleDemoChange('preferredPlan', e.target.value)} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
                                         {plans.map((plan) => (
-                                            <option key={plan.code} value={plan.code}>{plan.name} - ₹{plan.monthlyPrice}/mo or ₹{plan.yearlyPrice}/yr</option>
+                                            <option key={plan.code} value={plan.code}>
+                                                {plan.name}{freeLaunch ? ' - free for your first month' : ` - ₹${plan.monthlyPrice}/mo or ₹${plan.yearlyPrice}/yr`}
+                                            </option>
                                         ))}
                                     </select>
                                     <InputField value={demoForm.preferredTime} onChange={(e) => handleDemoChange('preferredTime', e.target.value)} placeholder="Preferred call time" />
@@ -655,7 +716,11 @@ const SubscriptionRegister = () => {
                     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 md:flex-row md:items-center md:justify-between">
                         <div>
                             <h2 className="text-xl font-semibold tracking-tight">Ready to launch your modern clinic EMR?</h2>
-                            <p className="mt-1.5 text-sm text-primary-foreground/70">Pick Standard at ₹1,999/month or Premium at ₹4,999/month. Billed yearly at a 20% discount.</p>
+                            <p className="mt-1.5 text-sm text-primary-foreground/70">
+                                {freeLaunch
+                                    ? 'Pick Standard or Premium — free for your first month, no card required.'
+                                    : 'Pick Standard at ₹1,999/month or Premium at ₹4,999/month. Billed yearly at a 20% discount.'}
+                            </p>
                         </div>
                         <Button size="lg" variant="secondary" onClick={scrollToCheckout}>Choose plan</Button>
                     </div>
