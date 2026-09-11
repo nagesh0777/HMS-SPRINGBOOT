@@ -33,6 +33,15 @@ services:
       # validate-only default in application.properties and re-enabling live auto-DDL
       # against a database holding patient records.
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      # A database that predates Flyway (years of ddl-auto=update) already has every V1 table,
+      # so literally running V1 would fail on "table already exists". Baselining at version 1
+      # tells Flyway "treat V1 as already applied" and it proceeds straight to V2 onward.
+      # Harmless on a genuinely empty database: baselining only activates when the schema is
+      # non-empty, so a fresh install still runs every migration from V1. Both vars already
+      # existed in .env with nothing wiring them to the container -- same class of gap as
+      # ALLOWED_ORIGINS below.
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      SPRING_FLYWAY_BASELINE_VERSION: ${SPRING_FLYWAY_BASELINE_VERSION:-1}
       JAVA_OPTS: "-XX:MaxRAMPercentage=65.0 -Xms128m -Xmx280m -Xss512k -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
       # No fallback: a committed default here would let anyone who has ever read this repo
       # (or its git history) mint a valid session token for any user in any hospital tenant.
