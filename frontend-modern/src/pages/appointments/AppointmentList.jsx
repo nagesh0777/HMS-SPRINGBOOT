@@ -36,7 +36,8 @@ const AppointmentList = () => {
     const [loading, setLoading] = useState(true);
     const [reschedulingApt, setReschedulingApt] = useState(null);
     const [cancellingApt, setCancellingApt] = useState(null);
-    const [newDate, setNewDate] = useState('');
+    const [rescheduleDate, setRescheduleDate] = useState('');
+    const [rescheduleTime, setRescheduleTime] = useState('');
     const [saving, setSaving] = useState(false);
     const navigate = useNavigate();
     const toast = useToast();
@@ -89,17 +90,23 @@ const AppointmentList = () => {
 
     const openReschedule = (apt) => {
         setReschedulingApt(apt);
-        setNewDate(toLocalInput(apt.appointmentDate));
+        const d = new Date(apt.appointmentDate);
+        const pad = (n) => String(n).padStart(2, '0');
+        setRescheduleDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+        setRescheduleTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
     };
 
     const handleReschedule = async (e) => {
         e.preventDefault();
-        if (!newDate) return;
+        if (!rescheduleDate || !rescheduleTime) {
+            toast.error("Please pick both date and time");
+            return;
+        }
         setSaving(true);
         try {
             const patientName = `${reschedulingApt.firstName} ${reschedulingApt.lastName}`;
             const res = await axios.put(`/api/Appointment/${reschedulingApt.appointmentId}/Reschedule`, {
-                appointmentDate: newDate,
+                appointmentDate: `${rescheduleDate}T${rescheduleTime}:00`,
             });
             if (res.data.Status === 'OK') {
                 toast.success(`Rescheduled ${patientName}'s appointment.`);
@@ -244,22 +251,80 @@ const AppointmentList = () => {
                     </DialogHeader>
 
                     <form onSubmit={handleReschedule} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="newDate">New date &amp; time</Label>
-                            <Input
-                                id="newDate"
-                                type="datetime-local"
-                                required
-                                value={newDate}
-                                onChange={(e) => setNewDate(e.target.value)}
-                            />
+                        <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+                            {/* Day Presets */}
+                            <div>
+                                <Label className="text-xs font-semibold text-muted-foreground block mb-1.5">New Date</Label>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                    {[
+                                        { l: "Today", off: 0 },
+                                        { l: "Tomorrow", off: 1 },
+                                        { l: "In 2 Days", off: 2 },
+                                    ].map(b => {
+                                        const d = new Date();
+                                        d.setDate(d.getDate() + b.off);
+                                        const pad = (n) => String(n).padStart(2, "0");
+                                        const val = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                                        return (
+                                            <Button
+                                                key={b.l}
+                                                type="button"
+                                                size="xs"
+                                                variant={rescheduleDate === val ? "default" : "outline"}
+                                                onClick={() => setRescheduleDate(val)}
+                                                className="h-6 text-[11px] px-2 rounded-full"
+                                            >
+                                                {b.l}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+                                <Input
+                                    type="date"
+                                    required
+                                    min={todayIso}
+                                    value={rescheduleDate}
+                                    onChange={(e) => setRescheduleDate(e.target.value)}
+                                    className="h-9 bg-background"
+                                />
+                            </div>
+
+                            {/* Time Slots */}
+                            <div>
+                                <Label className="text-xs font-semibold text-muted-foreground block mb-1.5">New Time Slot</Label>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                    {["09:00", "10:00", "11:30", "14:00", "16:00", "17:30"].map(t => (
+                                        <button
+                                            key={t}
+                                            type="button"
+                                            onClick={() => setRescheduleTime(t)}
+                                            className={cn(
+                                                "rounded border px-2 py-0.5 text-xs font-medium transition-colors",
+                                                rescheduleTime === t
+                                                    ? "bg-primary text-primary-foreground border-primary"
+                                                    : "bg-background hover:bg-accent text-foreground"
+                                            )}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                                <Input
+                                    type="time"
+                                    required
+                                    value={rescheduleTime}
+                                    onChange={(e) => setRescheduleTime(e.target.value)}
+                                    className="h-9 bg-background"
+                                />
+                            </div>
                         </div>
+
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setReschedulingApt(null)}>
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={saving}>
-                                {saving && <Loader2 className="animate-spin" />}
+                                {saving && <Loader2 className="animate-spin mr-1.5" />}
                                 Save new time
                             </Button>
                         </DialogFooter>
